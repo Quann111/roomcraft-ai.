@@ -1,0 +1,9 @@
+{
+  "name": "roomcraft-ai",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2025-09-01",
+  "assets": { "directory": "./dist", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] },
+  "d1_databases": [{ "binding": "DB", "database_name": "roomcraft", "database_id": "8745ee4e-3ca6-400b-862e-83f57e7646b5" }],
+  "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "roomcraft-images" }],
+  "vars": { "DAILY_CREDITS": "3" }
+}
