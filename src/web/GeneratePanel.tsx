@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { bi } from "./i18n";
 
 type Meta = {
-  styles: { slug: string; name: string; scope: string }[];
+  styles: { slug: string; name: string; scope: string; thumb?: string }[];
   roomTypes: string[]; intervention: string[];
   surfaces: Record<string, string[]>; weather: string[]; remove: string[]; angles: string[];
 };
@@ -47,7 +47,7 @@ export function BeforeAfter({ before, after }: { before: string; after: string }
   );
 }
 
-export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId; preset?: Preset; onCreditsChange: () => void }) {
+export function useGenerator(tool: ToolId, preset: Preset | undefined, onCreditsChange: () => void) {
   const cfg = CFG[tool];
   const [meta, setMeta] = useState<Meta | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -96,14 +96,14 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
 
   const togglePublic = async () => {
     if (!gen) return;
-    if (!gen.public && !confirm("Publish to community gallery? · Đăng lên thư viện cộng đồng? Cả ảnh gốc và ảnh kết quả sẽ hiển thị công khai (không kèm email).")) return;
+    if (!gen.public && !confirm(bi("Publish to community gallery? · Đăng lên thư viện cộng đồng? Cả ảnh gốc và ảnh kết quả sẽ hiển thị công khai (không kèm email)."))) return;
     try {
       const r = await j<{ public: boolean }>(`/api/generations/${gen.id}/publish`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ public: !gen.public }) });
       setGen({ ...gen, public: r.public }); loadHistory();
     } catch (e: any) { setErr(e.message); }
   };
   const remove_ = async () => {
-    if (!gen || !confirm("Delete this design permanently? · Xoá vĩnh viễn thiết kế này?")) return;
+    if (!gen || !confirm(bi("Delete this design permanently? · Xoá vĩnh viễn thiết kế này?"))) return;
     try { await j(`/api/generations/${gen.id}`, { method: "DELETE" }); setGen(null); loadHistory(); } catch (e: any) { setErr(e.message); }
   };
 
@@ -148,18 +148,23 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
     } catch (e: any) { setErr(e.message); setBusy(false); onCreditsChange(); }
   };
 
-  if (!meta) return <p className="mt-8 text-center text-neutral-500">Loading… · Đang tải…</p>;
+  return { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory };
+}
+
+export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId; preset?: Preset; onCreditsChange: () => void }) {
+  const { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory } = useGenerator(tool, preset, onCreditsChange);
+  if (!meta) return <p className="mt-8 text-center text-neutral-500">{bi("Loading… · Đang tải…")}</p>;
   const field = "w-full rounded border p-2";
   return (
     <div className="mt-6 grid gap-6 md:grid-cols-2">
       <div className="flex flex-col gap-3">
         <label className="flex min-h-48 cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-dashed">
-          {preview ? <img src={preview} className="max-h-72 w-full object-contain" alt="ảnh gốc" /> : <span className="px-4 text-center text-neutral-500">{cfg.hint} (JPG/PNG/WebP, ≤10MB)</span>}
+          {preview ? <img src={preview} className="max-h-72 w-full object-contain" alt="ảnh gốc" /> : <span className="px-4 text-center text-neutral-500">{bi(cfg.hint)} (JPG/PNG/WebP, ≤10MB)</span>}
           <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
         </label>
         {cfg.room && <select className={field} value={room} onChange={(e) => setRoom(e.target.value)}>{meta.roomTypes.map((r) => <option key={r} value={r}>{bi(r)}</option>)}</select>}
         {cfg.scope && <select className={field} value={style} onChange={(e) => setStyle(e.target.value)}>{styles.map((s) => <option key={s.slug} value={s.slug}>{bi(s.name)}</option>)}</select>}
-        {cfg.angle && <select className={field} value={angle} onChange={(e) => setAngle(e.target.value)}>{meta.angles.map((a) => <option key={a} value={a}>View · Góc nhìn: {bi(a)}</option>)}</select>}
+        {cfg.angle && <select className={field} value={angle} onChange={(e) => setAngle(e.target.value)}>{meta.angles.map((a) => <option key={a} value={a}>{bi("View · Góc nhìn")}: {bi(a)}</option>)}</select>}
         {cfg.weather && <select className={field} value={weather} onChange={(e) => setWeather(e.target.value)}>{meta.weather.map((w) => <option key={w} value={w}>{bi(w)}</option>)}</select>}
         {cfg.remove && (
           <div className="flex flex-wrap gap-3 text-sm">
@@ -177,32 +182,32 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
           </>
         )}
         {cfg.intervention && (
-          <label className="text-sm">AI intervention · Mức can thiệp AI: <b>{bi(meta.intervention[lvl])}</b>
+          <label className="text-sm">{bi("AI intervention · Mức can thiệp AI: ")}<b>{bi(meta.intervention[lvl])}</b>
             <input type="range" min={0} max={4} value={lvl} onChange={(e) => setLvl(+e.target.value)} className="w-full" />
           </label>
         )}
-        <textarea className={field} rows={2} maxLength={500} placeholder="Extra instructions (optional) · Yêu cầu thêm (tuỳ chọn)" value={custom} onChange={(e) => setCustom(e.target.value)} />
+        <textarea className={field} rows={2} maxLength={500} placeholder={bi("Extra instructions (optional) · Yêu cầu thêm (tuỳ chọn)")} value={custom} onChange={(e) => setCustom(e.target.value)} />
         <select className={field} value={res} onChange={(e) => setRes(e.target.value)}>
           {Object.entries(RES_COST).map(([k, c]) => <option key={k} value={k}>{k.toUpperCase()} · {c} credit{c > 1 ? "s" : ""}</option>)}
         </select>
         {err && <p className="text-sm text-red-600">{err}</p>}
-        <button disabled={!file || busy} onClick={run} className="rounded bg-black py-3 text-white disabled:opacity-40">{busy ? "Generating… (1–2 min) · Đang tạo…" : "Generate · Tạo thiết kế"}</button>
+        <button disabled={!file || busy} onClick={run} className="rounded bg-black py-3 text-white disabled:opacity-40">{busy ? bi("Generating… (1–2 min) · Đang tạo…") : bi("Generate · Tạo thiết kế")}</button>
       </div>
       <div>
         {gen?.status === "SUCCESS" && gen.outputUrl ? (
           <>
             <BeforeAfter before={gen.inputUrl} after={gen.outputUrl} />
             <div className="mt-3 flex flex-wrap gap-2 text-sm">
-              <a href={gen.outputUrl} download={`design-${gen.id}.png`} className="rounded border px-4 py-2">Download · Tải ảnh xuống</a>
-              <button onClick={togglePublic} className="rounded border px-4 py-2">{gen.public ? "Unpublish · Gỡ khỏi thư viện" : "Publish · Đăng lên thư viện"}</button>
-              <button onClick={remove_} className="rounded border px-4 py-2 text-red-600">Delete · Xoá</button>
+              <a href={gen.outputUrl} download={`design-${gen.id}.png`} className="rounded border px-4 py-2">{bi("Download · Tải ảnh xuống")}</a>
+              <button onClick={togglePublic} className="rounded border px-4 py-2">{gen.public ? bi("Unpublish · Gỡ khỏi thư viện") : bi("Publish · Đăng lên thư viện")}</button>
+              <button onClick={remove_} className="rounded border px-4 py-2 text-red-600">{bi("Delete · Xoá")}</button>
             </div>
           </>
-        ) : <div className="flex h-full min-h-48 items-center justify-center rounded-xl border text-neutral-400">{busy ? "Processing… · Đang xử lý…" : "Result appears here · Kết quả sẽ hiện ở đây"}</div>}
+        ) : <div className="flex h-full min-h-48 items-center justify-center rounded-xl border text-neutral-400">{busy ? bi("Processing… · Đang xử lý…") : bi("Result appears here · Kết quả sẽ hiện ở đây")}</div>}
       </div>
       {history.length > 0 && (
         <div className="md:col-span-2">
-          <h3 className="mb-2 font-semibold">History · Lịch sử</h3>
+          <h3 className="mb-2 font-semibold">{bi("History · Lịch sử")}</h3>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {history.filter((h) => h.outputUrl).map((h) => (
               <button key={h.id} onClick={() => setGen({ id: h.id, status: "SUCCESS", public: h.public, inputUrl: h.inputUrl, outputUrl: h.outputUrl })} className="overflow-hidden rounded-lg border">

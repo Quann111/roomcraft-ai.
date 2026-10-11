@@ -1,32 +1,10 @@
 import excelStyles from "../../seed/styles.json" with { type: "json" };
 
-export type Style = { slug: string; name: string; scope: "interior" | "exterior" | "garden"; prompt: string };
+export type Style = { slug: string; name: string; scope: "interior" | "exterior" | "garden"; prompt: string; img?: string };
 
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-// Interior styles from the Excel file are kept verbatim; extras below follow the same template.
-const INTERIOR_EXTRA: [string, string][] = [
-  ["Farmhouse", "shiplap walls, a slipcovered sofa, reclaimed wood tables, black iron fixtures and a warm white and wood palette"],
-  ["Mid-Century Revival", "tapered-leg wood furniture, a low-slung sofa, sunburst accents and teal, mustard and walnut tones"],
-  ["Glam", "tufted velvet seating, mirrored surfaces, crystal lighting and gold accents on a champagne and blush palette"],
-  ["Maximalist", "layered patterns, saturated jewel colors, gallery walls and abundant curated decor"],
-  ["Wabi-Sabi", "handmade ceramics, raw plaster textures, low natural furniture and a muted earthy palette"],
-  ["Hamptons", "crisp white upholstery, navy accents, woven baskets and airy linen drapes"],
-  ["Moroccan", "carved wood, tile patterns, lanterns, poufs and rich saffron, teal and terracotta colors"],
-  ["Victorian", "ornate carved furniture, deep jewel-tone upholstery, heavy drapes and antique brass lighting"],
-  ["Gothic", "dark moody walls, dramatic velvet, wrought iron and candle-style lighting in a deep burgundy and black palette"],
-  ["Cyberpunk", "neon accent lighting, dark glossy surfaces, futuristic furniture and a magenta and cyan glow"],
-  ["Nautical", "navy and white stripes, rope details, brass fittings and driftwood decor"],
-  ["Southwestern Desert", "adobe textures, woven blankets, terracotta pottery and a sunbaked palette of rust, sand and turquoise"],
-  ["Mountain Lodge", "chunky timber, stone accents, plaid textiles and cozy leather seating"],
-  ["Parisian", "herringbone floors, moulded walls, a velvet sofa, gilded mirrors and a soft cream and grey palette"],
-  ["Retro 70s", "sunken-feel seating, orange and brown tones, shag rugs and rounded furniture"],
-  ["Scandi-Boho", "light wood, macramé, woven textures and neutral tones with warm terracotta accents"],
-  ["Coastal Grandmother", "relaxed linen slipcovers, soft blue and cream tones, wicker and fresh flowers"],
-  ["Organic Modern", "curved natural-wood furniture, boucle fabrics, stone accents and a warm neutral palette"],
-  ["Japanese Zen Minimal", "tatami-inspired textures, low platform furniture, shoji-style panels and calm natural tones"],
-  ["Luxury Hotel Suite", "plush bedding, upholstered headboard, layered lighting and a refined taupe and gold palette"],
-];
+// Interior styles come only from the Excel file (seed/styles.json).
 const interiorTemplate = (name: string, desc: string) =>
   `Redesign this room in a ${name} interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, lighting, rug, and decor with ${desc}. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.`;
 
@@ -78,8 +56,7 @@ const gardenTemplate = (name: string, desc: string) =>
   `Redesign this garden in a ${name} style, keeping the exact same house, boundaries, ground layout and camera angle. Replace the planting, paving, furniture and features with ${desc}. Photorealistic landscape photography, same perspective as the original photo.`;
 
 export const STYLES: Style[] = [
-  ...(excelStyles as { slug: string; name: string; prompt: string }[]).map((s) => ({ ...s, scope: "interior" as const })),
-  ...INTERIOR_EXTRA.map(([n, d]) => ({ slug: slugify(n), name: n, scope: "interior" as const, prompt: interiorTemplate(n, d) })),
+  ...(excelStyles as { slug: string; name: string; prompt: string; img?: string }[]).map((s) => ({ ...s, scope: "interior" as const })),
   ...EXTERIOR.map(([n, d]) => ({ slug: `ext-${slugify(n)}`, name: n, scope: "exterior" as const, prompt: exteriorTemplate(n, d) })),
   ...GARDEN.map(([n, d]) => ({ slug: `gar-${slugify(n)}`, name: n, scope: "garden" as const, prompt: gardenTemplate(n, d) })),
 ];

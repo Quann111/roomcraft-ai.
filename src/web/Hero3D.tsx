@@ -138,7 +138,7 @@ export function Hero3D() {
   return (
     <div className="relative">
       <div ref={mount} className="aspect-[4/3] w-full overflow-hidden rounded-3xl bg-gradient-to-br from-amber-50 to-sky-100 shadow-xl [&>canvas]:h-full [&>canvas]:w-full" role="img" aria-label="3D room that changes interior style">
-        {!ok && <p className="p-8 text-center text-neutral-500">WebGL unavailable · Trình duyệt không hỗ trợ WebGL</p>}
+        {!ok && <p className="p-8 text-center text-neutral-500">{bi("WebGL unavailable · Trình duyệt không hỗ trợ WebGL")}</p>}
       </div>
       <div className="mt-3 flex flex-wrap justify-center gap-1.5">
         {NAMES.map((n) => (

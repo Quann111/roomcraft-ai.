@@ -33,14 +33,14 @@ export function PromptLibrary({ onUse }: { onUse: (tool: string, styleSlug: stri
   if (!all.length) return null;
   return (
     <section id="prompts" className="mx-auto max-w-4xl px-6 pb-16">
-      <h2 className="mb-3 text-2xl font-bold">Prompt library · Thư viện prompt</h2>
+      <h2 className="mb-3 text-2xl font-bold">{bi("Prompt library · Thư viện prompt")}</h2>
       <div className="flex flex-wrap items-center gap-2">
         {SCOPES.map((s) => (
           <button key={s.scope} onClick={() => { setScope(s.scope); setOpen(null); }} className={`rounded-full border px-4 py-1 ${scope === s.scope ? "bg-black text-white" : ""}`}>
             {bi(s.label)} ({count(s.scope)})
           </button>
         ))}
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search · Tìm kiếm…" className="ml-auto rounded border p-2 text-sm" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={bi("Search · Tìm kiếm…")} className="ml-auto rounded border p-2 text-sm" />
       </div>
       <ul className="mt-4 divide-y rounded-xl border">
         {list.map((p) => (
@@ -49,13 +49,13 @@ export function PromptLibrary({ onUse }: { onUse: (tool: string, styleSlug: stri
               <button className="flex-1 text-left font-medium" onClick={() => setOpen(open === p.slug ? null : p.slug)}>
                 {bi(p.name)} <span className="text-xs text-neutral-400">{open === p.slug ? "▲" : "▼"}</span>
               </button>
-              <button onClick={() => copy(p)} className="rounded border px-2 py-1 text-xs">{copied === p.slug ? "Copied ✓" : "Copy · Sao chép"}</button>
-              <button onClick={() => onUse(cur.tool, p.slug)} className="rounded bg-black px-2 py-1 text-xs text-white">Use · Dùng</button>
+              <button onClick={() => copy(p)} className="rounded border px-2 py-1 text-xs">{copied === p.slug ? "Copied ✓" : bi("Copy · Sao chép")}</button>
+              <button onClick={() => onUse(cur.tool, p.slug)} className="rounded bg-black px-2 py-1 text-xs text-white">{bi("Use · Dùng")}</button>
             </div>
             {open === p.slug && <p className="mt-2 whitespace-pre-wrap text-sm text-neutral-600">{p.prompt}</p>}
           </li>
         ))}
-        {!list.length && <li className="p-4 text-center text-sm text-neutral-500">No results · Không có kết quả</li>}
+        {!list.length && <li className="p-4 text-center text-sm text-neutral-500">{bi("No results · Không có kết quả")}</li>}
       </ul>
     </section>
   );

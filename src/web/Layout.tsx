@@ -1,0 +1,84 @@
+import React, { useState } from "react";
+import { Link } from "./router";
+import { useAuth } from "./auth";
+import { getLang, setLang, t } from "./i18n";
+import { FEATURES, PERSONAS, USE_CASES } from "./data";
+
+function LangToggle() {
+  const l = getLang();
+  return (
+    <button onClick={() => setLang(l === "vi" ? "en" : "vi")} className="btn small ghost" aria-label="Language">
+      {l === "vi" ? "VI · EN" : "EN · VI"}
+    </button>
+  );
+}
+
+export function Header() {
+  const { me, loaded, logout } = useAuth();
+  const [open, setOpen] = useState(false);
+  const nav = [
+    ["/app", t("Redesign", "Thiết kế")],
+    ["/ai-features", t("Features", "Tính năng")],
+    ["/design-styles", t("Styles", "Phong cách")],
+    ["/pricing", t("Pricing", "Bảng giá")],
+  ] as const;
+  const close = () => setOpen(false);
+  return (
+    <header className="site-header">
+      <div className={`container header-inner${open ? " menu-open" : ""}`}>
+        <Link to="/" className="brand"><span style={{ fontWeight: 700, letterSpacing: ".08em" }}>SOLYC <span style={{ color: "var(--gold)" }}>GEN LABS</span></span></Link>
+        <nav className="top-nav" aria-label="Primary navigation">
+          {nav.map(([to, label]) => <Link key={to} to={to} onClick={close}>{label}</Link>)}
+        </nav>
+        <div className="header-actions">
+          <LangToggle />
+          {loaded && (me ? (
+            <>
+              <Link to="/projects" className="btn small ghost">{t("My projects", "Dự án")}</Link>
+              <span className="nav-user">{me.unlimited ? "∞" : me.credits} credits</span>
+              <button className="btn small" onClick={logout}>{t("Log out", "Thoát")}</button>
+            </>
+          ) : (
+            <>
+              <Link to="/login" className="btn small ghost">{t("Log in", "Đăng nhập")}</Link>
+              <Link to="/register" className="btn small">{t("Start free", "Dùng thử")}</Link>
+            </>
+          ))}
+        </div>
+        <button className="mobile-menu" onClick={() => setOpen(!open)} aria-label="Menu" aria-expanded={open}>☰</button>
+      </div>
+    </header>
+  );
+}
+
+export function Footer() {
+  const col = (title: string, links: [string, string][]) => (
+    <div>
+      <h4>{title}</h4>
+      {links.map(([to, label]) => <Link key={to} to={to}>{label}</Link>)}
+    </div>
+  );
+  const lang = getLang() === "vi" ? 1 : 0;
+  return (
+    <footer>
+      <div className="container">
+        <div className="footer-top">
+          <div className="footer-brand">
+            <span style={{ color: "#fff", fontWeight: 700, letterSpacing: ".08em" }}>SOLYC <span style={{ color: "var(--gold)" }}>GEN LABS</span></span>
+            <p>{t("Material Intelligence Platform for Architecture, Construction & Interiors. Same walls, windows and layout you started with.", "Nền tảng Material Intelligence cho Kiến trúc, Xây dựng & Nội thất. Giữ nguyên tường, cửa sổ và bố cục ban đầu.")}</p>
+          </div>
+          <div className="footer-links">
+            {col(t("Product", "Sản phẩm"), [["/redesign", t("Redesign tool", "Công cụ thiết kế")], ["/pricing", t("Pricing", "Bảng giá")], ["/projects", t("My projects", "Dự án của tôi")], ["/free-ai-tools", t("Free tools", "Công cụ miễn phí")]])}
+            {col(t("Features", "Tính năng"), FEATURES.slice(0, 5).map((f) => [`/${f.slug}`, f.name[lang]] as [string, string]).concat([["/ai-features", t("All features →", "Tất cả →")]]))}
+            {col(t("Built for", "Dành cho"), PERSONAS.map((p) => [`/${p.slug}`, p.name[lang]] as [string, string]))}
+            {col(t("Company", "Công ty"), [["/about-us", t("About", "Giới thiệu")], ["/terms-of-service", t("Terms of Service", "Điều khoản dịch vụ")], ["/privacy-policy", t("Privacy Policy", "Chính sách bảo mật")], ["/refund-policy", t("Refund Policy", "Chính sách hoàn tiền")]])}
+          </div>
+        </div>
+        <div className="footer-bottom">
+          <span>© {new Date().getFullYear()} SOLYC Gen Labs</span>
+          <span>{t("AI-generated results are for reference only.", "Kết quả do AI tạo ra, chỉ mang tính tham khảo.")}</span>
+        </div>
+      </div>
+    </footer>
+  );
+}

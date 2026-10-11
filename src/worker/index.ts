@@ -7,6 +7,8 @@ type Env = { DB: D1Database; IMAGES: R2Bucket; DAILY_CREDITS: string; RUNNINGHUB
 type User = { id: string; email: string; credits: number; credits_refilled_at: number };
 type Vars = { user: User };
 
+const ADMIN_EMAILS = ["qquankun@gmail.com", "admin@gmail.com"];
+const isAdmin = (u: User) => ADMIN_EMAILS.includes(u.email.toLowerCase());
 const DAY = 86_400_000;
 const SESSION_TTL = 30 * DAY;
 const app = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -109,7 +111,7 @@ app.post("/api/auth/logout", async (c) => {
 
 app.get("/api/me", requireAuth, (c) => {
   const u = c.get("user");
-  return c.json({ id: u.id, email: u.email, credits: u.credits, nextRefillAt: u.credits_refilled_at + DAY });
+  return c.json({ id: u.id, email: u.email, credits: u.credits, unlimited: isAdmin(u), nextRefillAt: u.credits_refilled_at + DAY });
 });
 
 // ---------- Phase 2: generation ----------
@@ -119,7 +121,7 @@ const ASPECTS = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "5:4", "4:5"
 const RES = ["1k", "2k", "4k"] as const;
 const RES_COST: Record<string, number> = { "1k": 1, "2k": 2, "4k": 3 };
 
-app.get("/api/styles", (c) => c.json({ styles: STYLES.map(({ slug, name, scope }) => ({ slug, name, scope })), roomTypes: ROOM_TYPES, intervention: INTERVENTION, surfaces: SURFACES, weather: WEATHER, remove: REMOVE, angles: ANGLES }));
+app.get("/api/styles", (c) => c.json({ styles: STYLES.map(({ slug, name, scope, img }) => ({ slug, name, scope, thumb: img ? `https://drive.google.com/thumbnail?id=${img}&sz=w600` : undefined })), roomTypes: ROOM_TYPES, intervention: INTERVENTION, surfaces: SURFACES, weather: WEATHER, remove: REMOVE, angles: ANGLES }));
 
 app.get("/api/prompts", requireAuth, (c) => c.json({ prompts: STYLES.map(({ slug, name, scope, prompt }) => ({ slug, name, scope, prompt })) }));
 
@@ -139,7 +141,7 @@ app.post("/api/generate", requireAuth, async (c) => {
   const b = await c.req.json<any>().catch(() => ({}));
   if (!c.env.RUNNINGHUB_API_KEY) return c.json({ error: "Server chưa cấu hình RUNNINGHUB_API_KEY" }, 500);
   if (typeof b.inputKey !== "string" || !b.inputKey.startsWith(`in/${u.id}/`)) return c.json({ error: "Ảnh đầu vào không hợp lệ" }, 400);
-  if (!(await allow(c.env, `gen:${u.id}`, 3_600_000, 20))) return c.json({ error: "Tối đa 20 lượt tạo mỗi giờ" }, 429);
+  if (!isAdmin(u) && !(await allow(c.env, `gen:${u.id}`, 3_600_000, 20))) return c.json({ error: "Tối đa 20 lượt tạo mỗi giờ" }, 429);
   const busy = await c.env.DB.prepare("SELECT COUNT(*) n FROM generations WHERE user_id=? AND status IN ('QUEUED','RUNNING') AND created_at>?").bind(u.id, Date.now() - 600_000).first<{ n: number }>();
   if ((busy?.n ?? 0) >= 3) return c.json({ error: "Đang có 3 ảnh xử lý, hãy chờ xong rồi tạo tiếp" }, 429);
   const resolution = RES.includes(b.resolution) ? b.resolution : "1k";
@@ -150,7 +152,7 @@ app.post("/api/generate", requireAuth, async (c) => {
   const obj = await c.env.IMAGES.get(b.inputKey);
   if (!obj) return c.json({ error: "Không tìm thấy ảnh" }, 400);
 
-  const cost = RES_COST[resolution];
+  const cost = isAdmin(u) ? 0 : RES_COST[resolution]; // admin: unlimited, no credits charged
   const id = crypto.randomUUID();
   const now = Date.now();
   const paid = await c.env.DB.prepare("UPDATE users SET credits=credits-? WHERE id=? AND credits>=?").bind(cost, u.id, cost).run();

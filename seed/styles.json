@@ -3,240 +3,280 @@
   "slug": "scandinavia",
   "name": "Scandinavia",
   "scope": "interior",
-  "prompt": "Redesign this room in a modern Scandinavian interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting fixtures, rug, and decor with modern minimalist pieces in a neutral color palette (beige, white, wood tones, sage green). Add warm pendant lighting, indoor plants, and a light-colored floor. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a modern Scandinavian interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting fixtures, rug, and decor with modern minimalist pieces in a neutral color palette (beige, white, wood tones, sage green). Add warm pendant lighting, indoor plants, and a light-colored floor. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "12_KlQDV6iASVOBPwo9nXpmAhmK20-tDA"
  },
  {
   "slug": "urban-modern",
   "name": "Urban Modern",
   "scope": "interior",
-  "prompt": "Redesign this room in an urban modern interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with sleek modern pieces — leather or bouclé sofa, black metal accents, statement pendant lighting, polished concrete or dark wood flooring, and minimal geometric decor. Use a color palette of charcoal, black, warm grey, and camel with subtle metallic accents. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in an urban modern interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with sleek modern pieces — leather or bouclé sofa, black metal accents, statement pendant lighting, polished concrete or dark wood flooring, and minimal geometric decor. Use a color palette of charcoal, black, warm grey, and camel with subtle metallic accents. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "11ZFA2lz_OsE-n9jH-lUi_plpWPm523TF"
  },
  {
   "slug": "eclectic",
   "name": "Eclectic",
   "scope": "interior",
-  "prompt": "Redesign this room in an eclectic interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with a curated mix of vintage and modern pieces — a bold-patterned or textured sofa, a mix of furniture styles and eras, layered rugs, and an eye-catching statement lighting fixture. Use a rich, varied color palette with unexpected color combinations, mixed patterns (florals, geometrics, ethnic prints), and a variety of textures (velvet, rattan, brass, wood). Add plants, art pieces, and personal-feeling decor for a lived-in, collected-over-time look. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in an eclectic interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with a curated mix of vintage and modern pieces — a bold-patterned or textured sofa, a mix of furniture styles and eras, layered rugs, and an eye-catching statement lighting fixture. Use a rich, varied color palette with unexpected color combinations, mixed patterns (florals, geometrics, ethnic prints), and a variety of textures (velvet, rattan, brass, wood). Add plants, art pieces, and personal-feeling decor for a lived-in, collected-over-time look. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1AAKjiusIojRDvO26rz77AjvSY14SnwXk"
  },
  {
   "slug": "japandi",
   "name": "Japandi",
   "scope": "interior",
-  "prompt": "Redesign this room in a Japandi interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with low-profile minimalist furniture made of light natural wood (oak, ash), a linen or cotton sofa in neutral tones, simple paper or wood pendant lighting, and a low wooden coffee table. Use a calm, muted color palette of beige, warm white, soft grey, and charcoal, with clean lines and no clutter. Add a few plants, ceramic decor, and natural textures like wood and stone. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a Japandi interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with low-profile minimalist furniture made of light natural wood (oak, ash), a linen or cotton sofa in neutral tones, simple paper or wood pendant lighting, and a low wooden coffee table. Use a calm, muted color palette of beige, warm white, soft grey, and charcoal, with clean lines and no clutter. Add a few plants, ceramic decor, and natural textures like wood and stone. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1TRGwxWg7e-aTrzFbcRDa8x2qE0L6G30C"
  },
  {
   "slug": "industrial",
   "name": "Industrial",
   "scope": "interior",
-  "prompt": "Redesign this room in an industrial interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with rugged pieces — a leather or dark fabric sofa, a reclaimed wood and black metal coffee table, exposed-bulb or metal cage pendant lighting, and raw materials like concrete floor or exposed brick accent wall. Use a color palette of black, dark grey, brown leather, and rust tones. Add vintage industrial decor like metal shelving, weathered wood, and minimal greenery. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in an industrial interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with rugged pieces — a leather or dark fabric sofa, a reclaimed wood and black metal coffee table, exposed-bulb or metal cage pendant lighting, and raw materials like concrete floor or exposed brick accent wall. Use a color palette of black, dark grey, brown leather, and rust tones. Add vintage industrial decor like metal shelving, weathered wood, and minimal greenery. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1kqn7TXwZGd2vmJZXlH6M2Xpf6BegXpQB"
  },
  {
   "slug": "contemporary",
   "name": "Contemporary",
   "scope": "interior",
-  "prompt": "Redesign this room in a contemporary interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with clean-lined, current furniture — a streamlined sofa with soft curves, a sculptural coffee table, and modern statement lighting. Use a sophisticated neutral color palette (white, grey, taupe) with one or two bold accent colors, smooth textures, and a mix of materials like glass, metal, and matte wood. Keep decor minimal but curated, with abstract art and clean-lined accessories. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a contemporary interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with clean-lined, current furniture — a streamlined sofa with soft curves, a sculptural coffee table, and modern statement lighting. Use a sophisticated neutral color palette (white, grey, taupe) with one or two bold accent colors, smooth textures, and a mix of materials like glass, metal, and matte wood. Keep decor minimal but curated, with abstract art and clean-lined accessories. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1GRNfBOuLNaulceobN2vqP_bQsqunsnVQ"
  },
  {
   "slug": "modern",
   "name": "Modern",
   "scope": "interior",
-  "prompt": "Redesign this room in a modern interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with clean-lined, uncluttered furniture, geometric shapes, and a mix of glass, metal, and matte wood. Use a neutral palette (white, black, grey) with sharp contrasts and minimal decor. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a modern interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with clean-lined, uncluttered furniture, geometric shapes, and a mix of glass, metal, and matte wood. Use a neutral palette (white, black, grey) with sharp contrasts and minimal decor. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1mPK5Jgekz371xe5Bx8OV_20vxxEED9lo"
  },
  {
   "slug": "transitional",
   "name": "Transitional",
   "scope": "interior",
-  "prompt": "Redesign this room in a transitional interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with a balanced mix of traditional and modern furniture — simple silhouettes with classic comfort, neutral-toned upholstery, and understated lighting. Use a soft neutral palette (beige, warm grey, cream) with subtle texture. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a transitional interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with a balanced mix of traditional and modern furniture — simple silhouettes with classic comfort, neutral-toned upholstery, and understated lighting. Use a soft neutral palette (beige, warm grey, cream) with subtle texture. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "12nkKTmgADcWFtmQGbKhGeTijYHO1rKy7"
  },
  {
   "slug": "mediterranean",
   "name": "Mediterranean",
   "scope": "interior",
-  "prompt": "Redesign this room in a Mediterranean interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with warm terracotta and wrought-iron pieces, arched decor elements, textured plaster walls, and woven rattan accents. Use a warm color palette (terracotta, ochre, olive, whitewash). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a Mediterranean interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with warm terracotta and wrought-iron pieces, arched decor elements, textured plaster walls, and woven rattan accents. Use a warm color palette (terracotta, ochre, olive, whitewash). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1PNheayDhiR0qnlYDfIk0deyNN5It5Wki"
  },
  {
   "slug": "ikea",
   "name": "Ikea",
   "scope": "interior",
-  "prompt": "Redesign this room in an Ikea-style interior design, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with simple, functional, affordable-looking Scandinavian-inspired furniture, light wood tones, and practical storage solutions. Use a bright, clean color palette (white, light wood, soft pastel accents). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in an Ikea-style interior design, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with simple, functional, affordable-looking Scandinavian-inspired furniture, light wood tones, and practical storage solutions. Use a bright, clean color palette (white, light wood, soft pastel accents). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1oWLDlqh_WGWLpnbChJfDr6L2a2mOgyhV"
  },
  {
   "slug": "quiet-luxury",
   "name": "Quiet Luxury",
   "scope": "interior",
-  "prompt": "Redesign this room in a quiet luxury interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with understated high-end pieces — a plush neutral sofa in premium fabric, refined wood furniture, subtle statement lighting, and minimal but expensive-looking decor. Use a restrained, elegant palette (cream, taupe, camel, soft grey). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a quiet luxury interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with understated high-end pieces — a plush neutral sofa in premium fabric, refined wood furniture, subtle statement lighting, and minimal but expensive-looking decor. Use a restrained, elegant palette (cream, taupe, camel, soft grey). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "17kqcevKpdGF337dnSYO7Hm9qOmTPbCDP"
  },
  {
   "slug": "kids-room",
   "name": "Kids Room",
   "scope": "interior",
-  "prompt": "Redesign this room as a playful kids' bedroom/playroom, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture with child-friendly pieces — a colorful bed or seating, soft rug, playful shelving with toys/books, and fun wall decor. Use a bright, cheerful color palette suited for children. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room as a playful kids' bedroom/playroom, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture with child-friendly pieces — a colorful bed or seating, soft rug, playful shelving with toys/books, and fun wall decor. Use a bright, cheerful color palette suited for children. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "17q2FE6jzswFa6vhNirhTVI8ssIGTceT0"
  },
  {
   "slug": "shabby-chic",
   "name": "Shabby Chic",
   "scope": "interior",
-  "prompt": "Redesign this room in a shabby chic interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with distressed white-painted furniture, floral fabric upholstery, vintage chandeliers, and lace or ruffled textile accents. Use a soft pastel palette (white, blush pink, soft mint). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a shabby chic interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with distressed white-painted furniture, floral fabric upholstery, vintage chandeliers, and lace or ruffled textile accents. Use a soft pastel palette (white, blush pink, soft mint). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1RhtmlMuxV7ZzsfABi6ybB21ykC5zGWF7"
  },
  {
   "slug": "coastal",
   "name": "Coastal",
   "scope": "interior",
-  "prompt": "Redesign this room in a coastal interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with light linen or cotton upholstery, natural rattan and rope accents, breezy sheer curtains, and nautical-inspired decor. Use a fresh color palette (white, sandy beige, ocean blue). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a coastal interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with light linen or cotton upholstery, natural rattan and rope accents, breezy sheer curtains, and nautical-inspired decor. Use a fresh color palette (white, sandy beige, ocean blue). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1-lRYWmxLa5LYdntR6nmvzRTvzBlaHaQh"
  },
  {
   "slug": "bauhaus",
   "name": "Bauhaus",
   "scope": "interior",
-  "prompt": "Redesign this room in a Bauhaus interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with geometric, function-first furniture, tubular steel frames, and primary color accents against a neutral base. Use a palette of black, white, grey with bold red/blue/yellow accents. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a Bauhaus interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with geometric, function-first furniture, tubular steel frames, and primary color accents against a neutral base. Use a palette of black, white, grey with bold red/blue/yellow accents. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1SlmW6Wa_Yl6QNnXIpMiAMFYVkaZaGqu8"
  },
  {
   "slug": "bohemian",
   "name": "Bohemian",
   "scope": "interior",
-  "prompt": "Redesign this room in a bohemian interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with layered patterned rugs, rattan and macrame accents, floor cushions, hanging plants, and eclectic global-inspired textiles. Use a warm, earthy color palette (terracotta, mustard, deep red, cream). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a bohemian interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with layered patterned rugs, rattan and macrame accents, floor cushions, hanging plants, and eclectic global-inspired textiles. Use a warm, earthy color palette (terracotta, mustard, deep red, cream). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1_nb85xvaaYEJMUu8TufxVXPtQFCaID0z"
  },
  {
   "slug": "traditional",
   "name": "Traditional",
   "scope": "interior",
-  "prompt": "Redesign this room in a traditional interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with classic wood furniture, rolled-arm sofas, ornate lighting fixtures, and rich patterned textiles. Use a warm, elegant color palette (deep red, navy, gold, wood tones). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a traditional interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with classic wood furniture, rolled-arm sofas, ornate lighting fixtures, and rich patterned textiles. Use a warm, elegant color palette (deep red, navy, gold, wood tones). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "13xjA1nCfRNpO-nmRE0htgA2YPtbPLVn1"
  },
  {
   "slug": "rustic",
   "name": "Rustic",
   "scope": "interior",
-  "prompt": "Redesign this room in a rustic interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with reclaimed wood furniture, cozy woven textiles, wrought-iron lighting, and natural stone accents. Use a warm, earthy color palette (brown, cream, forest green). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a rustic interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with reclaimed wood furniture, cozy woven textiles, wrought-iron lighting, and natural stone accents. Use a warm, earthy color palette (brown, cream, forest green). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1kMCcqA60s91B5ZCv0kJQ_ZGpoM2LbIl5"
  },
  {
   "slug": "minimalism",
   "name": "Minimalism",
   "scope": "interior",
-  "prompt": "Redesign this room in a minimalist interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with only essential, clean-lined furniture, hidden storage, and zero clutter. Use a strict neutral palette (white, black, grey) with maximum negative space. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a minimalist interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with only essential, clean-lined furniture, hidden storage, and zero clutter. Use a strict neutral palette (white, black, grey) with maximum negative space. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1-Rx7agL7HurTjVE4kznWMi_qVb3xcVQV"
  },
  {
   "slug": "japanese-design",
   "name": "Japanese design",
   "scope": "interior",
-  "prompt": "Redesign this room in a traditional Japanese interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with low-profile furniture, tatami-inspired flooring, shoji-style screens, and natural wood elements. Use a calm, muted palette (natural wood, cream, black accents). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a traditional Japanese interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with low-profile furniture, tatami-inspired flooring, shoji-style screens, and natural wood elements. Use a calm, muted palette (natural wood, cream, black accents). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1sYrXoq0DJ4AVRgve3DUpL87722uwdo0K"
  },
  {
   "slug": "modern-arabic",
   "name": "Modern Arabic",
   "scope": "interior",
-  "prompt": "Redesign this room in a modern Arabic interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with sleek furniture featuring geometric Arabic patterns, brass accents, and modern majlis-style low seating. Use a rich color palette (gold, deep green, cream, black). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a modern Arabic interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with sleek furniture featuring geometric Arabic patterns, brass accents, and modern majlis-style low seating. Use a rich color palette (gold, deep green, cream, black). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1ihZbOMMtk-j5EdBdm9MvidihY31BAikN"
  },
  {
   "slug": "traditional-arabic",
   "name": "Traditional Arabic",
   "scope": "interior",
-  "prompt": "Redesign this room in a traditional Arabic interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with ornate carved wood furniture, majlis-style seating with rich textiles, mosaic and mashrabiya-inspired accents, and ornate brass lanterns. Use a warm, opulent color palette (gold, burgundy, deep blue). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a traditional Arabic interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with ornate carved wood furniture, majlis-style seating with rich textiles, mosaic and mashrabiya-inspired accents, and ornate brass lanterns. Use a warm, opulent color palette (gold, burgundy, deep blue). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1XUIIdY4ezllXPtN4DJyYe0gTUK3vXJnb"
  },
  {
   "slug": "bali",
   "name": "Bali",
   "scope": "interior",
-  "prompt": "Redesign this room in a Bali-inspired interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with natural teak wood furniture, rattan and bamboo accents, woven textiles, and tropical greenery. Use an earthy, tropical palette (natural wood, cream, deep green). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a Bali-inspired interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with natural teak wood furniture, rattan and bamboo accents, woven textiles, and tropical greenery. Use an earthy, tropical palette (natural wood, cream, deep green). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1dK33eqtTz1DbB0V0ZwcudyaoJWqSUSfB"
  },
  {
   "slug": "tropical",
   "name": "Tropical",
   "scope": "interior",
-  "prompt": "Redesign this room in a tropical interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with rattan and light wood furniture, palm leaf patterns, woven textures, and abundant lush plants. Use a fresh, vibrant palette (green, white, natural wood). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a tropical interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with rattan and light wood furniture, palm leaf patterns, woven textures, and abundant lush plants. Use a fresh, vibrant palette (green, white, natural wood). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1orvlEkPc-oEn9w-AxoYUXlv3AxETy_Qy"
  },
  {
   "slug": "asian-decor",
   "name": "Asian Decor",
   "scope": "interior",
-  "prompt": "Redesign this room in an Asian-inspired interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with dark lacquered wood furniture, silk textiles, oriental patterned accents, and paper lantern-style lighting. Use a rich color palette (black, red, gold, deep wood tones). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in an Asian-inspired interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with dark lacquered wood furniture, silk textiles, oriental patterned accents, and paper lantern-style lighting. Use a rich color palette (black, red, gold, deep wood tones). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1b6-uNB5o0OAMkgvE2ac0Hpc9iu48Eijg"
  },
  {
   "slug": "zen",
   "name": "Zen",
   "scope": "interior",
-  "prompt": "Redesign this room in a zen interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with simple low-profile furniture, natural stone and wood elements, minimal decor, and soft ambient lighting to create a calm, meditative space. Use a muted, natural palette (beige, grey, natural wood, sage green). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a zen interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with simple low-profile furniture, natural stone and wood elements, minimal decor, and soft ambient lighting to create a calm, meditative space. Use a muted, natural palette (beige, grey, natural wood, sage green). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "14aqjyetQUnowTG6v92AIds9Sa4Gen9zJ"
  },
  {
   "slug": "hollywood-regency",
   "name": "Hollywood Regency",
   "scope": "interior",
-  "prompt": "Redesign this room in a Hollywood Regency interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with glamorous furniture featuring mirrored or lacquered surfaces, velvet upholstery, bold geometric patterns, and dramatic statement lighting. Use a bold color palette (emerald, black, gold, white). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a Hollywood Regency interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with glamorous furniture featuring mirrored or lacquered surfaces, velvet upholstery, bold geometric patterns, and dramatic statement lighting. Use a bold color palette (emerald, black, gold, white). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1G7ZeBgUT9jg8QD6kJfM5e5uWXT_wSk6l"
  },
  {
   "slug": "hollywood-glam",
   "name": "Hollywood Glam",
   "scope": "interior",
-  "prompt": "Redesign this room in a Hollywood glam interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with luxurious tufted velvet furniture, crystal chandeliers, mirrored accents, and faux fur textiles. Use a glamorous palette (blush pink, gold, black, white). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a Hollywood glam interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with luxurious tufted velvet furniture, crystal chandeliers, mirrored accents, and faux fur textiles. Use a glamorous palette (blush pink, gold, black, white). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1uvWY222PfeCIBx31YcJj_jyTtcxfQVST"
  },
  {
   "slug": "minimalist",
   "name": "Minimalist",
   "scope": "interior",
-  "prompt": "Redesign this room in a minimalist interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with only essential, clean-lined furniture, hidden storage, and zero clutter. Use a strict neutral palette (white, black, grey) with maximum negative space. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a minimalist interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with only essential, clean-lined furniture, hidden storage, and zero clutter. Use a strict neutral palette (white, black, grey) with maximum negative space. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1-u-24RdYTM980fjeU0MH78EdG3tV7b_b"
  },
  {
   "slug": "christmas",
   "name": "Christmas",
   "scope": "interior",
-  "prompt": "Redesign this room with festive Christmas decor, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Keep the existing furniture but add a decorated Christmas tree, festive string lights, seasonal garlands, stockings, and cozy holiday-themed cushions and throws. Use a warm festive palette (red, green, gold, white). Keep the room proportions and perspective identical to the original photo — only add the seasonal styling."
+  "prompt": "Redesign this room with festive Christmas decor, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Keep the existing furniture but add a decorated Christmas tree, festive string lights, seasonal garlands, stockings, and cozy holiday-themed cushions and throws. Use a warm festive palette (red, green, gold, white). Keep the room proportions and perspective identical to the original photo — only add the seasonal styling.",
+  "img": "1feStLoEFr0xtEtj7D7LPFwWf8Ebzt9ps"
  },
  {
   "slug": "futuristic",
   "name": "Futuristic",
   "scope": "interior",
-  "prompt": "Redesign this room in a futuristic interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with sleek, high-tech furniture featuring curved forms, glossy surfaces, LED ambient lighting, and smart minimalist decor. Use a cool color palette (white, silver, black with neon accent lighting). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a futuristic interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with sleek, high-tech furniture featuring curved forms, glossy surfaces, LED ambient lighting, and smart minimalist decor. Use a cool color palette (white, silver, black with neon accent lighting). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1pGPsXf0MWhYqmWzrlyob2wjygoymCR-n"
  },
  {
   "slug": "luxurious",
   "name": "Luxurious",
   "scope": "interior",
-  "prompt": "Redesign this room in a luxurious interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with opulent furniture in premium materials — velvet, marble, gold accents, crystal lighting, and rich detailed textiles. Use an elegant palette (deep jewel tones, gold, cream, black). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a luxurious interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with opulent furniture in premium materials — velvet, marble, gold accents, crystal lighting, and rich detailed textiles. Use an elegant palette (deep jewel tones, gold, cream, black). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "14hxOGv_QP_Q1BQUXIh44_6NOA-prnVEa"
  },
  {
   "slug": "midcentury-modern",
   "name": "Midcentury modern",
   "scope": "interior",
-  "prompt": "Redesign this room in a midcentury modern interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with tapered wood-leg furniture, organic curved shapes, retro-inspired lighting, and bold geometric patterns. Use a warm palette (mustard, burnt orange, walnut wood, teal). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a midcentury modern interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with tapered wood-leg furniture, organic curved shapes, retro-inspired lighting, and bold geometric patterns. Use a warm palette (mustard, burnt orange, walnut wood, teal). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1-Y23vEzX7y49c_FxLR-pVES-h_68Hg1Q"
  },
  {
   "slug": "biophilic",
   "name": "Biophilic",
   "scope": "interior",
-  "prompt": "Redesign this room in a biophilic interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with natural materials, abundant indoor plants, a living green wall or vertical planters, and organic-shaped furniture that connects the space to nature. Use a natural palette (green, wood, earth tones). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a biophilic interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with natural materials, abundant indoor plants, a living green wall or vertical planters, and organic-shaped furniture that connects the space to nature. Use a natural palette (green, wood, earth tones). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1lnWZ0rnVRS6lNM0qDvwwpFlGUwHSOHCq"
  },
  {
   "slug": "cottage-core",
   "name": "Cottage Core",
   "scope": "interior",
-  "prompt": "Redesign this room in a cottagecore interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with cozy vintage-inspired furniture, floral fabrics, wicker baskets, dried flowers, and soft warm lighting for a charming countryside feel. Use a soft, romantic palette (cream, sage, dusty pink, wood tones). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a cottagecore interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with cozy vintage-inspired furniture, floral fabrics, wicker baskets, dried flowers, and soft warm lighting for a charming countryside feel. Use a soft, romantic palette (cream, sage, dusty pink, wood tones). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1D28PDxSFVy9BvXU76tOgn3On8VYd0BdX"
  },
  {
   "slug": "french-country",
   "name": "French Country",
   "scope": "interior",
-  "prompt": "Redesign this room in a French country interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with elegant weathered wood furniture, toile or floral fabrics, wrought-iron light fixtures, and rustic-refined decor. Use a soft warm palette (cream, soft blue, lavender, wood tones). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a French country interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with elegant weathered wood furniture, toile or floral fabrics, wrought-iron light fixtures, and rustic-refined decor. Use a soft warm palette (cream, soft blue, lavender, wood tones). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1eij9ihT6gsZRDi36qo9rqXF-cP5MHaqq"
  },
  {
   "slug": "art-deco",
   "name": "Art Deco",
   "scope": "interior",
-  "prompt": "Redesign this room in an Art Deco interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with bold geometric furniture, luxurious materials like brass, velvet and lacquer, symmetrical patterns, and statement sunburst lighting. Use a rich color palette (black, gold, emerald, deep blue). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in an Art Deco interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with bold geometric furniture, luxurious materials like brass, velvet and lacquer, symmetrical patterns, and statement sunburst lighting. Use a rich color palette (black, gold, emerald, deep blue). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1LaiW5x1JPsjL_YhZeAec0MHjvJcmdXTA"
  },
  {
   "slug": "art-nouveau",
   "name": "Art nouveau",
   "scope": "interior",
-  "prompt": "Redesign this room in an Art Nouveau interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with furniture featuring flowing organic curves, nature-inspired motifs (florals, vines), stained glass-style lighting, and ornate decorative details. Use a rich, earthy palette (olive, mustard, deep burgundy, gold). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in an Art Nouveau interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with furniture featuring flowing organic curves, nature-inspired motifs (florals, vines), stained glass-style lighting, and ornate decorative details. Use a rich, earthy palette (olive, mustard, deep burgundy, gold). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1rCowhiKyDlL-BeTUh4D2WIv7KdE8lSMl"
  },
  {
   "slug": "south-western",
   "name": "South Western",
   "scope": "interior",
-  "prompt": "Redesign this room in a Southwestern interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with leather and suede furniture, Native American-inspired patterned textiles, terracotta and wood accents, and woven rugs. Use an earthy desert palette (terracotta, rust, sand, turquoise). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a Southwestern interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with leather and suede furniture, Native American-inspired patterned textiles, terracotta and wood accents, and woven rugs. Use an earthy desert palette (terracotta, rust, sand, turquoise). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1S8XrC9EBxNYBBGrmbFeu57ZWEkcCWaLh"
  },
  {
   "slug": "modern-farm-house",
   "name": "Modern Farm House",
   "scope": "interior",
-  "prompt": "Redesign this room in a modern farmhouse interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with a mix of rustic wood and clean modern furniture, shiplap or board-and-batten accents, black metal light fixtures, and cozy neutral textiles. Use a warm neutral palette (white, cream, black accents, natural wood). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling."
+  "prompt": "Redesign this room in a modern farmhouse interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, sofa, lighting, rug, and decor with a mix of rustic wood and clean modern furniture, shiplap or board-and-batten accents, black metal light fixtures, and cozy neutral textiles. Use a warm neutral palette (white, cream, black accents, natural wood). Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.",
+  "img": "1BY3c2pCLOpWPwX1zGau1u4qVr0aYLHH7"
  }
 ]

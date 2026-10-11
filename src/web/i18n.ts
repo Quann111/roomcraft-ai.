@@ -53,5 +53,25 @@ const VI: Record<string, string> = {
   "Formal French": "Vườn Pháp cổ điển", "Wildflower Meadow": "Đồng hoa dại", "Pool Garden": "Vườn hồ bơi",
 };
 
-/** "English · Tiếng Việt" (falls back to English if there is no translation). */
-export const bi = (en: string) => (VI[en] && VI[en] !== en ? `${en} · ${VI[en]}` : en);
+export type Lang = "en" | "vi";
+let lang: Lang = "vi";
+try { const v = localStorage.getItem("lang"); if (v === "en" || v === "vi") lang = v; } catch { /* storage blocked */ }
+const subs = new Set<() => void>();
+export const getLang = () => lang;
+export const subscribeLang = (f: () => void) => { subs.add(f); return () => { subs.delete(f); }; };
+export function setLang(l: Lang) {
+  lang = l;
+  try { localStorage.setItem("lang", l); } catch { /* ignore */ }
+  document.documentElement.lang = l;
+  subs.forEach((f) => f());
+}
+/** Pick the string for the current language. */
+export const t = (en: string, vi: string) => (lang === "vi" ? vi : en);
+
+/** Translate a canonical English label; also splits legacy "English · Tiếng Việt" strings. */
+export const bi = (en: string) => {
+  if (VI[en]) return lang === "vi" ? VI[en] : en;
+  const i = en.indexOf(" · ");
+  if (i > 0 && /[^\x00-\x7f]/.test(en)) return lang === "vi" ? en.slice(i + 3) : en.slice(0, i);
+  return en;
+};
