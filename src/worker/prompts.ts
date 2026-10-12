@@ -1,6 +1,6 @@
 import excelStyles from "../../seed/styles.json" with { type: "json" };
 
-export type Style = { slug: string; name: string; scope: "interior" | "exterior" | "garden"; prompt: string; img?: string };
+export type Style = { slug: string; name: string; scope: "interior" | "exterior" | "garden"; prompt: string; img?: string; photo?: string };
 
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
@@ -8,57 +8,59 @@ const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").repla
 const interiorTemplate = (name: string, desc: string) =>
   `Redesign this room in a ${name} interior design style, while keeping the exact same room structure, wall layout, windows, ceiling height, and camera angle. Replace the furniture, lighting, rug, and decor with ${desc}. Keep the room proportions and perspective identical to the original photo — only change the furniture and styling.`;
 
-const EXTERIOR: [string, string][] = [
-  ["Modern", "clean lines, flat or low-slope rooflines, large glass openings, and a palette of white, charcoal and natural wood"],
-  ["Mediterranean", "stucco walls, terracotta tile roof, arched openings, wrought-iron details and warm earthy colors"],
-  ["Farmhouse", "white board-and-batten siding, a metal roof, a covered porch and black window frames"],
-  ["Craftsman", "low-pitched gables, exposed rafters, tapered porch columns and earthy muted colors"],
-  ["Victorian", "ornate gingerbread trim, steep gables, a wraparound porch and a painted-lady color scheme"],
-  ["Colonial", "symmetrical facade, shuttered windows, a centered door with pediment and brick or clapboard cladding"],
-  ["Ranch", "a single-storey long low profile, wide eaves, brick and wood siding and a simple covered entry"],
-  ["Cottage", "a steep storybook roof, stone and shingle details, flower beds and a cozy arched door"],
-  ["Industrial", "dark steel framing, brick and concrete surfaces, large black-framed windows and a metal roof"],
-  ["Scandinavian", "simple gabled forms, dark or white timber cladding, minimal trim and large windows"],
-  ["Tropical", "wide overhanging roofs, timber slats, open verandas and lush palm planting"],
-  ["Spanish Colonial", "whitewashed stucco, clay barrel tile roof, carved wooden doors and arched colonnade"],
-  ["Mid-Century Modern", "low horizontal volumes, butterfly or flat roofs, clerestory windows and warm wood with stone accents"],
-  ["Contemporary", "mixed materials of stone, metal and glass, asymmetrical massing and sleek landscape lighting"],
-  ["Futuristic", "sculptural curved forms, seamless white surfaces, floor-to-ceiling glass and integrated lighting"],
-  ["Japanese", "a low hipped tiled roof, dark timber, shoji-style screens and a zen entry garden"],
-  ["Bohemian", "colorful painted accents, layered plants, handmade textures and eclectic outdoor decor"],
-  ["Tudor", "half-timbering, steep cross gables, tall chimneys and leaded-glass windows"],
-  ["Barn-style", "a gambrel or gable roof, vertical board siding, sliding barn doors and a rustic color palette"],
-  ["Coastal", "weathered shingle siding, white trim, a widow's walk and soft blue accents"],
-  ["Desert Modern", "rammed-earth textures, flat roofs, deep overhangs and a sand and rust palette with cacti planting"],
-  ["Chalet", "a wide low-pitch roof, carved timber balconies and stone base with stacked logs"],
-  ["Art Deco", "stepped geometric massing, vertical fluting, metal detailing and a bold symmetrical entry"],
-  ["Brutalist", "raw board-formed concrete, monolithic blocky volumes and deep-set windows"],
-  ["Minimalist", "pure rectangular volumes, smooth white render, hidden gutters and hairline frames"],
+// [name, description, Unsplash photo id for the style thumbnail]
+const EXTERIOR: [string, string, string][] = [
+  ["Modern", "clean lines, flat or low-slope rooflines, large glass openings, and a palette of white, charcoal and natural wood", "photo-1748063578185-3d68121b11ff"],
+  ["Mediterranean", "stucco walls, terracotta tile roof, arched openings, wrought-iron details and warm earthy colors", "photo-1416331108676-a22ccb276e35"],
+  ["Farmhouse", "white board-and-batten siding, a metal roof, a covered porch and black window frames", "photo-1662505899914-1000c566477b"],
+  ["Craftsman", "low-pitched gables, exposed rafters, tapered porch columns and earthy muted colors", "photo-1625602812206-5ec545ca1231"],
+  ["Victorian", "ornate gingerbread trim, steep gables, a wraparound porch and a painted-lady color scheme", "photo-1655961539194-fc970b063bc5"],
+  ["Colonial", "symmetrical facade, shuttered windows, a centered door with pediment and brick or clapboard cladding", "photo-1594348352429-159508d48c57"],
+  ["Ranch", "a single-storey long low profile, wide eaves, brick and wood siding and a simple covered entry", "photo-1787094535228-b4861050479a"],
+  ["Cottage", "a steep storybook roof, stone and shingle details, flower beds and a cozy arched door", "photo-1562182384-08115de5ee97"],
+  ["Industrial", "dark steel framing, brick and concrete surfaces, large black-framed windows and a metal roof", "photo-1708113397538-81a27170f0b8"],
+  ["Scandinavian", "simple gabled forms, dark or white timber cladding, minimal trim and large windows", "photo-1780592018279-279aa3e91f8f"],
+  ["Tropical", "wide overhanging roofs, timber slats, open verandas and lush palm planting", "photo-1721989518229-3e84837fc398"],
+  ["Spanish Colonial", "whitewashed stucco, clay barrel tile roof, carved wooden doors and arched colonnade", "photo-1598635031829-4bfae29d33eb"],
+  ["Mid-Century Modern", "low horizontal volumes, butterfly or flat roofs, clerestory windows and warm wood with stone accents", "photo-1735987928098-c512af56d1a9"],
+  ["Contemporary", "mixed materials of stone, metal and glass, asymmetrical massing and sleek landscape lighting", "photo-1706808849780-7a04fbac83ef"],
+  ["Futuristic", "sculptural curved forms, seamless white surfaces, floor-to-ceiling glass and integrated lighting", "photo-1706189311313-5647687be7c6"],
+  ["Japanese", "a low hipped tiled roof, dark timber, shoji-style screens and a zen entry garden", "photo-1577790668485-b3e70d84b462"],
+  ["Bohemian", "colorful painted accents, layered plants, handmade textures and eclectic outdoor decor", "photo-1738021825259-4f4fbd88aad4"],
+  ["Tudor", "half-timbering, steep cross gables, tall chimneys and leaded-glass windows", "photo-1751050743813-03d46859896c"],
+  ["Barn-style", "a gambrel or gable roof, vertical board siding, sliding barn doors and a rustic color palette", "photo-1608429835892-30be51ea4d6c"],
+  ["Coastal", "weathered shingle siding, white trim, a widow's walk and soft blue accents", "photo-1768585985311-73cf1b78b3d7"],
+  ["Desert Modern", "rammed-earth textures, flat roofs, deep overhangs and a sand and rust palette with cacti planting", "photo-1790198576345-f1f1af9d458b"],
+  ["Chalet", "a wide low-pitch roof, carved timber balconies and stone base with stacked logs", "photo-1786684937985-65302858505b"],
+  ["Art Deco", "stepped geometric massing, vertical fluting, metal detailing and a bold symmetrical entry", "photo-1579625224451-b0ab6ed101f5"],
+  ["Brutalist", "raw board-formed concrete, monolithic blocky volumes and deep-set windows", "photo-1591394197887-b27e1ba3b2f9"],
+  ["Minimalist", "pure rectangular volumes, smooth white render, hidden gutters and hairline frames", "photo-1756706718604-ef4af3970e33"],
 ];
 const exteriorTemplate = (name: string, desc: string) =>
   `Redesign this house exterior in a ${name} architectural style, keeping the exact same building footprint, overall shape, roof position, window and door placement, and camera angle. Restyle the facade, cladding, roofing, doors, windows, trim and landscaping with ${desc}. Photorealistic architectural photography, same perspective as the original photo.`;
 
-const GARDEN: [string, string][] = [
-  ["Japanese Zen", "raked gravel, moss, stone lanterns, maples and a small koi pond"],
-  ["English Cottage", "overflowing perennial borders, climbing roses, winding paths and a rustic bench"],
-  ["Modern Minimalist", "clean geometric paving, structured evergreen planting, a linear water feature and ambient lighting"],
-  ["Mediterranean", "terracotta pots, olive trees, lavender, gravel paths and a stone pergola"],
-  ["Tropical Oasis", "lush palms, large-leaf foliage, a lagoon-style pool and bamboo screens"],
-  ["Desert Xeriscape", "sculptural succulents, agave, boulders and warm decomposed granite"],
-  ["Cottage Vegetable", "raised beds, herb borders, fruit trees and a rustic potting area"],
-  ["Outdoor Entertaining", "a built-in seating area, fire pit, string lighting and a dining pergola"],
-  ["Rooftop / Balcony Garden", "container planting, a compact seating nook, privacy screens and fairy lights"],
-  ["Formal French", "symmetrical clipped hedges, gravel parterres, a central fountain and topiary"],
-  ["Wildflower Meadow", "naturalistic native grasses and flowers with a mown path"],
-  ["Pool Garden", "a resort-style swimming pool with sun loungers, planting beds and a stone deck"],
+// [name, description, Unsplash photo id for the style thumbnail]
+const GARDEN: [string, string, string][] = [
+  ["Japanese Zen", "raked gravel, moss, stone lanterns, maples and a small koi pond", "photo-1672758688257-a110c93de407"],
+  ["English Cottage", "overflowing perennial borders, climbing roses, winding paths and a rustic bench", "photo-1713656275767-e8140c59acca"],
+  ["Modern Minimalist", "clean geometric paving, structured evergreen planting, a linear water feature and ambient lighting", "photo-1782073425027-e099f12e3433"],
+  ["Mediterranean", "terracotta pots, olive trees, lavender, gravel paths and a stone pergola", "photo-1770460063079-4849ef1b876e"],
+  ["Tropical Oasis", "lush palms, large-leaf foliage, a lagoon-style pool and bamboo screens", "photo-1667842288007-ea49b67ce9cf"],
+  ["Desert Xeriscape", "sculptural succulents, agave, boulders and warm decomposed granite", "photo-1527832808532-c838db1b5014"],
+  ["Cottage Vegetable", "raised beds, herb borders, fruit trees and a rustic potting area", "photo-1591857177580-dc82b9ac4e1e"],
+  ["Outdoor Entertaining", "a built-in seating area, fire pit, string lighting and a dining pergola", "photo-1778869290979-6f09567a0eee"],
+  ["Rooftop / Balcony Garden", "container planting, a compact seating nook, privacy screens and fairy lights", "photo-1527690499469-ef2eff9c6735"],
+  ["Formal French", "symmetrical clipped hedges, gravel parterres, a central fountain and topiary", "photo-1778154973201-6f38b24aaed3"],
+  ["Wildflower Meadow", "naturalistic native grasses and flowers with a mown path", "photo-1592290435338-682c400cb6f8"],
+  ["Pool Garden", "a resort-style swimming pool with sun loungers, planting beds and a stone deck", "photo-1657383543368-7d929944be6a"],
 ];
 const gardenTemplate = (name: string, desc: string) =>
   `Redesign this garden in a ${name} style, keeping the exact same house, boundaries, ground layout and camera angle. Replace the planting, paving, furniture and features with ${desc}. Photorealistic landscape photography, same perspective as the original photo.`;
 
 export const STYLES: Style[] = [
   ...(excelStyles as { slug: string; name: string; prompt: string; img?: string }[]).map((s) => ({ ...s, scope: "interior" as const })),
-  ...EXTERIOR.map(([n, d]) => ({ slug: `ext-${slugify(n)}`, name: n, scope: "exterior" as const, prompt: exteriorTemplate(n, d) })),
-  ...GARDEN.map(([n, d]) => ({ slug: `gar-${slugify(n)}`, name: n, scope: "garden" as const, prompt: gardenTemplate(n, d) })),
+  ...EXTERIOR.map(([n, d, photo]) => ({ slug: `ext-${slugify(n)}`, name: n, scope: "exterior" as const, prompt: exteriorTemplate(n, d), photo })),
+  ...GARDEN.map(([n, d, photo]) => ({ slug: `gar-${slugify(n)}`, name: n, scope: "garden" as const, prompt: gardenTemplate(n, d), photo })),
 ];
 
 export const ROOM_TYPES = [
