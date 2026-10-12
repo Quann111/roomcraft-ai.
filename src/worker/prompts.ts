@@ -100,7 +100,7 @@ const EXT_LOCK = "Keep the exact same building structure and camera angle. Photo
 
 function styleFor(slug: unknown, scope: Style["scope"]) {
   const s = STYLES.find((x) => x.slug === slug && x.scope === scope);
-  if (!s) throw new Error("Style không tồn tại");
+  if (!s) throw new Error("Style not found · Style không tồn tại");
   return s;
 }
 const oneOf = <T extends string>(list: readonly T[], v: unknown): T | undefined => list.find((x) => x === v);
@@ -124,7 +124,7 @@ export function buildPrompt(tool: string, p: any): string {
     }
     case "interior-declutter": {
       const sel = Array.isArray(p.remove) ? REMOVE.filter((r) => p.remove.includes(r)) : [];
-      if (!sel.length) throw new Error("Chọn ít nhất một thứ cần xoá");
+      if (!sel.length) throw new Error("Pick at least one thing to remove · Chọn ít nhất một thứ cần xoá");
       const what = sel.includes("everything (empty room)")
         ? "Remove all furniture, objects, decor and people so the room is completely empty, showing clean bare walls and floors."
         : `Remove all ${sel.join(", ").replace(/, ([^,]*)$/, " and $1")} from this room, and realistically fill in the walls and floors behind them.`;
@@ -138,8 +138,8 @@ export function buildPrompt(tool: string, p: any): string {
     }
     case "interior-material": {
       const surface = oneOf(Object.keys(SURFACES), p.surface);
-      if (!surface) throw new Error("Chọn bề mặt cần đổi");
-      if (!SURFACES[surface].includes(p.material)) throw new Error("Vật liệu không hợp lệ");
+      if (!surface) throw new Error("Pick a surface to change · Chọn bề mặt cần đổi");
+      if (!SURFACES[surface].includes(p.material)) throw new Error("Invalid material · Vật liệu không hợp lệ");
       return join(
         `Replace only the ${surface === "walls" ? "wall finish" : surface} in this room with ${p.material}.`,
         "Keep all furniture, objects, lighting and every other surface unchanged. Match the original lighting, reflections and perspective.", custom(p), STRUCTURE_LOCK);
@@ -151,7 +151,7 @@ export function buildPrompt(tool: string, p: any): string {
     }
     case "exterior-sky": {
       const w = WEATHER.find((x) => x === p.weather);
-      if (!w) throw new Error("Chọn thời tiết");
+      if (!w) throw new Error("Pick a weather option · Chọn thời tiết");
       return join(`Replace only the sky and lighting of this exterior photo with ${w.toLowerCase()} conditions, adjusting shadows, reflections and ambient light on the building and surroundings to match.`, "Do not change the building or landscaping.", custom(p), EXT_LOCK);
     }
     case "exterior-sketch": {
@@ -161,6 +161,6 @@ export function buildPrompt(tool: string, p: any): string {
     case "garden-redesign":
       return join(styleFor(p.styleSlug, "garden").prompt, custom(p));
     default:
-      throw new Error("Tool không hợp lệ");
+      throw new Error("Invalid tool · Tool không hợp lệ");
   }
 }

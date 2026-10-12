@@ -30,7 +30,7 @@ export async function submitImageToImage(apiKey: string, o: { image: ArrayBuffer
     resolution: o.resolution,
     ...(o.aspectRatio ? { aspectRatio: o.aspectRatio } : {}),
   });
-  if (!res.taskId) throw new Error(res.errorMessage || "RunningHub không trả taskId");
+  if (!res.taskId) throw new Error(res.errorMessage || "RunningHub returned no taskId · RunningHub không trả taskId");
   return res.taskId;
 }
 

@@ -75,13 +75,13 @@ const requireAuth = async (c: any, next: () => Promise<void>) => {
 };
 
 app.post("/api/auth/signup", async (c) => {
-  if (!(await allow(c.env, `signup:${ip(c)}`, 3_600_000, 5))) return c.json({ error: "Quá nhiều lần đăng ký, thử lại sau" }, 429);
+  if (!(await allow(c.env, `signup:${ip(c)}`, 3_600_000, 5))) return c.json({ error: "Too many sign-ups, please try again later · Quá nhiều lần đăng ký, thử lại sau" }, 429);
   const { email, password } = await c.req.json<{ email?: string; password?: string }>().catch(() => ({} as any));
   const e = (email ?? "").trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) || (password ?? "").length < 8)
-    return c.json({ error: "Email khÃ´ng há»£p lá»‡ hoáº·c máº­t kháº©u < 8 kÃ½ tá»±" }, 400);
+    return c.json({ error: "Invalid email or password shorter than 8 characters · Email không hợp lệ hoặc mật khẩu < 8 ký tự" }, 400);
   if (await c.env.DB.prepare("SELECT 1 FROM users WHERE email=?").bind(e).first())
-    return c.json({ error: "Email Ä‘Ã£ tá»“n táº¡i" }, 409);
+    return c.json({ error: "Email already registered · Email đã tồn tại" }, 409);
   const id = crypto.randomUUID();
   const salt = b64(crypto.getRandomValues(new Uint8Array(16)));
   const now = Date.now();
@@ -92,12 +92,12 @@ app.post("/api/auth/signup", async (c) => {
 });
 
 app.post("/api/auth/login", async (c) => {
-  if (!(await allow(c.env, `login:${ip(c)}`, 600_000, 10))) return c.json({ error: "Quá nhiều lần thử, thử lại sau 10 phút" }, 429);
+  if (!(await allow(c.env, `login:${ip(c)}`, 600_000, 10))) return c.json({ error: "Too many attempts, try again in 10 minutes · Quá nhiều lần thử, thử lại sau 10 phút" }, 429);
   const { email, password } = await c.req.json<{ email?: string; password?: string }>().catch(() => ({} as any));
   const row: any = await c.env.DB.prepare("SELECT id,pw_hash,pw_salt FROM users WHERE email=?")
     .bind((email ?? "").trim().toLowerCase()).first();
   if (!row || (await hashPw(password ?? "", row.pw_salt)) !== row.pw_hash)
-    return c.json({ error: "Sai email hoáº·c máº­t kháº©u" }, 401);
+    return c.json({ error: "Wrong email or password · Sai email hoặc mật khẩu" }, 401);
   await createSession(c, row.id);
   return c.json({ ok: true });
 });
@@ -128,9 +128,9 @@ app.get("/api/prompts", requireAuth, (c) => c.json({ prompts: STYLES.map(({ slug
 app.post("/api/upload", requireAuth, async (c) => {
   const mime = (c.req.header("content-type") ?? "").split(";")[0];
   const ext = MIMES[mime];
-  if (!ext) return c.json({ error: "Chỉ hỗ trợ JPG, PNG, WebP" }, 400);
+  if (!ext) return c.json({ error: "Only JPG, PNG and WebP are supported · Chỉ hỗ trợ JPG, PNG, WebP" }, 400);
   const body = await c.req.arrayBuffer();
-  if (!body.byteLength || body.byteLength > MAX_UPLOAD) return c.json({ error: "Ảnh tối đa 10MB" }, 400);
+  if (!body.byteLength || body.byteLength > MAX_UPLOAD) return c.json({ error: "Image must be 10MB or smaller · Ảnh tối đa 10MB" }, 400);
   const key = `in/${c.get("user").id}/${crypto.randomUUID()}.${ext}`;
   await c.env.IMAGES.put(key, body, { httpMetadata: { contentType: mime } });
   return c.json({ key });
@@ -139,24 +139,24 @@ app.post("/api/upload", requireAuth, async (c) => {
 app.post("/api/generate", requireAuth, async (c) => {
   const u = c.get("user");
   const b = await c.req.json<any>().catch(() => ({}));
-  if (!c.env.RUNNINGHUB_API_KEY) return c.json({ error: "Server chưa cấu hình RUNNINGHUB_API_KEY" }, 500);
-  if (typeof b.inputKey !== "string" || !b.inputKey.startsWith(`in/${u.id}/`)) return c.json({ error: "Ảnh đầu vào không hợp lệ" }, 400);
-  if (!isAdmin(u) && !(await allow(c.env, `gen:${u.id}`, 3_600_000, 20))) return c.json({ error: "Tối đa 20 lượt tạo mỗi giờ" }, 429);
+  if (!c.env.RUNNINGHUB_API_KEY) return c.json({ error: "Server is missing RUNNINGHUB_API_KEY · Server chưa cấu hình RUNNINGHUB_API_KEY" }, 500);
+  if (typeof b.inputKey !== "string" || !b.inputKey.startsWith(`in/${u.id}/`)) return c.json({ error: "Invalid input image · Ảnh đầu vào không hợp lệ" }, 400);
+  if (!isAdmin(u) && !(await allow(c.env, `gen:${u.id}`, 3_600_000, 20))) return c.json({ error: "Limit is 20 generations per hour · Tối đa 20 lượt tạo mỗi giờ" }, 429);
   const busy = await c.env.DB.prepare("SELECT COUNT(*) n FROM generations WHERE user_id=? AND status IN ('QUEUED','RUNNING') AND created_at>?").bind(u.id, Date.now() - 600_000).first<{ n: number }>();
-  if ((busy?.n ?? 0) >= 3) return c.json({ error: "Đang có 3 ảnh xử lý, hãy chờ xong rồi tạo tiếp" }, 429);
+  if ((busy?.n ?? 0) >= 3) return c.json({ error: "3 images are already processing, wait for them to finish · Đang có 3 ảnh xử lý, hãy chờ xong rồi tạo tiếp" }, 429);
   const resolution = RES.includes(b.resolution) ? b.resolution : "1k";
   const aspectRatio = ASPECTS.includes(b.aspectRatio) ? b.aspectRatio : undefined;
   let prompt: string;
-  if (!(TOOL_IDS as readonly string[]).includes(b.tool)) return c.json({ error: "Tool không hợp lệ" }, 400);
+  if (!(TOOL_IDS as readonly string[]).includes(b.tool)) return c.json({ error: "Invalid tool · Tool không hợp lệ" }, 400);
   try { prompt = buildPrompt(b.tool, b); } catch (e: any) { return c.json({ error: e.message }, 400); }
   const obj = await c.env.IMAGES.get(b.inputKey);
-  if (!obj) return c.json({ error: "Không tìm thấy ảnh" }, 400);
+  if (!obj) return c.json({ error: "Image not found · Không tìm thấy ảnh" }, 400);
 
   const cost = isAdmin(u) ? 0 : RES_COST[resolution]; // admin: unlimited, no credits charged
   const id = crypto.randomUUID();
   const now = Date.now();
   const paid = await c.env.DB.prepare("UPDATE users SET credits=credits-? WHERE id=? AND credits>=?").bind(cost, u.id, cost).run();
-  if (!paid.meta.changes) return c.json({ error: "Hết credits. Credits được nạp lại sau 24 giờ." }, 402);
+  if (!paid.meta.changes) return c.json({ error: "Out of credits. Credits refill after 24 hours. · Hết credits. Credits được nạp lại sau 24 giờ." }, 402);
   const refund = (reason: string) => c.env.DB.batch([
     c.env.DB.prepare("UPDATE users SET credits=credits+? WHERE id=?").bind(cost, u.id),
     c.env.DB.prepare("INSERT INTO credit_ledger (user_id,delta,reason,generation_id,created_at) VALUES (?,?,?,?,?)").bind(u.id, cost, reason, id, Date.now()),
@@ -171,7 +171,7 @@ app.post("/api/generate", requireAuth, async (c) => {
     return c.json({ id, status: "RUNNING" });
   } catch (e: any) {
     await refund("refund_submit_failed");
-    return c.json({ error: `Không gửi được yêu cầu: ${e.message}` }, 502);
+    return c.json({ error: `Could not submit request: ${e.message} · Không gửi được yêu cầu: ${e.message}` }, 502);
   }
 });
 
@@ -202,11 +202,11 @@ app.get("/api/generations/:id", requireAuth, async (c) => {
         await c.env.IMAGES.put(key, await img.arrayBuffer(), { httpMetadata: { contentType: `image/${ext === "jpg" ? "jpeg" : ext}` } });
         await c.env.DB.prepare("UPDATE generations SET status='SUCCESS', output_key=? WHERE id=?").bind(key, g.id).run();
         g.status = "SUCCESS"; g.output_key = key;
-      } else if (expired) await fail("Không tải được ảnh kết quả");
+      } else if (expired) await fail("Could not download the result image · Không tải được ảnh kết quả");
     } else if (r && r.status !== "QUEUED" && r.status !== "RUNNING" && r.status !== "SUCCESS") {
-      await fail(r.errorMessage || "RunningHub báo lỗi");
+      await fail(r.errorMessage || "RunningHub reported an error · RunningHub báo lỗi");
     } else if (expired) {
-      await fail(pollError || "Hết thời gian chờ (15 phút)");
+      await fail(pollError || "Timed out (15 minutes) · Hết thời gian chờ (15 phút)");
     }
   }
   return c.json({ id: g.id, status: g.status, error: g.error, public: !!g.is_public, inputUrl: `/api/images/${g.input_key}`, outputUrl: g.output_key ? `/api/images/${g.output_key}` : null });
@@ -237,7 +237,7 @@ app.delete("/api/generations/:id", requireAuth, async (c) => {
   const u = c.get("user");
   const g: any = await c.env.DB.prepare("SELECT input_key,output_key,status FROM generations WHERE id=? AND user_id=?").bind(c.req.param("id"), u.id).first();
   if (!g) return c.json({ error: "not found" }, 404);
-  if (g.status === "RUNNING" || g.status === "QUEUED") return c.json({ error: "Đang xử lý, chưa thể xoá" }, 409);
+  if (g.status === "RUNNING" || g.status === "QUEUED") return c.json({ error: "Still processing, cannot delete yet · Đang xử lý, chưa thể xoá" }, 409);
   await c.env.IMAGES.delete([g.input_key, g.output_key].filter(Boolean));
   await c.env.DB.prepare("DELETE FROM generations WHERE id=? AND user_id=?").bind(c.req.param("id"), u.id).run();
   return c.json({ ok: true });

@@ -42,7 +42,7 @@ export function AuthForm({ mode, onDone, onSwitch }: { mode: "login" | "signup";
       {mode === "signup" && <p className="text-sm text-neutral-500">{t("3 free credits, refilled every 24 hours.", "3 credit miễn phí, nạp lại sau mỗi 24 giờ.")}</p>}
       <input className="rounded border p-2" type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
       <input className="rounded border p-2" type="password" placeholder={t("Password (8+ characters)", "Mật khẩu (từ 8 ký tự)")} value={password} onChange={(e) => setPassword(e.target.value)} required minLength={mode === "signup" ? 8 : undefined} autoComplete={mode === "signup" ? "new-password" : "current-password"} />
-      {err && <p className="text-sm text-red-600">{err}</p>}
+      {err && <p className="text-sm text-red-600">{bi(err)}</p>}
       <button type="submit" disabled={busy} className="disabled:opacity-50">{mode === "signup" ? t("Sign up", "Đăng ký") : t("Log in", "Đăng nhập")}</button>
       {(() => {
         const label = mode === "signup" ? t("Have an account? Log in", "Đã có tài khoản? Đăng nhập") : t("No account? Sign up", "Chưa có tài khoản? Đăng ký");

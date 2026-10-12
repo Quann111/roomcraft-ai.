@@ -31,7 +31,7 @@ const RES_COST: Record<string, number> = { "1k": 1, "2k": 2, "4k": 3 };
 async function j<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(path, init);
   const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error((d as any).error ?? "Lỗi");
+  if (!r.ok) throw new Error((d as any).error ?? "Error · Lỗi");
   return d as T;
 }
 
@@ -42,7 +42,7 @@ export function BeforeAfter({ before, after }: { before: string; after: string }
       <img src={after} className="block w-full" alt="after" />
       <img src={before} alt="before" className="absolute inset-0 h-full w-full object-cover" style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }} />
       <div className="absolute inset-y-0 w-0.5 bg-white shadow" style={{ left: `${pos}%` }} />
-      <input type="range" min={0} max={100} value={pos} onChange={(e) => setPos(+e.target.value)} className="absolute inset-x-0 bottom-2 w-full" aria-label="So sánh trước/sau" />
+      <input type="range" min={0} max={100} value={pos} onChange={(e) => setPos(+e.target.value)} className="absolute inset-x-0 bottom-2 w-full" aria-label={bi("Compare before/after · So sánh trước/sau")} />
     </div>
   );
 }
@@ -120,7 +120,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
         setGen(g);
         if (g.status === "RUNNING" || g.status === "QUEUED") return poll(id);
         setBusy(false); onCreditsChange(); loadHistory();
-        if (g.status === "FAILED") setErr(g.error || "Tạo ảnh thất bại (đã hoàn credits)");
+        if (g.status === "FAILED") setErr(g.error || "Generation failed (credits refunded) · Tạo ảnh thất bại (đã hoàn credits)");
       } catch (e: any) { setErr(e.message); setBusy(false); }
     }, 4000);
   };
@@ -190,7 +190,7 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
         <select className={field} value={res} onChange={(e) => setRes(e.target.value)}>
           {Object.entries(RES_COST).map(([k, c]) => <option key={k} value={k}>{k.toUpperCase()} · {c} credit{c > 1 ? "s" : ""}</option>)}
         </select>
-        {err && <p className="text-sm text-red-600">{err}</p>}
+        {err && <p className="text-sm text-red-600">{bi(err)}</p>}
         <button disabled={!file || busy} onClick={run} className="rounded bg-black py-3 text-white disabled:opacity-40">{busy ? bi("Generating… (1–2 min) · Đang tạo…") : bi("Generate · Tạo thiết kế")}</button>
       </div>
       <div>
