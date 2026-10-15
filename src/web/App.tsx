@@ -57,7 +57,7 @@ const TOOLS: ToolDef[] = [
   { name: "Floor Editor", desc: "Replace the flooring in any image with custom materials to see how the new floor would look.", cat: "3d", photo: "photo-1600210492486-724fe5c67fb0", icon: "layers", spaces: ["interior-floor"] },
   { name: "Furniture Finder", desc: "Identify and get purchase links for furniture in images and generated designs.", cat: "furnish", photo: "photo-1615874694520-47482239468c", icon: "search" },
   { name: "Room Composer", desc: "Upload your room and elements, and our AI will compose it into a stylish, cohesive space.", cat: "furnish", photo: "photo-1616486338812-3dadae4b4ace", icon: "sofa" },
-  { name: "Design Transfer", desc: "Recreate the style of inspiration images by applying their design style to a new space.", cat: "redesign", photo: "photo-1616486338812-3dadae4b4ace", icon: "image" },
+  { name: "Design Transfer", desc: "Recreate the style of inspiration images by applying their design style to a new space.", cat: "redesign", photo: "photo-1616486338812-3dadae4b4ace", icon: "image", spaces: ["interior-transfer"] },
   { name: "Text to Design", desc: "Generate complete designs from text descriptions, turning words into beautifully crafted spaces.", cat: "redesign", photo: "photo-1600607687939-ce8a6c25118c", icon: "file" },
   { name: "Business 3D Floorplan", desc: "Upload one 2D plan. AI detects every room and generates consistent, photoreal renders for each space.", cat: "business", photo: "photo-1600607687920-4e2a09cf159d", icon: "house", premium: true },
   { name: "3D Floorplan", desc: "Generate realistic 3D renderings from 2D floorplans. Bring blueprints to life with complete accuracy.", cat: "3d", photo: "photo-1600585154340-be6161a56a0c", icon: "house", premium: true },
@@ -149,6 +149,17 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
               <button className={tab === "extra" ? "active" : ""} onClick={() => setTab("extra")}>{t("Additional Instructions", "Yêu cầu thêm")}</button>
             </div>
 
+            {cfg.reference && (
+              <>
+                <h4>{t("Style reference", "Ảnh tham khảo phong cách")}</h4>
+                <label className="upload-zone" style={{ cursor: "pointer", overflow: "hidden", minHeight: 150 }}>
+                  {g.refPreview ? <img src={g.refPreview} alt="" style={{ maxHeight: 220, width: "100%", objectFit: "contain" }} /> : (
+                    <div><div className="upload-icon"><Icon n="image" /></div><b>{t("Upload an inspiration photo", "Tải ảnh mẫu bạn thích")}</b><p className="helper">{t("We'll apply its colors, materials and furniture style to your room.", "AI sẽ áp màu sắc, vật liệu và kiểu nội thất của ảnh này vào phòng bạn.")}</p></div>
+                  )}
+                  <input type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(e) => g.pickRef(e.target.files?.[0])} />
+                </label>
+              </>
+            )}
             {tab === "preset" ? (
               <>
                 {cfg.room && (
@@ -221,8 +232,8 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
             <h4>{t("Resolution", "Độ phân giải")}</h4>
             <div className="segmented">{[["1k", 1], ["2k", 2], ["4k", 3]].map(([k, c]) => <button key={k} type="button" className={k === g.res ? "active" : ""} onClick={() => g.setRes(k as string)}>{(k as string).toUpperCase()} · {c} credit</button>)}</div>
             {g.err && <p className="helper" style={{ color: "#b3261e" }}>{g.err}</p>}
-            <button className="generate-btn" disabled={!g.file || g.busy} onClick={g.run} style={!g.file || g.busy ? { opacity: 0.5 } : undefined}>
-              <Icon n="spark" />{g.busy ? t("Generating… (1–2 min)", "Đang tạo… (1–2 phút)") : g.file ? t("Generate New Designs", "Tạo thiết kế mới") : t("Upload an image first", "Hãy tải ảnh lên trước")}
+            <button className="generate-btn" disabled={!g.ready || g.busy} onClick={g.run} style={!g.ready || g.busy ? { opacity: 0.5 } : undefined}>
+              <Icon n="spark" />{g.busy ? t("Generating… (1–2 min)", "Đang tạo… (1–2 phút)") : g.ready ? t("Generate New Designs", "Tạo thiết kế mới") : !g.file ? t("Upload an image first", "Hãy tải ảnh lên trước") : t("Add a style reference", "Hãy thêm ảnh tham khảo")}
             </button>
           </div>
         </div>
