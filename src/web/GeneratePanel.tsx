@@ -4,25 +4,29 @@ import { bi } from "./i18n";
 type Meta = {
   styles: { slug: string; name: string; scope: string; thumb?: string }[];
   roomTypes: string[]; intervention: string[];
-  surfaces: Record<string, string[]>; weather: string[]; remove: string[]; angles: string[];
+  surfaces: Record<string, string[]>; paints: { name: string; hex: string }[]; finishes: string[]; weather: string[]; remove: string[]; angles: string[];
 };
 type Gen = { id: string; status: string; error?: string; public?: boolean; inputUrl: string; outputUrl: string | null };
-export type Preset = Partial<{ styleSlug: string; roomType: string; intervention: string; surface: string; material: string; weather: string; remove: string[]; angle: string }>;
+export type Preset = Partial<{ styleSlug: string; roomType: string; intervention: string; surface: string; material: string; weather: string; remove: string[]; angle: string; color: string; finish: string }>;
 
 export type ToolId =
   | "interior-redesign" | "interior-staging" | "interior-declutter" | "interior-sketch" | "interior-material"
-  | "exterior-redesign" | "exterior-sky" | "exterior-sketch" | "garden-redesign";
+  | "interior-paint" | "interior-floor"
+  | "exterior-redesign" | "exterior-sky" | "exterior-sketch" | "exterior-paint" | "garden-redesign";
 
-type Cfg = { scope?: "interior" | "exterior" | "garden"; room?: boolean; intervention?: boolean; remove?: boolean; surface?: boolean; weather?: boolean; angle?: boolean; hint: string };
+type Cfg = { scope?: "interior" | "exterior" | "garden"; room?: boolean; intervention?: boolean; remove?: boolean; surface?: boolean; weather?: boolean; angle?: boolean; paint?: boolean; floor?: boolean; hint: string };
 const CFG: Record<ToolId, Cfg> = {
   "interior-redesign": { scope: "interior", room: true, intervention: true, hint: "Room photo to redesign · Ảnh phòng cần thiết kế lại" },
   "interior-staging": { scope: "interior", room: true, hint: "Empty room photo to stage · Ảnh phòng trống cần bài trí" },
   "interior-declutter": { remove: true, hint: "Room photo to declutter · Ảnh phòng cần dọn đồ" },
   "interior-sketch": { scope: "interior", room: true, hint: "Room sketch · Bản phác thảo phòng" },
   "interior-material": { surface: true, hint: "Room photo to retexture · Ảnh phòng cần đổi vật liệu" },
+  "interior-paint": { paint: true, hint: "Room photo to repaint · Ảnh phòng cần sơn lại" },
+  "interior-floor": { floor: true, hint: "Room photo with a visible floor · Ảnh phòng thấy rõ sàn" },
   "exterior-redesign": { scope: "exterior", angle: true, hint: "House exterior photo · Ảnh mặt ngoài ngôi nhà" },
   "exterior-sky": { weather: true, hint: "House exterior photo · Ảnh mặt ngoài ngôi nhà" },
   "exterior-sketch": { scope: "exterior", hint: "House sketch · Bản phác thảo ngôi nhà" },
+  "exterior-paint": { paint: true, hint: "House exterior photo · Ảnh mặt ngoài ngôi nhà" },
   "garden-redesign": { scope: "garden", hint: "Garden photo · Ảnh khu vườn" },
 };
 
@@ -62,6 +66,8 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
   const [material, setMaterial] = useState("");
   const [weather, setWeather] = useState("");
   const [angle, setAngle] = useState("front");
+  const [color, setColor] = useState("Sage green");
+  const [paintFinish, setPaintFinish] = useState("matte");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [gen, setGen] = useState<Gen | null>(null);
@@ -87,6 +93,9 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     if (preset?.weather) setWeather(preset.weather);
     if (preset?.angle) setAngle(preset.angle);
     if (preset?.surface) setSurface(preset.surface);
+    if (cfg.floor) setSurface("floor");
+    if (preset?.color) setColor(preset.color);
+    if (preset?.finish) setPaintFinish(preset.finish);
   }, [tool, meta, preset]);
   useEffect(() => {
     if (!meta) return;
@@ -139,6 +148,8 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
           ...(cfg.intervention ? { intervention: meta.intervention[lvl] } : {}),
           ...(cfg.remove ? { remove } : {}),
           ...(cfg.surface ? { surface, material } : {}),
+          ...(cfg.floor ? { surface: "floor", material } : {}),
+          ...(cfg.paint ? { color, finish: paintFinish } : {}),
           ...(cfg.weather ? { weather } : {}),
           ...(cfg.angle ? { angle } : {}),
         }),
@@ -148,11 +159,11 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     } catch (e: any) { setErr(e.message); setBusy(false); onCreditsChange(); }
   };
 
-  return { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory };
+  return { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, color, setColor, paintFinish, setPaintFinish, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory };
 }
 
 export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId; preset?: Preset; onCreditsChange: () => void }) {
-  const { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory } = useGenerator(tool, preset, onCreditsChange);
+  const { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, color, setColor, paintFinish, setPaintFinish, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory } = useGenerator(tool, preset, onCreditsChange);
   if (!meta) return <p className="mt-8 text-center text-neutral-500">{bi("Loading… · Đang tải…")}</p>;
   const field = "w-full rounded border p-2";
   return (
@@ -180,6 +191,19 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
             <select className={field} value={surface} onChange={(e) => setSurface(e.target.value)}>{Object.keys(meta.surfaces).map((s) => <option key={s} value={s}>{bi(s)}</option>)}</select>
             <select className={field} value={material} onChange={(e) => setMaterial(e.target.value)}>{meta.surfaces[surface].map((m) => <option key={m} value={m}>{bi(m)}</option>)}</select>
           </>
+        )}
+        {cfg.floor && <select className={field} value={material} onChange={(e) => setMaterial(e.target.value)}>{meta.surfaces.floor.map((m) => <option key={m} value={m}>{bi(m)}</option>)}</select>}
+        {cfg.paint && (
+          <div className="flex flex-wrap items-center gap-2">
+            {meta.paints.map((c) => (
+              <button key={c.name} type="button" title={bi(c.name)} aria-label={bi(c.name)} onClick={() => setColor(c.name)}
+                className={`h-8 w-8 rounded-full border ${color === c.name ? "ring-2 ring-black ring-offset-2" : ""}`} style={{ background: c.hex }} />
+            ))}
+            <label className="flex items-center gap-1 text-sm">{bi("Custom · Tuỳ chọn")}
+              <input type="color" value={color.startsWith("#") ? color : meta.paints.find((c) => c.name === color)?.hex ?? "#ffffff"} onChange={(e) => setColor(e.target.value)} />
+            </label>
+            <select className={field} value={paintFinish} onChange={(e) => setPaintFinish(e.target.value)}>{meta.finishes.map((f) => <option key={f} value={f}>{bi("Finish · Độ bóng")}: {bi(f)}</option>)}</select>
+          </div>
         )}
         {cfg.intervention && (
           <label className="text-sm">{bi("AI intervention · Mức can thiệp AI: ")}<b>{bi(meta.intervention[lvl])}</b>
