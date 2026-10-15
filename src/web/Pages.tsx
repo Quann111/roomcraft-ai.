@@ -181,7 +181,7 @@ export function StylePage({ scope, slug }: { scope: string; slug: string }) {
   );
 }
 
-type Item = { id: string; tool: string; params: Preset; status: string; public: boolean; createdAt: number; inputUrl: string; outputUrl: string | null };
+type Item = { id: string; tool: string; params: Preset; status: string; public: boolean; createdAt: number; inputUrl: string | null; outputUrl: string | null };
 export function ProjectsPage() {
   const { me, loaded } = useAuth();
   const [items, setItems] = useState<Item[] | null>(null);

@@ -6,15 +6,15 @@ type Meta = {
   roomTypes: string[]; intervention: string[];
   surfaces: Record<string, string[]>; paints: { name: string; hex: string }[]; finishes: string[]; weather: string[]; remove: string[]; angles: string[];
 };
-type Gen = { id: string; status: string; error?: string; public?: boolean; inputUrl: string; outputUrl: string | null };
-export type Preset = Partial<{ styleSlug: string; roomType: string; intervention: string; surface: string; material: string; weather: string; remove: string[]; angle: string; color: string; finish: string }>;
+type Gen = { id: string; status: string; error?: string; public?: boolean; inputUrl: string | null; outputUrl: string | null };
+export type Preset = Partial<{ styleSlug: string; roomType: string; intervention: string; surface: string; material: string; weather: string; remove: string[]; angle: string; color: string; finish: string; description: string }>;
 
 export type ToolId =
   | "interior-redesign" | "interior-staging" | "interior-declutter" | "interior-sketch" | "interior-material"
-  | "interior-paint" | "interior-floor" | "interior-transfer"
-  | "exterior-redesign" | "exterior-sky" | "exterior-sketch" | "exterior-paint" | "garden-redesign";
+  | "interior-paint" | "interior-floor" | "interior-transfer" | "interior-text"
+  | "exterior-redesign" | "exterior-sky" | "exterior-sketch" | "exterior-paint" | "exterior-text" | "garden-redesign" | "garden-text";
 
-type Cfg = { scope?: "interior" | "exterior" | "garden"; room?: boolean; intervention?: boolean; remove?: boolean; surface?: boolean; weather?: boolean; angle?: boolean; paint?: boolean; floor?: boolean; reference?: boolean; hint: string };
+type Cfg = { scope?: "interior" | "exterior" | "garden"; room?: boolean; intervention?: boolean; remove?: boolean; surface?: boolean; weather?: boolean; angle?: boolean; paint?: boolean; floor?: boolean; reference?: boolean; text?: boolean; hint: string };
 const CFG: Record<ToolId, Cfg> = {
   "interior-redesign": { scope: "interior", room: true, intervention: true, hint: "Room photo to redesign · Ảnh phòng cần thiết kế lại" },
   "interior-staging": { scope: "interior", room: true, hint: "Empty room photo to stage · Ảnh phòng trống cần bài trí" },
@@ -24,10 +24,13 @@ const CFG: Record<ToolId, Cfg> = {
   "interior-paint": { paint: true, hint: "Room photo to repaint · Ảnh phòng cần sơn lại" },
   "interior-floor": { floor: true, hint: "Room photo with a visible floor · Ảnh phòng thấy rõ sàn" },
   "interior-transfer": { reference: true, room: true, intervention: true, hint: "Your room photo · Ảnh phòng của bạn" },
+  "interior-text": { text: true, scope: "interior", room: true, hint: "e.g. a bright Scandinavian living room with a big window, oak floor and a green sofa · VD: phòng khách Bắc Âu sáng sủa, cửa sổ lớn, sàn gỗ sồi, sofa xanh lá" },
   "exterior-redesign": { scope: "exterior", angle: true, hint: "House exterior photo · Ảnh mặt ngoài ngôi nhà" },
   "exterior-sky": { weather: true, hint: "House exterior photo · Ảnh mặt ngoài ngôi nhà" },
   "exterior-sketch": { scope: "exterior", hint: "House sketch · Bản phác thảo ngôi nhà" },
   "exterior-paint": { paint: true, hint: "House exterior photo · Ảnh mặt ngoài ngôi nhà" },
+  "exterior-text": { text: true, scope: "exterior", hint: "e.g. a two-storey modern house with white render, wood cladding and a flat roof · VD: nhà phố 2 tầng hiện đại, tường trắng, ốp gỗ, mái bằng" },
+  "garden-text": { text: true, scope: "garden", hint: "e.g. a small backyard with a wooden deck, lavender borders and string lights · VD: sân sau nhỏ có sàn gỗ, viền hoa oải hương và đèn dây" },
   "garden-redesign": { scope: "garden", hint: "Garden photo · Ảnh khu vườn" },
 };
 
@@ -40,8 +43,10 @@ async function j<T>(path: string, init?: RequestInit): Promise<T> {
   return d as T;
 }
 
-export function BeforeAfter({ before, after }: { before: string; after: string }) {
+export function BeforeAfter({ before, after }: { before: string | null; after: string }) {
   const [pos, setPos] = useState(50);
+  // Text-to-design results have no input photo: show the output on its own.
+  if (!before) return <img src={after} className="mx-auto block max-w-2xl rounded-xl" style={{ width: "100%" }} alt="" />;
   return (
     <div className="relative mx-auto max-w-2xl select-none overflow-hidden rounded-xl">
       <img src={after} className="block w-full" alt="after" />
@@ -59,6 +64,8 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
   const [preview, setPreview] = useState("");
   const [refFile, setRefFile] = useState<File | null>(null);
   const [refPreview, setRefPreview] = useState("");
+  const [description, setDescription] = useState("");
+  const [aspect, setAspect] = useState("16:9");
   const [style, setStyle] = useState("");
   const [room, setRoom] = useState("Living room");
   const [lvl, setLvl] = useState(2);
@@ -89,8 +96,9 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
   useEffect(() => {
     clearTimeout(timer.current);
     setGen(null); setErr(""); setBusy(false);
-    setStyle(preset?.styleSlug && styles.some((s) => s.slug === preset.styleSlug) ? preset.styleSlug : styles[0]?.slug ?? "");
+    setStyle(preset?.styleSlug && styles.some((s) => s.slug === preset.styleSlug) ? preset.styleSlug : cfg.text ? "" : styles[0]?.slug ?? "");
     if (preset?.roomType) setRoom(preset.roomType);
+    else if (cfg.text) setRoom(""); // optional for text-to-design; the description usually names the room
     if (preset?.intervention && meta) setLvl(Math.max(0, meta.intervention.indexOf(preset.intervention)));
     if (preset?.remove?.length) setRemove(preset.remove);
     if (preset?.weather) setWeather(preset.weather);
@@ -99,6 +107,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     if (cfg.floor) setSurface("floor");
     if (preset?.color) setColor(preset.color);
     if (preset?.finish) setPaintFinish(preset.finish);
+    if (preset?.description) setDescription(preset.description);
   }, [tool, meta, preset]);
   useEffect(() => {
     if (!meta) return;
@@ -130,7 +139,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     setRefFile(f); setGen(null); setErr("");
     setRefPreview(URL.createObjectURL(f));
   };
-  const ready = !!file && (!cfg.reference || !!refFile);
+  const ready = cfg.text ? description.trim().length >= 10 : !!file && (!cfg.reference || !!refFile);
 
   const poll = (id: string) => {
     timer.current = window.setTimeout(async () => {
@@ -145,18 +154,19 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
   };
 
   const run = async () => {
-    if (!file || !meta || !ready) return;
+    if (!meta || !ready) return;
     setBusy(true); setErr(""); setGen(null);
     try {
       const upload = (f: File) => j<{ key: string }>("/api/upload", { method: "POST", headers: { "Content-Type": f.type }, body: f }).then((r) => r.key);
-      const key = await upload(file);
+      const key = cfg.text || !file ? undefined : await upload(file);
       const refKey = cfg.reference && refFile ? await upload(refFile) : undefined;
       const g = await j<{ id: string }>("/api/generate", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tool, inputKey: key, custom, resolution: res,
-          ...(cfg.scope ? { styleSlug: style } : {}),
-          ...(cfg.room ? { roomType: room } : {}),
+          ...(cfg.scope && style ? { styleSlug: style } : {}),
+          ...(cfg.text ? { description, aspectRatio: aspect } : {}),
+          ...(cfg.room && room ? { roomType: room } : {}),
           ...(cfg.intervention ? { intervention: meta.intervention[lvl] } : {}),
           ...(cfg.remove ? { remove } : {}),
           ...(cfg.surface ? { surface, material } : {}),
@@ -172,28 +182,30 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     } catch (e: any) { setErr(e.message); setBusy(false); onCreditsChange(); }
   };
 
-  return { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, ready, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory };
+  return { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory };
 }
 
 export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId; preset?: Preset; onCreditsChange: () => void }) {
-  const { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, ready, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory } = useGenerator(tool, preset, onCreditsChange);
+  const { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory } = useGenerator(tool, preset, onCreditsChange);
   if (!meta) return <p className="mt-8 text-center text-neutral-500">{bi("Loading… · Đang tải…")}</p>;
   const field = "w-full rounded border p-2";
   return (
     <div className="mt-6 grid gap-6 md:grid-cols-2">
       <div className="flex flex-col gap-3">
-        <label className="flex min-h-48 cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-dashed">
+        {cfg.text ? (
+          <textarea className={field} rows={5} maxLength={1000} placeholder={bi(cfg.hint)} value={description} onChange={(e) => setDescription(e.target.value)} />
+        ) : <label className="flex min-h-48 cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-dashed">
           {preview ? <img src={preview} className="max-h-72 w-full object-contain" alt="ảnh gốc" /> : <span className="px-4 text-center text-neutral-500">{bi(cfg.hint)} (JPG/PNG/WebP, ≤10MB)</span>}
           <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
-        </label>
+        </label>}
         {cfg.reference && (
           <label className="flex min-h-32 cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-dashed">
             {refPreview ? <img src={refPreview} className="max-h-48 w-full object-contain" alt="" /> : <span className="px-4 text-center text-neutral-500">{bi("Style reference image · Ảnh tham khảo phong cách")}</span>}
             <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => pickRef(e.target.files?.[0])} />
           </label>
         )}
-        {cfg.room && <select className={field} value={room} onChange={(e) => setRoom(e.target.value)}>{meta.roomTypes.map((r) => <option key={r} value={r}>{bi(r)}</option>)}</select>}
-        {cfg.scope && <select className={field} value={style} onChange={(e) => setStyle(e.target.value)}>{styles.map((s) => <option key={s.slug} value={s.slug}>{bi(s.name)}</option>)}</select>}
+        {cfg.room && <select className={field} value={room} onChange={(e) => setRoom(e.target.value)}>{cfg.text && <option value="">{bi("Any room type · Loại phòng bất kỳ")}</option>}{meta.roomTypes.map((r) => <option key={r} value={r}>{bi(r)}</option>)}</select>}
+        {cfg.scope && <select className={field} value={style} onChange={(e) => setStyle(e.target.value)}>{cfg.text && <option value="">{bi("Any style · Phong cách bất kỳ")}</option>}{styles.map((s) => <option key={s.slug} value={s.slug}>{bi(s.name)}</option>)}</select>}
         {cfg.angle && <select className={field} value={angle} onChange={(e) => setAngle(e.target.value)}>{meta.angles.map((a) => <option key={a} value={a}>{bi("View · Góc nhìn")}: {bi(a)}</option>)}</select>}
         {cfg.weather && <select className={field} value={weather} onChange={(e) => setWeather(e.target.value)}>{meta.weather.map((w) => <option key={w} value={w}>{bi(w)}</option>)}</select>}
         {cfg.remove && (
