@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { bi } from "./i18n";
+import { prepareImage, formatBytes, type PreparedImage } from "./imagePrep";
 
 type Meta = {
   styles: { slug: string; name: string; scope: string; thumb?: string }[];
@@ -57,6 +58,19 @@ export function BeforeAfter({ before, after }: { before: string | null; after: s
   );
 }
 
+/** One-line summary of what the optimiser did, plus any warnings. */
+export function PrepInfo({ p, className = "helper" }: { p: PreparedImage | null; className?: string }) {
+  if (!p) return null;
+  const { original: o, output: x } = p;
+  const resized = o.width !== x.width;
+  return (
+    <div className={className} style={{ marginTop: 6 }}>
+      <span>✓ {bi("Optimized · Đã tối ưu")}: {resized ? `${o.width}×${o.height} → ` : ""}{x.width}×{x.height} · {formatBytes(o.bytes)} → {formatBytes(x.bytes)} · {bi("frame · khung")} {p.aspectRatio}</span>
+      {p.warnings.map((w) => <div key={w} style={{ color: "#b26a00" }}>⚠ {bi(w)}</div>)}
+    </div>
+  );
+}
+
 export function useGenerator(tool: ToolId, preset: Preset | undefined, onCreditsChange: () => void) {
   const cfg = CFG[tool];
   const [meta, setMeta] = useState<Meta | null>(null);
@@ -64,6 +78,9 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
   const [preview, setPreview] = useState("");
   const [refFile, setRefFile] = useState<File | null>(null);
   const [refPreview, setRefPreview] = useState("");
+  const [prep, setPrep] = useState<PreparedImage | null>(null);
+  const [refPrep, setRefPrep] = useState<PreparedImage | null>(null);
+  const [preparing, setPreparing] = useState(0); // number of images still being optimised
   const [description, setDescription] = useState("");
   const [aspect, setAspect] = useState("16:9");
   const [style, setStyle] = useState("");
@@ -128,18 +145,21 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     try { await j(`/api/generations/${gen.id}`, { method: "DELETE" }); setGen(null); loadHistory(); } catch (e: any) { setErr(e.message); }
   };
 
+  /** Optimise a picked image in the browser (orientation, format, size, metadata) before it is used. */
+  const prepare = async (f: File, done: (p: PreparedImage) => void) => {
+    setGen(null); setErr(""); setPreparing((n) => n + 1);
+    try { done(await prepareImage(f)); } catch (e: any) { setErr(e.message); } finally { setPreparing((n) => n - 1); }
+  };
   const pick = (f?: File) => {
     if (!f) return;
-    setFile(f); setGen(null); setErr("");
-    setPreview(URL.createObjectURL(f));
+    prepare(f, (p) => { setFile(p.file); setPrep(p); setPreview(URL.createObjectURL(p.file)); });
   };
 
   const pickRef = (f?: File) => {
     if (!f) return;
-    setRefFile(f); setGen(null); setErr("");
-    setRefPreview(URL.createObjectURL(f));
+    prepare(f, (p) => { setRefFile(p.file); setRefPrep(p); setRefPreview(URL.createObjectURL(p.file)); });
   };
-  const ready = cfg.text ? description.trim().length >= 10 : !!file && (!cfg.reference || !!refFile);
+  const ready = !preparing && (cfg.text ? description.trim().length >= 10 : !!file && (!cfg.reference || !!refFile));
 
   const poll = (id: string) => {
     timer.current = window.setTimeout(async () => {
@@ -165,7 +185,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
         body: JSON.stringify({
           tool, inputKey: key, custom, resolution: res,
           ...(cfg.scope && style ? { styleSlug: style } : {}),
-          ...(cfg.text ? { description, aspectRatio: aspect } : {}),
+          ...(cfg.text ? { description, aspectRatio: aspect } : prep ? { aspectRatio: prep.aspectRatio } : {}),
           ...(cfg.room && room ? { roomType: room } : {}),
           ...(cfg.intervention ? { intervention: meta.intervention[lvl] } : {}),
           ...(cfg.remove ? { remove } : {}),
@@ -182,11 +202,11 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     } catch (e: any) { setErr(e.message); setBusy(false); onCreditsChange(); }
   };
 
-  return { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory };
+  return { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory };
 }
 
 export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId; preset?: Preset; onCreditsChange: () => void }) {
-  const { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory } = useGenerator(tool, preset, onCreditsChange);
+  const { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory } = useGenerator(tool, preset, onCreditsChange);
   if (!meta) return <p className="mt-8 text-center text-neutral-500">{bi("Loading… · Đang tải…")}</p>;
   const field = "w-full rounded border p-2";
   return (
@@ -195,15 +215,17 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
         {cfg.text ? (
           <textarea className={field} rows={5} maxLength={1000} placeholder={bi(cfg.hint)} value={description} onChange={(e) => setDescription(e.target.value)} />
         ) : <label className="flex min-h-48 cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-dashed">
-          {preview ? <img src={preview} className="max-h-72 w-full object-contain" alt="ảnh gốc" /> : <span className="px-4 text-center text-neutral-500">{bi(cfg.hint)} (JPG/PNG/WebP, ≤10MB)</span>}
-          <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
+          {preview ? <img src={preview} className="max-h-72 w-full object-contain" alt="ảnh gốc" /> : <span className="px-4 text-center text-neutral-500">{bi(cfg.hint)} · {bi("any photo, auto-optimized · ảnh bất kỳ, tự động tối ưu")}</span>}
+          <input type="file" accept="image/*" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
         </label>}
+        {!cfg.text && <PrepInfo p={prep} className="text-xs text-neutral-500" />}
         {cfg.reference && (
           <label className="flex min-h-32 cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-dashed">
             {refPreview ? <img src={refPreview} className="max-h-48 w-full object-contain" alt="" /> : <span className="px-4 text-center text-neutral-500">{bi("Style reference image · Ảnh tham khảo phong cách")}</span>}
-            <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => pickRef(e.target.files?.[0])} />
+            <input type="file" accept="image/*" className="hidden" onChange={(e) => pickRef(e.target.files?.[0])} />
           </label>
         )}
+        {cfg.reference && <PrepInfo p={refPrep} className="text-xs text-neutral-500" />}
         {cfg.room && <select className={field} value={room} onChange={(e) => setRoom(e.target.value)}>{cfg.text && <option value="">{bi("Any room type · Loại phòng bất kỳ")}</option>}{meta.roomTypes.map((r) => <option key={r} value={r}>{bi(r)}</option>)}</select>}
         {cfg.scope && <select className={field} value={style} onChange={(e) => setStyle(e.target.value)}>{cfg.text && <option value="">{bi("Any style · Phong cách bất kỳ")}</option>}{styles.map((s) => <option key={s.slug} value={s.slug}>{bi(s.name)}</option>)}</select>}
         {cfg.angle && <select className={field} value={angle} onChange={(e) => setAngle(e.target.value)}>{meta.angles.map((a) => <option key={a} value={a}>{bi("View · Góc nhìn")}: {bi(a)}</option>)}</select>}
@@ -246,7 +268,7 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
           {Object.entries(RES_COST).map(([k, c]) => <option key={k} value={k}>{k.toUpperCase()} · {c} credit{c > 1 ? "s" : ""}</option>)}
         </select>
         {err && <p className="text-sm text-red-600">{err}</p>}
-        <button disabled={!ready || busy} onClick={run} className="rounded bg-black py-3 text-white disabled:opacity-40">{busy ? bi("Generating… (1–2 min) · Đang tạo…") : bi("Generate · Tạo thiết kế")}</button>
+        <button disabled={!ready || busy} onClick={run} className="rounded bg-black py-3 text-white disabled:opacity-40">{busy ? bi("Generating… (1–2 min) · Đang tạo…") : preparing ? bi("Optimizing image… · Đang tối ưu ảnh…") : bi("Generate · Tạo thiết kế")}</button>
       </div>
       <div>
         {gen?.status === "SUCCESS" && gen.outputUrl ? (

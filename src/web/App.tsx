@@ -3,7 +3,7 @@ import "./sxapp.css";
 import { navigate, useLocation, Link } from "./router";
 import { bi, getLang, setLang, t } from "./i18n";
 import { api, useAuth } from "./auth";
-import { BeforeAfter, useGenerator, type Preset, type ToolId } from "./GeneratePanel";
+import { BeforeAfter, PrepInfo, useGenerator, type Preset, type ToolId } from "./GeneratePanel";
 
 /* ---------- icons ---------- */
 const ICONS: Record<string, string> = {
@@ -117,10 +117,11 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
             </div>
           ) : <label className="upload-zone" style={{ cursor: "pointer", overflow: "hidden" }}>
             {g.preview ? <img src={g.preview} alt="" style={{ maxHeight: 340, width: "100%", objectFit: "contain" }} /> : (
-              <div><div className="upload-icon"><Icon n="upload" /></div><span>{t("Drag and drop your image", "Kéo thả ảnh của bạn")}</span><b>{t("Or click here to upload", "Hoặc bấm để tải lên")}</b><p className="helper">{bi(cfg.hint)} · JPG/PNG/WebP ≤10MB</p></div>
+              <div><div className="upload-icon"><Icon n="upload" /></div><span>{t("Drag and drop your image", "Kéo thả ảnh của bạn")}</span><b>{t("Or click here to upload", "Hoặc bấm để tải lên")}</b><p className="helper">{bi(cfg.hint)} · {t("Any photo — we fix orientation, size and format automatically", "Ảnh bất kỳ — tự động xoay, thu nhỏ và đổi định dạng")}</p></div>
             )}
-            <input type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(e) => g.pick(e.target.files?.[0])} />
+            <input type="file" accept="image/*" hidden onChange={(e) => g.pick(e.target.files?.[0])} />
           </label>}
+          {!cfg.text && <PrepInfo p={g.prep} />}
           <div className="or">{t("RESULT", "KẾT QUẢ")}</div>
           <section className="gallery-panel">
             {g.gen?.status === "SUCCESS" && g.gen.outputUrl ? (
@@ -164,8 +165,9 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                   {g.refPreview ? <img src={g.refPreview} alt="" style={{ maxHeight: 220, width: "100%", objectFit: "contain" }} /> : (
                     <div><div className="upload-icon"><Icon n="image" /></div><b>{t("Upload an inspiration photo", "Tải ảnh mẫu bạn thích")}</b><p className="helper">{t("We'll apply its colors, materials and furniture style to your room.", "AI sẽ áp màu sắc, vật liệu và kiểu nội thất của ảnh này vào phòng bạn.")}</p></div>
                   )}
-                  <input type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(e) => g.pickRef(e.target.files?.[0])} />
+                  <input type="file" accept="image/*" hidden onChange={(e) => g.pickRef(e.target.files?.[0])} />
                 </label>
+                <PrepInfo p={g.refPrep} />
               </>
             )}
             {tab === "preset" ? (
@@ -246,7 +248,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
             <div className="segmented">{[["1k", 1], ["2k", 2], ["4k", 3]].map(([k, c]) => <button key={k} type="button" className={k === g.res ? "active" : ""} onClick={() => g.setRes(k as string)}>{(k as string).toUpperCase()} · {c} credit</button>)}</div>
             {g.err && <p className="helper" style={{ color: "#b3261e" }}>{g.err}</p>}
             <button className="generate-btn" disabled={!g.ready || g.busy} onClick={g.run} style={!g.ready || g.busy ? { opacity: 0.5 } : undefined}>
-              <Icon n="spark" />{g.busy ? t("Generating… (1–2 min)", "Đang tạo… (1–2 phút)") : g.ready ? t("Generate New Designs", "Tạo thiết kế mới") : cfg.text ? t("Describe your space first", "Hãy mô tả không gian trước") : !g.file ? t("Upload an image first", "Hãy tải ảnh lên trước") : t("Add a style reference", "Hãy thêm ảnh tham khảo")}
+              <Icon n="spark" />{g.busy ? t("Generating… (1–2 min)", "Đang tạo… (1–2 phút)") : g.preparing ? t("Optimizing image…", "Đang tối ưu ảnh…") : g.ready ? t("Generate New Designs", "Tạo thiết kế mới") : cfg.text ? t("Describe your space first", "Hãy mô tả không gian trước") : !g.file ? t("Upload an image first", "Hãy tải ảnh lên trước") : t("Add a style reference", "Hãy thêm ảnh tham khảo")}
             </button>
           </div>
         </div>
