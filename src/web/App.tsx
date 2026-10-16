@@ -37,6 +37,23 @@ const Icon = ({ n, className = "icon-svg" }: { n: string; className?: string }) 
 const U = (id: string, w = 900) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${w}&q=80`;
 const IMGS = ["photo-1600607688969-a5bfcd646154", "photo-1600210492486-724fe5c67fb0", "photo-1618221195710-dd6b41faaea6", "photo-1616486338812-3dadae4b4ace", "photo-1600607687939-ce8a6c25118c", "photo-1586023492125-27b2c045efd7", "photo-1600566753086-00f18fb6b3ea", "photo-1600585154340-be6161a56a0c"];
 const img = (i: number) => U(IMGS[i % IMGS.length]);
+/** Per-option thumbnails for room types and sky presets (keys match ROOM_TYPES / WEATHER in the worker). */
+const ROOM_PHOTOS: Record<string, string> = {
+  "Living room": "photo-1631679706909-1844bbd07221", Bedroom: "photo-1616486029423-aaa4789e8c9a", Bathroom: "photo-1631889993959-41b4e9c6e3c5",
+  Kitchen: "photo-1628745277862-bc0b2d68c50c", "Dining room": "photo-1593136596203-7212b076f4d2", Attic: "photo-1534595038511-9f219fe0c979",
+  Study: "photo-1782248765552-e80331b41abe", "Home office": "photo-1777896193454-8b4863264f0b", "Family room": "photo-1560449752-3fd4bdbe7df0",
+  "Kids room": "photo-1505692795793-20f543407193", Balcony: "photo-1774685110793-e427dfa87467", "Gaming room": "photo-1723792306904-c417c0da40e3",
+  Hallway: "photo-1771354959667-96360bf59eab", "Laundry room": "photo-1626806819282-2c1dc01a5e0c", Basement: "photo-1778731660506-0a6776b869e8",
+  Nursery: "photo-1774578342155-8d7e44a18bfd", "Walk-in closet": "photo-1649361811423-a55616f7ab11", "Home gym": "photo-1627257058769-0a99529e4312",
+  "Home theater": "photo-1756729924301-4e55f111e986", Workshop: "photo-1597960194599-22929afc25b1", "Yoga studio": "photo-1588286840104-8957b019727f",
+  "Wine cellar": "photo-1724882207681-9e7e8c3dd45c",
+};
+const WEATHER_PHOTOS: Record<string, string> = {
+  "Golden hour": "photo-1625638627981-8a052b2684b6", "Clear blue sky": "photo-1629185064294-09c2014a1329", "Sunset glow": "photo-1472224371017-08207f84aaae",
+  Overcast: "photo-1762359365240-8c96c225165a", Twilight: "photo-1568605115459-4b731184f961", "Fresh snow": "photo-1583381707695-676570b40d38",
+  "Misty morning": "photo-1672995912321-6faba4f7876f", "Dramatic storm clouds": "photo-1748701821466-0b9f8bf839ac",
+};
+const thumbOf = (map: Record<string, string>, key: string) => (map[key] ? U(map[key], 600) : undefined);
 
 type ToolDef = { name: string; desc: string; cat: string; photo: string; premium?: boolean; icon: string; spaces?: ToolId[]; popular?: boolean };
 const REDESIGN: ToolId[] = ["interior-redesign", "exterior-redesign", "garden-redesign"];
@@ -176,7 +193,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                 {cfg.room && (
                   <>
                     <h4>{t("1. Select Room Type", "1. Chọn loại phòng")} <button type="button" className="view-all" onClick={() => setShowAll({ ...showAll, room: !showAll.room })}>{showAll.room ? t("Less", "Thu gọn") : t("View All", "Xem tất cả")}</button></h4>
-                    <div className="preset-grid">{list(meta.roomTypes, "room").map((r, i) => choice(bi(r), i, r === g.room, () => g.setRoom(cfg.text && r === g.room ? "" : r)))}</div>
+                    <div className="preset-grid">{list(meta.roomTypes, "room").map((r, i) => choice(bi(r), i, r === g.room, () => g.setRoom(cfg.text && r === g.room ? "" : r), thumbOf(ROOM_PHOTOS, r)))}</div>
                   </>
                 )}
                 {cfg.scope && (
@@ -192,7 +209,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                 )}
                 {cfg.weather && (
                   <><h4>{t("Change Sky Colors to:", "Đổi bầu trời thành:")}</h4>
-                    <div className="weather-grid">{meta.weather.map((w, i) => <button key={w} type="button" className={`weather-card ${w === g.weather ? "active" : ""}`} style={{ backgroundImage: `url('${img(i + 3)}')` }} onClick={() => g.setWeather(w)}><span>{bi(w)}</span></button>)}</div></>
+                    <div className="weather-grid">{meta.weather.map((w, i) => <button key={w} type="button" className={`weather-card ${w === g.weather ? "active" : ""}`} style={{ backgroundImage: `url('${thumbOf(WEATHER_PHOTOS, w) ?? img(i + 3)}')` }} onClick={() => g.setWeather(w)}><span>{bi(w)}</span></button>)}</div></>
                 )}
                 {cfg.remove && (
                   <><h4>{t("Remove from the image", "Xoá khỏi ảnh")}</h4>
