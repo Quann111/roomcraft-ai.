@@ -138,16 +138,10 @@ app.post("/api/upload", requireAuth, async (c) => {
 app.post("/api/generate", requireAuth, async (c) => {
   const u = c.get("user");
   const b = await c.req.json<any>().catch(() => ({}));
-<<<<<<< HEAD
   if (!c.env.RUNNINGHUB_API_KEY) return c.json({ error: "Server is missing RUNNINGHUB_API_KEY · Server chưa cấu hình RUNNINGHUB_API_KEY" }, 500);
-  if (typeof b.inputKey !== "string" || !b.inputKey.startsWith(`in/${u.id}/`)) return c.json({ error: "Invalid input image · Ảnh đầu vào không hợp lệ" }, 400);
-  if (!isAdmin(u) && !(await allow(c.env, `gen:${u.id}`, 3_600_000, 20))) return c.json({ error: "Limit is 20 generations per hour · Tối đa 20 lượt tạo mỗi giờ" }, 429);
-=======
-  if (!c.env.RUNNINGHUB_API_KEY) return c.json({ error: "Server chưa cấu hình RUNNINGHUB_API_KEY" }, 500);
   const textOnly = TEXT_TOOLS.includes(b.tool);
-  if (!textOnly && (typeof b.inputKey !== "string" || !b.inputKey.startsWith(`in/${u.id}/`))) return c.json({ error: "Ảnh đầu vào không hợp lệ" }, 400);
-  if (!isAdmin(u) && !(await allow(c.env, `gen:${u.id}`, 3_600_000, 20))) return c.json({ error: "Tối đa 20 lượt tạo mỗi giờ" }, 429);
->>>>>>> pr-5
+  if (!textOnly && (typeof b.inputKey !== "string" || !b.inputKey.startsWith(`in/${u.id}/`))) return c.json({ error: "Invalid input image · Ảnh đầu vào không hợp lệ" }, 400);
+  if (!isAdmin(u) && !(await allow(c.env, `gen:${u.id}`, 3_600_000, 20))) return c.json({ error: "Limit is 20 generations per hour · Tối đa 20 lượt tạo mỗi giờ" }, 429);
   const busy = await c.env.DB.prepare("SELECT COUNT(*) n FROM generations WHERE user_id=? AND status IN ('QUEUED','RUNNING') AND created_at>?").bind(u.id, Date.now() - 600_000).first<{ n: number }>();
   if ((busy?.n ?? 0) >= 3) return c.json({ error: "3 images are already processing, wait for them to finish · Đang có 3 ảnh xử lý, hãy chờ xong rồi tạo tiếp" }, 429);
   const resolution = RES.includes(b.resolution) ? b.resolution : "1k";
@@ -155,13 +149,8 @@ app.post("/api/generate", requireAuth, async (c) => {
   let prompt: string;
   if (!(TOOL_IDS as readonly string[]).includes(b.tool)) return c.json({ error: "Invalid tool · Tool không hợp lệ" }, 400);
   try { prompt = buildPrompt(b.tool, b); } catch (e: any) { return c.json({ error: e.message }, 400); }
-<<<<<<< HEAD
-  const obj = await c.env.IMAGES.get(b.inputKey);
-  if (!obj) return c.json({ error: "Image not found · Không tìm thấy ảnh" }, 400);
-=======
   const obj = textOnly ? null : await c.env.IMAGES.get(b.inputKey);
-  if (!textOnly && !obj) return c.json({ error: "Không tìm thấy ảnh" }, 400);
->>>>>>> pr-5
+  if (!textOnly && !obj) return c.json({ error: "Image not found · Không tìm thấy ảnh" }, 400);
   const needsRef = REFERENCE_TOOLS.includes(b.tool);
   if (needsRef && (typeof b.refKey !== "string" || !b.refKey.startsWith(`in/${u.id}/`))) return c.json({ error: "Upload a style reference image · Hãy tải ảnh tham khảo phong cách" }, 400);
   const ref = needsRef ? await c.env.IMAGES.get(b.refKey) : null;
