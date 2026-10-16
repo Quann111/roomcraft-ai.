@@ -121,7 +121,7 @@ const ASPECTS = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "5:4", "4:5"
 const RES = ["1k", "2k", "4k"] as const;
 const RES_COST: Record<string, number> = { "1k": 1, "2k": 2, "4k": 3 };
 
-app.get("/api/styles", (c) => c.json({ styles: STYLES.map(({ slug, name, scope, img }) => ({ slug, name, scope, thumb: img ? `https://drive.google.com/thumbnail?id=${img}&sz=w600` : undefined })), roomTypes: ROOM_TYPES, intervention: INTERVENTION, surfaces: SURFACES, weather: WEATHER, remove: REMOVE, angles: ANGLES }));
+app.get("/api/styles", (c) => c.json({ styles: STYLES.map(({ slug, name, scope, img, photo }) => ({ slug, name, scope, thumb: img ? `https://drive.google.com/thumbnail?id=${img}&sz=w600` : photo ? `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=600&q=80` : undefined })), roomTypes: ROOM_TYPES, intervention: INTERVENTION, surfaces: SURFACES, weather: WEATHER, remove: REMOVE, angles: ANGLES }));
 
 app.get("/api/prompts", requireAuth, (c) => c.json({ prompts: STYLES.map(({ slug, name, scope, prompt }) => ({ slug, name, scope, prompt })) }));
 
