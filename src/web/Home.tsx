@@ -8,7 +8,20 @@ import { PricingTable } from "./Pricing";
 import { api, useAuth } from "./auth";
 import type { Preset, ToolId } from "./GeneratePanel";
 
-const Hero3D = lazy(() => import("./Hero3D").then((m) => ({ default: m.Hero3D })));
+const HERO_IMGS = ["photo-1600210492486-724fe5c67fb0", "photo-1618221195710-dd6b41faaea6", "photo-1616486338812-3dadae4b4ace", "photo-1600607687939-ce8a6c25118c", "photo-1600585154340-be6161a56a0c"]
+  .map((id) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=1400&q=80`);
+
+function HeroSlides() {
+  const [i, setI] = useState(0);
+  useEffect(() => { const id = setInterval(() => setI((x) => (x + 1) % HERO_IMGS.length), 3500); return () => clearInterval(id); }, []);
+  return (
+    <div style={{ position: "relative", aspectRatio: "4/3" }}>
+      {HERO_IMGS.map((u, k) => (
+        <img key={u} src={u} alt="AI redesigned interior" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: k === i ? 1 : 0, transition: "opacity .8s ease" }} />
+      ))}
+    </div>
+  );
+}
 
 export function FaqList() {
   const l = t("en", "vi") === "vi" ? 1 : 0;
@@ -133,7 +146,7 @@ export function Home() {
             </div>
             <div className="hero-visual">
               <div className="hero-image-wrap">
-                <Suspense fallback={<div className="aspect-[4/3] animate-pulse" />}><Hero3D /></Suspense>
+                <HeroSlides />
               </div>
               <div className="hero-image-caption"><span>✦ <b>{t("Real", "Thiết kế")}</b> {t("redesigns", "thật")}</span><span>♧ {t("Structure", "Cấu trúc")} <b>{t("locked", "được khóa")}</b></span><span>◇ <b>{t("Shop", "Mua")}</b> {t("the look", "theo thiết kế")}</span></div>
               <div className="hero-tools">

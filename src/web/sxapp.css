@@ -428,3 +428,7 @@
     @keyframes module-fade { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes card-rise { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes upload-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(180,135,61,0); } 50% { box-shadow: 0 0 0 5px rgba(180,135,61,.10); } }
+
+.sxapp .nav-icon, .sxapp .module-tool-icon svg { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.sxapp .nav-item .nav-icon { color: #E3C98F; }
+.sxapp .nav-item:hover .nav-icon, .sxapp .nav-item.active .nav-icon { color: var(--gold); }

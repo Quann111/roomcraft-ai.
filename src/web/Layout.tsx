@@ -26,7 +26,7 @@ export function Header() {
   return (
     <header className="site-header">
       <div className={`container header-inner${open ? " menu-open" : ""}`}>
-        <Link to="/" className="brand"><span style={{ fontWeight: 700, letterSpacing: ".08em" }}>SOLYC <span style={{ color: "var(--gold)" }}>GEN LABS</span></span></Link>
+        <Link to="/" className="brand" aria-label="SOLYC Gen Labs"><img src="/solyc/logo.png" alt="SOLYC Gen Labs" style={{ height: 46, width: "auto" }} /></Link>
         <nav className="top-nav" aria-label="Primary navigation">
           {nav.map(([to, label]) => <Link key={to} to={to} onClick={close}>{label}</Link>)}
         </nav>
@@ -64,8 +64,8 @@ export function Footer() {
       <div className="container">
         <div className="footer-top">
           <div className="footer-brand">
-            <span style={{ color: "#fff", fontWeight: 700, letterSpacing: ".08em" }}>SOLYC <span style={{ color: "var(--gold)" }}>GEN LABS</span></span>
-            <p>{t("Material Intelligence Platform for Architecture, Construction & Interiors. Same walls, windows and layout you started with.", "Nền tảng Material Intelligence cho Kiến trúc, Xây dựng & Nội thất. Giữ nguyên tường, cửa sổ và bố cục ban đầu.")}</p>
+            <img src="/solyc/logo.png" alt="SOLYC Gen Labs" style={{ height: 56, width: "auto", background: "#fff", borderRadius: 4, padding: "6px 10px" }} />
+            <p>{t("Material Intelligence Platform for Architecture, Construction & Interiors.", "Nền tảng trí tuệ vật liệu cho Kiến trúc, Xây dựng & Nội thất.")}<br /><span style={{ color: "var(--gold)", letterSpacing: ".1em" }}>DESIGN WHAT’S POSSIBLE.</span><br />{t("", "Thiết kế những khả thể mới.")}</p>
           </div>
           <div className="footer-links">
             {col(t("Product", "Sản phẩm"), [["/redesign", t("Redesign tool", "Công cụ thiết kế")], ["/pricing", t("Pricing", "Bảng giá")], ["/projects", t("My projects", "Dự án của tôi")], ["/free-ai-tools", t("Free tools", "Công cụ miễn phí")]])}
@@ -73,10 +73,6 @@ export function Footer() {
             {col(t("Built for", "Dành cho"), PERSONAS.map((p) => [`/${p.slug}`, p.name[lang]] as [string, string]))}
             {col(t("Company", "Công ty"), [["/about-us", t("About", "Giới thiệu")], ["/terms-of-service", t("Terms of Service", "Điều khoản dịch vụ")], ["/privacy-policy", t("Privacy Policy", "Chính sách bảo mật")], ["/refund-policy", t("Refund Policy", "Chính sách hoàn tiền")]])}
           </div>
-        </div>
-        <div className="footer-bottom">
-          <span>© {new Date().getFullYear()} SOLYC Gen Labs</span>
-          <span>{t("AI-generated results are for reference only.", "Kết quả do AI tạo ra, chỉ mang tính tham khảo.")}</span>
         </div>
       </div>
     </footer>

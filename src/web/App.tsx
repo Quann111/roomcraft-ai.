@@ -83,6 +83,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
   const { cfg, meta } = g;
   const [showAll, setShowAll] = useState({ room: false, style: false });
   const [tab, setTab] = useState<"preset" | "extra">("preset");
+  const touch = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
   const [open, setOpen] = useState<any>(null);
   const [toast, setToast] = useState("");
   const say = (m: string) => { setToast(m); setTimeout(() => setToast(""), 2200); };
@@ -283,7 +284,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
 
       {open && (
         <div className="modal-backdrop show" onClick={(e) => e.target === e.currentTarget && setOpen(null)}>
-          <div className="modal" style={{ maxWidth: 760 }}>
+          <div className="modal" style={{ maxWidth: 560, maxHeight: "92vh", overflowY: "auto" }}>
             <button className="close" onClick={() => setOpen(null)} aria-label="Close">×</button>
             <BeforeAfter before={open.inputUrl} after={open.outputUrl} />
           </div>
@@ -324,7 +325,7 @@ export function App() {
       <div className={`app ${active ? "module-mode" : ""}`}>
         <aside className="sidebar">
           <a className="brand" href="/app" onClick={(e) => { e.preventDefault(); home(); }} aria-label="SOLYC Gen Labs">
-            <span style={{ color: "#fff", fontWeight: 700, letterSpacing: ".08em", fontSize: 17 }}>SOLYC <span style={{ color: "var(--gold)" }}>GEN LABS</span></span>
+            <img src="/solyc/logo.png" alt="SOLYC Gen Labs" style={{ background: "#fff", borderRadius: 4, padding: "8px 10px", width: "100%", boxSizing: "border-box" }} />
             <img className="brand-mark" src="/solyc/symbol-gold.svg" alt="" />
           </a>
           <nav className="nav" aria-label="Primary navigation">
@@ -367,7 +368,7 @@ export function App() {
                 {visible.length === 0 && <div className="empty">{t("No tools matched your search.", "Không có công cụ phù hợp.")}</div>}
                 {visible.map((x, i) => (
                   <article className="card" key={x.name} style={{ ["--card-index" as any]: i }}>
-                    <div className="card-image"><img loading="lazy" src={U(x.photo)} alt={`${x.name} preview`} />{x.popular && <span className="badge">Most Popular</span>}</div>
+                    <div className="card-image"><img loading="lazy" src={U(x.photo)} alt={`${x.name} preview`} onError={(e) => { e.currentTarget.src = U(IMGS[i % IMGS.length]); }} />{x.popular && <span className="badge">Most Popular</span>}</div>
                     <div className="card-body">
                       <h3>{x.name}</h3><p>{x.desc}</p>
                       <button className={x.spaces ? "" : "locked"} onClick={() => open(x.name)}>{x.spaces ? `${t("Try", "Dùng")} ${x.name}` : t("Coming soon", "Sắp ra mắt")}</button>
