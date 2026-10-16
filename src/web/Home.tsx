@@ -24,7 +24,7 @@ export function FaqList() {
   );
 }
 
-type PubItem = { id: string; tool: ToolId; params: Preset; inputUrl: string; outputUrl: string };
+type PubItem = { id: string; tool: ToolId; params: Preset; inputUrl: string | null; outputUrl: string };
 export function Gallery() {
   const [items, setItems] = useState<PubItem[]>([]);
   const [next, setNext] = useState<number | null>(null);
@@ -46,7 +46,7 @@ export function Gallery() {
         {items.map((it) => (
           <figure key={it.id} className="group relative overflow-hidden rounded-xl border">
             <img src={it.outputUrl} loading="lazy" className="aspect-square w-full object-cover transition group-hover:opacity-0" alt="" />
-            <img src={it.inputUrl} loading="lazy" className="absolute inset-0 aspect-square w-full object-cover opacity-0 transition group-hover:opacity-100" alt="" />
+            {it.inputUrl && <img src={it.inputUrl} loading="lazy" className="absolute inset-0 aspect-square w-full object-cover opacity-0 transition group-hover:opacity-100" alt="" />}
             <button onClick={() => navigate(studioUrl(it.tool, it.params))} className="absolute bottom-2 left-2 rounded bg-black/80 px-3 py-1 text-xs text-white">{t("Reuse settings", "Dùng lại cài đặt")}</button>
           </figure>
         ))}

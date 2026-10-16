@@ -37,4 +37,14 @@ export async function submitImageToImage(apiKey: string, o: { images: InputImage
   return res.taskId;
 }
 
+export async function submitTextToImage(apiKey: string, o: { prompt: string; aspectRatio?: string; resolution: "1k" | "2k" | "4k" }, base = DEFAULT_BASE) {
+  const res = await rh(apiKey, `${base}/rhart-image-n-g31-flash/text-to-image`, {
+    prompt: o.prompt,
+    resolution: o.resolution,
+    ...(o.aspectRatio ? { aspectRatio: o.aspectRatio } : {}),
+  });
+  if (!res.taskId) throw new Error(res.errorMessage || "RunningHub không trả taskId");
+  return res.taskId;
+}
+
 export const queryTask = (apiKey: string, taskId: string, base = DEFAULT_BASE) => rh(apiKey, `${base}/query`, { taskId });

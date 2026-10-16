@@ -58,7 +58,7 @@ const TOOLS: ToolDef[] = [
   { name: "Furniture Finder", desc: "Identify and get purchase links for furniture in images and generated designs.", cat: "furnish", photo: "photo-1615874694520-47482239468c", icon: "search" },
   { name: "Room Composer", desc: "Upload your room and elements, and our AI will compose it into a stylish, cohesive space.", cat: "furnish", photo: "photo-1616486338812-3dadae4b4ace", icon: "sofa" },
   { name: "Design Transfer", desc: "Recreate the style of inspiration images by applying their design style to a new space.", cat: "redesign", photo: "photo-1616486338812-3dadae4b4ace", icon: "image", spaces: ["interior-transfer"] },
-  { name: "Text to Design", desc: "Generate complete designs from text descriptions, turning words into beautifully crafted spaces.", cat: "redesign", photo: "photo-1600607687939-ce8a6c25118c", icon: "file" },
+  { name: "Text to Design", desc: "Generate complete designs from text descriptions, turning words into beautifully crafted spaces.", cat: "redesign", photo: "photo-1600607687939-ce8a6c25118c", icon: "file", spaces: ["interior-text", "exterior-text", "garden-text"] },
   { name: "Business 3D Floorplan", desc: "Upload one 2D plan. AI detects every room and generates consistent, photoreal renders for each space.", cat: "business", photo: "photo-1600607687920-4e2a09cf159d", icon: "house", premium: true },
   { name: "3D Floorplan", desc: "Generate realistic 3D renderings from 2D floorplans. Bring blueprints to life with complete accuracy.", cat: "3d", photo: "photo-1600585154340-be6161a56a0c", icon: "house", premium: true },
   { name: "Video Generation", desc: "Turn design ideas into stunning AI-powered videos and realistic visual presentations.", cat: "business", photo: "photo-1615874694520-47482239468c", icon: "spark", premium: true },
@@ -107,12 +107,20 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
     <>
       <div className="module-workspace">
         <div className="module-left">
-          <label className="upload-zone" style={{ cursor: "pointer", overflow: "hidden" }}>
+          {cfg.text ? (
+            <div className="upload-zone" style={{ alignItems: "stretch", textAlign: "left" }}>
+              <div style={{ width: "100%" }}>
+                <b>{t("Describe the space you want", "Mô tả không gian bạn muốn")}</b>
+                <textarea className="textarea" style={{ marginTop: 10, minHeight: 150 }} maxLength={1000} placeholder={bi(cfg.hint)} value={g.description} onChange={(e) => g.setDescription(e.target.value)} />
+                <p className="helper">{g.description.trim().length}/1000 · {t("Mention room type, colors, materials, furniture and mood.", "Nêu loại phòng, màu sắc, vật liệu, đồ nội thất và cảm giác mong muốn.")}</p>
+              </div>
+            </div>
+          ) : <label className="upload-zone" style={{ cursor: "pointer", overflow: "hidden" }}>
             {g.preview ? <img src={g.preview} alt="" style={{ maxHeight: 340, width: "100%", objectFit: "contain" }} /> : (
               <div><div className="upload-icon"><Icon n="upload" /></div><span>{t("Drag and drop your image", "Kéo thả ảnh của bạn")}</span><b>{t("Or click here to upload", "Hoặc bấm để tải lên")}</b><p className="helper">{bi(cfg.hint)} · JPG/PNG/WebP ≤10MB</p></div>
             )}
             <input type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(e) => g.pick(e.target.files?.[0])} />
-          </label>
+          </label>}
           <div className="or">{t("RESULT", "KẾT QUẢ")}</div>
           <section className="gallery-panel">
             {g.gen?.status === "SUCCESS" && g.gen.outputUrl ? (
@@ -165,13 +173,14 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                 {cfg.room && (
                   <>
                     <h4>{t("1. Select Room Type", "1. Chọn loại phòng")} <button type="button" className="view-all" onClick={() => setShowAll({ ...showAll, room: !showAll.room })}>{showAll.room ? t("Less", "Thu gọn") : t("View All", "Xem tất cả")}</button></h4>
-                    <div className="preset-grid">{list(meta.roomTypes, "room").map((r, i) => choice(bi(r), i, r === g.room, () => g.setRoom(r)))}</div>
+                    <div className="preset-grid">{list(meta.roomTypes, "room").map((r, i) => choice(bi(r), i, r === g.room, () => g.setRoom(cfg.text && r === g.room ? "" : r)))}</div>
                   </>
                 )}
                 {cfg.scope && (
                   <>
                     <h4>{t("2. Select Design Style", "2. Chọn phong cách")} <button type="button" className="view-all" onClick={() => setShowAll({ ...showAll, style: !showAll.style })}>{showAll.style ? t("Less", "Thu gọn") : t("View All", "Xem tất cả")}</button></h4>
-                    <div className="style-grid">{list(g.styles, "style").map((s, i) => choice(bi(s.name), i + 4, s.slug === g.style, () => g.setStyle(s.slug), s.thumb))}</div>
+                    <div className="style-grid">{list(g.styles, "style").map((s, i) => choice(bi(s.name), i + 4, s.slug === g.style, () => g.setStyle(cfg.text && s.slug === g.style ? "" : s.slug), s.thumb))}</div>
+                    {cfg.text && <p className="helper">{t("Room type and style are optional — click a selected card again to clear it.", "Loại phòng và phong cách không bắt buộc — bấm lại thẻ đã chọn để bỏ chọn.")}</p>}
                   </>
                 )}
                 {cfg.angle && (
@@ -229,11 +238,15 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
               </>
             )}
 
+            {cfg.text && (
+              <><h4>{t("Image shape", "Khung ảnh")}</h4>
+                <div className="segmented">{[["16:9", "Wide", "Ngang rộng"], ["4:3", "Landscape", "Ngang"], ["1:1", "Square", "Vuông"], ["3:4", "Portrait", "Dọc"]].map(([r, en, vi]) => <button key={r} type="button" className={r === g.aspect ? "active" : ""} onClick={() => g.setAspect(r)}>{t(en, vi)} · {r}</button>)}</div></>
+            )}
             <h4>{t("Resolution", "Độ phân giải")}</h4>
             <div className="segmented">{[["1k", 1], ["2k", 2], ["4k", 3]].map(([k, c]) => <button key={k} type="button" className={k === g.res ? "active" : ""} onClick={() => g.setRes(k as string)}>{(k as string).toUpperCase()} · {c} credit</button>)}</div>
             {g.err && <p className="helper" style={{ color: "#b3261e" }}>{bi(g.err)}</p>}
             <button className="generate-btn" disabled={!g.ready || g.busy} onClick={g.run} style={!g.ready || g.busy ? { opacity: 0.5 } : undefined}>
-              <Icon n="spark" />{g.busy ? t("Generating… (1–2 min)", "Đang tạo… (1–2 phút)") : g.ready ? t("Generate New Designs", "Tạo thiết kế mới") : !g.file ? t("Upload an image first", "Hãy tải ảnh lên trước") : t("Add a style reference", "Hãy thêm ảnh tham khảo")}
+              <Icon n="spark" />{g.busy ? t("Generating… (1–2 min)", "Đang tạo… (1–2 phút)") : g.ready ? t("Generate New Designs", "Tạo thiết kế mới") : cfg.text ? t("Describe your space first", "Hãy mô tả không gian trước") : !g.file ? t("Upload an image first", "Hãy tải ảnh lên trước") : t("Add a style reference", "Hãy thêm ảnh tham khảo")}
             </button>
           </div>
         </div>

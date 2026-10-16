@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
-import { submitImageToImage, queryTask } from "./runninghub";
-import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, TOOL_IDS, REFERENCE_TOOLS, buildPrompt } from "./prompts";
+import { submitImageToImage, submitTextToImage, queryTask } from "./runninghub";
+import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, TOOL_IDS, REFERENCE_TOOLS, TEXT_TOOLS, buildPrompt } from "./prompts";
 
 type Env = { DB: D1Database; IMAGES: R2Bucket; DAILY_CREDITS: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
 type User = { id: string; email: string; credits: number; credits_refilled_at: number };
@@ -138,9 +138,16 @@ app.post("/api/upload", requireAuth, async (c) => {
 app.post("/api/generate", requireAuth, async (c) => {
   const u = c.get("user");
   const b = await c.req.json<any>().catch(() => ({}));
+<<<<<<< HEAD
   if (!c.env.RUNNINGHUB_API_KEY) return c.json({ error: "Server is missing RUNNINGHUB_API_KEY · Server chưa cấu hình RUNNINGHUB_API_KEY" }, 500);
   if (typeof b.inputKey !== "string" || !b.inputKey.startsWith(`in/${u.id}/`)) return c.json({ error: "Invalid input image · Ảnh đầu vào không hợp lệ" }, 400);
   if (!isAdmin(u) && !(await allow(c.env, `gen:${u.id}`, 3_600_000, 20))) return c.json({ error: "Limit is 20 generations per hour · Tối đa 20 lượt tạo mỗi giờ" }, 429);
+=======
+  if (!c.env.RUNNINGHUB_API_KEY) return c.json({ error: "Server chưa cấu hình RUNNINGHUB_API_KEY" }, 500);
+  const textOnly = TEXT_TOOLS.includes(b.tool);
+  if (!textOnly && (typeof b.inputKey !== "string" || !b.inputKey.startsWith(`in/${u.id}/`))) return c.json({ error: "Ảnh đầu vào không hợp lệ" }, 400);
+  if (!isAdmin(u) && !(await allow(c.env, `gen:${u.id}`, 3_600_000, 20))) return c.json({ error: "Tối đa 20 lượt tạo mỗi giờ" }, 429);
+>>>>>>> pr-5
   const busy = await c.env.DB.prepare("SELECT COUNT(*) n FROM generations WHERE user_id=? AND status IN ('QUEUED','RUNNING') AND created_at>?").bind(u.id, Date.now() - 600_000).first<{ n: number }>();
   if ((busy?.n ?? 0) >= 3) return c.json({ error: "3 images are already processing, wait for them to finish · Đang có 3 ảnh xử lý, hãy chờ xong rồi tạo tiếp" }, 429);
   const resolution = RES.includes(b.resolution) ? b.resolution : "1k";
@@ -148,8 +155,13 @@ app.post("/api/generate", requireAuth, async (c) => {
   let prompt: string;
   if (!(TOOL_IDS as readonly string[]).includes(b.tool)) return c.json({ error: "Invalid tool · Tool không hợp lệ" }, 400);
   try { prompt = buildPrompt(b.tool, b); } catch (e: any) { return c.json({ error: e.message }, 400); }
+<<<<<<< HEAD
   const obj = await c.env.IMAGES.get(b.inputKey);
   if (!obj) return c.json({ error: "Image not found · Không tìm thấy ảnh" }, 400);
+=======
+  const obj = textOnly ? null : await c.env.IMAGES.get(b.inputKey);
+  if (!textOnly && !obj) return c.json({ error: "Không tìm thấy ảnh" }, 400);
+>>>>>>> pr-5
   const needsRef = REFERENCE_TOOLS.includes(b.tool);
   if (needsRef && (typeof b.refKey !== "string" || !b.refKey.startsWith(`in/${u.id}/`))) return c.json({ error: "Upload a style reference image · Hãy tải ảnh tham khảo phong cách" }, 400);
   const ref = needsRef ? await c.env.IMAGES.get(b.refKey) : null;
@@ -166,13 +178,15 @@ app.post("/api/generate", requireAuth, async (c) => {
   ]);
   await c.env.DB.prepare("INSERT INTO credit_ledger (user_id,delta,reason,generation_id,created_at) VALUES (?,?,?,?,?)").bind(u.id, -cost, "generate", id, now).run();
   try {
-    const images = [obj, ...(ref ? [ref] : [])];
-    const taskId = await submitImageToImage(c.env.RUNNINGHUB_API_KEY, {
-      images: await Promise.all(images.map(async (o) => ({ bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" }))),
-      prompt, aspectRatio, resolution,
-    }, c.env.RUNNINGHUB_BASE);
+    const images = obj ? [obj, ...(ref ? [ref] : [])] : [];
+    const taskId = textOnly
+      ? await submitTextToImage(c.env.RUNNINGHUB_API_KEY, { prompt, aspectRatio: aspectRatio ?? "16:9", resolution }, c.env.RUNNINGHUB_BASE)
+      : await submitImageToImage(c.env.RUNNINGHUB_API_KEY, {
+        images: await Promise.all(images.map(async (o) => ({ bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" }))),
+        prompt, aspectRatio, resolution,
+      }, c.env.RUNNINGHUB_BASE);
     await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,rh_task_id,input_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: b.surface, material: b.material, weather: b.weather, remove: b.remove, angle: b.angle, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, b.inputKey, cost, now).run();
+      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: b.surface, material: b.material, weather: b.weather, remove: b.remove, angle: b.angle, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
     return c.json({ id, status: "RUNNING" });
   } catch (e: any) {
     await refund("refund_submit_failed");
@@ -214,12 +228,12 @@ app.get("/api/generations/:id", requireAuth, async (c) => {
       await fail(pollError || "Timed out (15 minutes) · Hết thời gian chờ (15 phút)");
     }
   }
-  return c.json({ id: g.id, status: g.status, error: g.error, public: !!g.is_public, inputUrl: `/api/images/${g.input_key}`, outputUrl: g.output_key ? `/api/images/${g.output_key}` : null });
+  return c.json({ id: g.id, status: g.status, error: g.error, public: !!g.is_public, inputUrl: g.input_key ? `/api/images/${g.input_key}` : null, outputUrl: g.output_key ? `/api/images/${g.output_key}` : null });
 });
 
 app.get("/api/generations", requireAuth, async (c) => {
   const { results } = await c.env.DB.prepare("SELECT id,tool,params,status,input_key,output_key,is_public,created_at FROM generations WHERE user_id=? ORDER BY created_at DESC LIMIT 50").bind(c.get("user").id).all<any>();
-  return c.json({ items: results.map((g) => ({ id: g.id, tool: g.tool, params: JSON.parse(g.params), status: g.status, public: !!g.is_public, createdAt: g.created_at, inputUrl: `/api/images/${g.input_key}`, outputUrl: g.output_key ? `/api/images/${g.output_key}` : null })) });
+  return c.json({ items: results.map((g) => ({ id: g.id, tool: g.tool, params: JSON.parse(g.params), status: g.status, public: !!g.is_public, createdAt: g.created_at, inputUrl: g.input_key ? `/api/images/${g.input_key}` : null, outputUrl: g.output_key ? `/api/images/${g.output_key}` : null })) });
 });
 
 app.get("/api/images/:kind/:uid/:file", requireAuth, async (c) => {
@@ -252,12 +266,12 @@ app.delete("/api/generations/:id", requireAuth, async (c) => {
 app.get("/api/gallery", async (c) => {
   const before = Number(c.req.query("before")) || Date.now() + 1;
   const { results } = await c.env.DB.prepare(
-    "SELECT id,tool,params,created_at FROM generations WHERE is_public=1 AND status='SUCCESS' AND created_at<? ORDER BY created_at DESC LIMIT 24",
+    "SELECT id,tool,params,input_key,created_at FROM generations WHERE is_public=1 AND status='SUCCESS' AND created_at<? ORDER BY created_at DESC LIMIT 24",
   ).bind(before).all<any>();
   return c.json({
     items: results.map((g) => {
       const { styleSlug, roomType, intervention, surface, material, weather, remove, angle } = JSON.parse(g.params);
-      return { id: g.id, tool: g.tool, params: { styleSlug, roomType, intervention, surface, material, weather, remove, angle }, createdAt: g.created_at, inputUrl: `/api/public/${g.id}/in`, outputUrl: `/api/public/${g.id}/out` };
+      return { id: g.id, tool: g.tool, params: { styleSlug, roomType, intervention, surface, material, weather, remove, angle }, createdAt: g.created_at, inputUrl: g.input_key ? `/api/public/${g.id}/in` : null, outputUrl: `/api/public/${g.id}/out` };
     }),
     next: results.length === 24 ? results[results.length - 1].created_at : null,
   });
