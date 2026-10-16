@@ -53,8 +53,8 @@ const TOOLS: ToolDef[] = [
   { name: "Furniture Removal", desc: "Effortlessly remove furniture to create a clean slate for new design ideas.", cat: "furnish", photo: "photo-1600607688969-a5bfcd646154", icon: "layers", spaces: ["interior-declutter"] },
   { name: "Sky Colors", desc: "Adjust the sky's color and weather in your images for the perfect atmosphere.", cat: "redesign", photo: "photo-1600585154340-be6161a56a0c", icon: "weather", spaces: ["exterior-sky"] },
   { name: "Material Swap", desc: "Replace materials on surfaces to explore different textures and finishes.", cat: "furnish", photo: "photo-1600566753190-17f0baa2a6c3", icon: "layers", spaces: ["interior-material"] },
-  { name: "Paint Visualizer", desc: "Change wall colors using presets or custom colors for interiors and exteriors.", cat: "furnish", photo: "photo-1618220179428-22790b461013", icon: "spark", spaces: ["interior-material"] },
-  { name: "Floor Editor", desc: "Replace the flooring in any image with custom materials to see how the new floor would look.", cat: "3d", photo: "photo-1600210492486-724fe5c67fb0", icon: "layers", spaces: ["interior-material"] },
+  { name: "Paint Visualizer", desc: "Change wall colors using presets or custom colors for interiors and exteriors.", cat: "furnish", photo: "photo-1618220179428-22790b461013", icon: "spark", spaces: ["interior-paint", "exterior-paint"] },
+  { name: "Floor Editor", desc: "Replace the flooring in any image with custom materials to see how the new floor would look.", cat: "3d", photo: "photo-1600210492486-724fe5c67fb0", icon: "layers", spaces: ["interior-floor"] },
   { name: "Furniture Finder", desc: "Identify and get purchase links for furniture in images and generated designs.", cat: "furnish", photo: "photo-1615874694520-47482239468c", icon: "search" },
   { name: "Room Composer", desc: "Upload your room and elements, and our AI will compose it into a stylish, cohesive space.", cat: "furnish", photo: "photo-1616486338812-3dadae4b4ace", icon: "sofa" },
   { name: "Design Transfer", desc: "Recreate the style of inspiration images by applying their design style to a new space.", cat: "redesign", photo: "photo-1616486338812-3dadae4b4ace", icon: "image" },
@@ -184,6 +184,26 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                     <div className="segmented">{Object.keys(meta.surfaces).map((s) => <button key={s} type="button" className={s === g.surface ? "active" : ""} onClick={() => g.setSurface(s)}>{bi(s)}</button>)}</div>
                     <h4>{t("Material", "Vật liệu")}</h4>
                     <select className="country" value={g.material} onChange={(e) => g.setMaterial(e.target.value)}>{meta.surfaces[g.surface].map((m) => <option key={m} value={m}>{bi(m)}</option>)}</select></>
+                )}
+                {cfg.floor && (
+                  <><h4>{t("Flooring material", "Vật liệu sàn")}</h4>
+                    <div className="segmented">{meta.surfaces.floor.map((m) => <button key={m} type="button" className={m === g.material ? "active" : ""} onClick={() => g.setMaterial(m)}>{bi(m)}</button>)}</div></>
+                )}
+                {cfg.paint && (
+                  <><h4>{t("Wall color", "Màu sơn tường")}</h4>
+                    <div className="paint-grid">
+                      {meta.paints.map((c) => (
+                        <button key={c.name} type="button" className={`paint-swatch ${g.color === c.name ? "active" : ""}`} onClick={() => g.setColor(c.name)}>
+                          <i style={{ background: c.hex }} /><span>{bi(c.name)}</span>
+                        </button>
+                      ))}
+                      <label className={`paint-swatch ${g.color.startsWith("#") ? "active" : ""}`}>
+                        <input type="color" value={g.color.startsWith("#") ? g.color : meta.paints.find((c) => c.name === g.color)?.hex ?? "#ffffff"} onChange={(e) => g.setColor(e.target.value)} />
+                        <span>{g.color.startsWith("#") ? g.color.toUpperCase() : t("Custom color", "Màu tuỳ chọn")}</span>
+                      </label>
+                    </div>
+                    <h4>{t("Finish", "Độ bóng")}</h4>
+                    <div className="segmented" style={{ textTransform: "capitalize" }}>{meta.finishes.map((f) => <button key={f} type="button" className={f === g.paintFinish ? "active" : ""} onClick={() => g.setPaintFinish(f)}>{bi(f)}</button>)}</div></>
                 )}
                 {cfg.intervention && (
                   <><h4>{t("AI Intervention", "Mức can thiệp AI")}</h4>

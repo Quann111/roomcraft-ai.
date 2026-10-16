@@ -86,13 +86,21 @@ export const SURFACES: Record<string, string[]> = {
   cabinets: ["White shaker", "Walnut slab", "Matte black", "Sage green", "Navy blue", "Natural oak", "Two-tone"],
   ceiling: ["White painted", "Wood plank", "Exposed beams", "Coffered", "Shiplap", "Tin tile"],
 };
+export const PAINT_COLORS: { name: string; hex: string }[] = [
+  { name: "Warm white", hex: "#F2EDE4" }, { name: "Soft greige", hex: "#CFC6B8" }, { name: "Sage green", hex: "#A8B5A0" },
+  { name: "Dusty blue", hex: "#8FA3B5" }, { name: "Navy", hex: "#2E3A55" }, { name: "Terracotta", hex: "#C46A4A" },
+  { name: "Charcoal", hex: "#3C3F42" }, { name: "Blush pink", hex: "#E6C3C0" }, { name: "Olive", hex: "#7A7A4E" },
+  { name: "Butter yellow", hex: "#EFD9A0" }, { name: "Forest green", hex: "#2F4A3A" }, { name: "Soft black", hex: "#1E1E1E" },
+];
+export const PAINT_FINISHES = ["matte", "eggshell", "satin", "gloss"] as const;
 export const WEATHER = ["Golden hour", "Clear blue sky", "Sunset glow", "Overcast", "Twilight", "Fresh snow", "Misty morning", "Dramatic storm clouds"];
 export const REMOVE = ["furniture", "clutter", "people", "everything (empty room)"];
 export const ANGLES = ["front", "side", "back"];
 
 export const TOOL_IDS = [
   "interior-redesign", "interior-staging", "interior-declutter", "interior-sketch", "interior-material",
-  "exterior-redesign", "exterior-sky", "exterior-sketch", "garden-redesign",
+  "interior-paint", "interior-floor",
+  "exterior-redesign", "exterior-sky", "exterior-sketch", "exterior-paint", "garden-redesign",
 ] as const;
 export type ToolId = (typeof TOOL_IDS)[number];
 
@@ -110,6 +118,14 @@ const custom = (p: any) => {
   const c = String(p.custom ?? "").trim().slice(0, 500);
   return c ? `Additional instructions: ${c}` : "";
 };
+/** A preset color name, or a custom "#RRGGBB" hex. */
+function paintColor(v: unknown) {
+  const preset = PAINT_COLORS.find((c) => c.name === v);
+  if (preset) return `${preset.name.toLowerCase()} (${preset.hex})`;
+  if (typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v)) return `the exact color ${v.toUpperCase()}`;
+  throw new Error("Pick a paint color · Chọn màu sơn");
+}
+const finish = (p: any) => oneOf(PAINT_FINISHES, p.finish) ?? "matte";
 const room = (p: any) => (ROOM_TYPES.includes(p.roomType) ? `The room is a ${String(p.roomType).toLowerCase()}.` : "");
 
 export function buildPrompt(tool: string, p: any): string {
@@ -146,6 +162,20 @@ export function buildPrompt(tool: string, p: any): string {
         `Replace only the ${surface === "walls" ? "wall finish" : surface} in this room with ${p.material}.`,
         "Keep all furniture, objects, lighting and every other surface unchanged. Match the original lighting, reflections and perspective.", custom(p), STRUCTURE_LOCK);
     }
+    case "interior-paint":
+      return join(
+        `Repaint only the walls of this room in ${paintColor(p.color)}. Paint finish: ${finish(p)}.`,
+        "Keep the ceiling, trim, doors, floor, furniture, artwork and every object unchanged. Preserve the original lighting, shadows and wall texture so the new color looks naturally lit.", custom(p), STRUCTURE_LOCK);
+    case "interior-floor": {
+      if (!SURFACES.floor.includes(p.material)) throw new Error("Invalid material · Vật liệu không hợp lệ");
+      return join(
+        `Replace only the flooring in this room with ${p.material}, laid naturally across the whole visible floor with correct perspective, scale and seams.`,
+        "Keep all furniture, rugs, walls, skirting and objects unchanged, and keep furniture legs resting realistically on the new floor. Match the original lighting and reflections.", custom(p), STRUCTURE_LOCK);
+    }
+    case "exterior-paint":
+      return join(
+        `Repaint only the exterior wall surfaces of this house in ${paintColor(p.color)}. Paint finish: ${finish(p)}.`,
+        "Keep the roof, windows, doors, trim, stone or brick details, landscaping and sky unchanged. Preserve the original sunlight and shadows on the facade.", custom(p), EXT_LOCK);
     case "exterior-redesign": {
       const s = styleFor(p.styleSlug, "exterior");
       const a = oneOf(ANGLES, p.angle);
