@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { submitImageToImage, queryTask } from "./runninghub";
-import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, TOOL_IDS, buildPrompt } from "./prompts";
+import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, TOOL_IDS, REFERENCE_TOOLS, buildPrompt } from "./prompts";
 
 type Env = { DB: D1Database; IMAGES: R2Bucket; DAILY_CREDITS: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
 type User = { id: string; email: string; credits: number; credits_refilled_at: number };
@@ -150,6 +150,10 @@ app.post("/api/generate", requireAuth, async (c) => {
   try { prompt = buildPrompt(b.tool, b); } catch (e: any) { return c.json({ error: e.message }, 400); }
   const obj = await c.env.IMAGES.get(b.inputKey);
   if (!obj) return c.json({ error: "Image not found · Không tìm thấy ảnh" }, 400);
+  const needsRef = REFERENCE_TOOLS.includes(b.tool);
+  if (needsRef && (typeof b.refKey !== "string" || !b.refKey.startsWith(`in/${u.id}/`))) return c.json({ error: "Upload a style reference image · Hãy tải ảnh tham khảo phong cách" }, 400);
+  const ref = needsRef ? await c.env.IMAGES.get(b.refKey) : null;
+  if (needsRef && !ref) return c.json({ error: "Reference image not found · Không tìm thấy ảnh tham khảo" }, 400);
 
   const cost = isAdmin(u) ? 0 : RES_COST[resolution]; // admin: unlimited, no credits charged
   const id = crypto.randomUUID();
@@ -162,11 +166,13 @@ app.post("/api/generate", requireAuth, async (c) => {
   ]);
   await c.env.DB.prepare("INSERT INTO credit_ledger (user_id,delta,reason,generation_id,created_at) VALUES (?,?,?,?,?)").bind(u.id, -cost, "generate", id, now).run();
   try {
+    const images = [obj, ...(ref ? [ref] : [])];
     const taskId = await submitImageToImage(c.env.RUNNINGHUB_API_KEY, {
-      image: await obj.arrayBuffer(), mime: obj.httpMetadata?.contentType ?? "image/jpeg", prompt, aspectRatio, resolution,
+      images: await Promise.all(images.map(async (o) => ({ bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" }))),
+      prompt, aspectRatio, resolution,
     }, c.env.RUNNINGHUB_BASE);
     await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,rh_task_id,input_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: b.surface, material: b.material, weather: b.weather, remove: b.remove, angle: b.angle, color: b.color, finish: b.finish, resolution, aspectRatio }), prompt, "RUNNING", taskId, b.inputKey, cost, now).run();
+      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: b.surface, material: b.material, weather: b.weather, remove: b.remove, angle: b.angle, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, b.inputKey, cost, now).run();
     return c.json({ id, status: "RUNNING" });
   } catch (e: any) {
     await refund("refund_submit_failed");

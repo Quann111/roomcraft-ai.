@@ -99,10 +99,12 @@ export const ANGLES = ["front", "side", "back"];
 
 export const TOOL_IDS = [
   "interior-redesign", "interior-staging", "interior-declutter", "interior-sketch", "interior-material",
-  "interior-paint", "interior-floor",
+  "interior-paint", "interior-floor", "interior-transfer",
   "exterior-redesign", "exterior-sky", "exterior-sketch", "exterior-paint", "garden-redesign",
 ] as const;
 export type ToolId = (typeof TOOL_IDS)[number];
+/** Tools that take a second, style-reference image after the main photo. */
+export const REFERENCE_TOOLS: readonly ToolId[] = ["interior-transfer"];
 
 const STRUCTURE_LOCK =
   "Keep the exact same room structure, wall layout, windows, doors, ceiling height, and camera angle. Keep the room proportions and perspective identical to the original photo. Photorealistic, high quality interior photography.";
@@ -172,6 +174,12 @@ export function buildPrompt(tool: string, p: any): string {
         `Replace only the flooring in this room with ${p.material}, laid naturally across the whole visible floor with correct perspective, scale and seams.`,
         "Keep all furniture, rugs, walls, skirting and objects unchanged, and keep furniture legs resting realistically on the new floor. Match the original lighting and reflections.", custom(p), STRUCTURE_LOCK);
     }
+    case "interior-transfer":
+      return join(
+        "You are given two images. The first image is the client's room. The second image is a style reference.",
+        "Redesign the room in the first image so it adopts the interior design style of the reference: its color palette, materials and finishes, furniture style, lighting mood and decor.",
+        "Do not copy the reference room's layout or architecture, and do not paste objects from it verbatim — reinterpret its style for the first room.", room(p),
+        INTERVENTION_TEXT[oneOf(INTERVENTION, p.intervention) ?? "medium"], custom(p), STRUCTURE_LOCK);
     case "exterior-paint":
       return join(
         `Repaint only the exterior wall surfaces of this house in ${paintColor(p.color)}. Paint finish: ${finish(p)}.`,

@@ -23,9 +23,12 @@ async function rh(apiKey: string, url: string, body: unknown): Promise<RhResult>
   return data as RhResult;
 }
 
-export async function submitImageToImage(apiKey: string, o: { image: ArrayBuffer; mime: string; prompt: string; aspectRatio?: string; resolution: "1k" | "2k" | "4k" }, base = DEFAULT_BASE) {
+type InputImage = { bytes: ArrayBuffer; mime: string };
+
+/** `images[0]` is the photo being edited; any further images are references the prompt refers to. */
+export async function submitImageToImage(apiKey: string, o: { images: InputImage[]; prompt: string; aspectRatio?: string; resolution: "1k" | "2k" | "4k" }, base = DEFAULT_BASE) {
   const res = await rh(apiKey, `${base}/rhart-image-n-g31-flash/image-to-image`, {
-    imageUrls: [toDataUri(o.image, o.mime)],
+    imageUrls: o.images.map((i) => toDataUri(i.bytes, i.mime)),
     prompt: o.prompt,
     resolution: o.resolution,
     ...(o.aspectRatio ? { aspectRatio: o.aspectRatio } : {}),
