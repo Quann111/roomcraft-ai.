@@ -13,15 +13,16 @@ export type Critique = {
   room: string; style: string; score: number; summary: string; strengths: string[];
   improvements: { area: string; issue: string; suggestion: string; priority: "high" | "medium" | "low" }[]; quickWins: string[];
 };
-type Gen = { id: string; status: string; error?: string; public?: boolean; inputUrl: string | null; outputUrl: string | null; critique?: Critique };
+export type Finder = { items: { name: string; category: string; description: string; query: string; localQuery: string; priceRange: string; box?: [number, number, number, number] }[] };
+type Gen = { id: string; status: string; error?: string; public?: boolean; inputUrl: string | null; outputUrl: string | null; critique?: Critique; finder?: Finder };
 export type Preset = Partial<{ styleSlug: string; roomType: string; intervention: string; surface: string; material: string; weather: string; remove: string[]; angle: string; view: string; color: string; finish: string; description: string }>;
 
 export type ToolId =
   | "interior-redesign" | "interior-staging" | "interior-declutter" | "interior-sketch" | "interior-material"
-  | "interior-paint" | "interior-floor" | "interior-transfer" | "interior-text" | "interior-floorplan" | "interior-compose" | "interior-critique" | "interior-advisor" | "interior-bizplan"
+  | "interior-paint" | "interior-floor" | "interior-transfer" | "interior-text" | "interior-floorplan" | "interior-compose" | "interior-critique" | "interior-advisor" | "interior-bizplan" | "interior-finder"
   | "exterior-redesign" | "exterior-sky" | "exterior-sketch" | "exterior-paint" | "exterior-text" | "garden-redesign" | "garden-text";
 
-type Cfg = { scope?: "interior" | "exterior" | "garden"; room?: boolean; intervention?: boolean; remove?: boolean; surface?: boolean; weather?: boolean; angle?: boolean; planView?: boolean; paint?: boolean; floor?: boolean; reference?: boolean; items?: boolean; critique?: boolean; chat?: boolean; bizplan?: boolean; text?: boolean; hint: string };
+type Cfg = { scope?: "interior" | "exterior" | "garden"; room?: boolean; intervention?: boolean; remove?: boolean; surface?: boolean; weather?: boolean; angle?: boolean; planView?: boolean; paint?: boolean; floor?: boolean; reference?: boolean; items?: boolean; llm?: boolean; chat?: boolean; bizplan?: boolean; text?: boolean; hint: string };
 const CFG: Record<ToolId, Cfg> = {
   "interior-redesign": { scope: "interior", room: true, intervention: true, hint: "Room photo to redesign · Ảnh phòng cần thiết kế lại" },
   "interior-staging": { scope: "interior", room: true, hint: "Empty room photo to stage · Ảnh phòng trống cần bài trí" },
@@ -34,7 +35,8 @@ const CFG: Record<ToolId, Cfg> = {
   "interior-text": { text: true, scope: "interior", room: true, hint: "e.g. a bright Scandinavian living room with a big window, oak floor and a green sofa · VD: phòng khách Bắc Âu sáng sủa, cửa sổ lớn, sàn gỗ sồi, sofa xanh lá" },
   "interior-bizplan": { bizplan: true, hint: "2D floor plan · Mặt bằng 2D" },
   "interior-advisor": { chat: true, hint: "Chat with the AI designer · Trò chuyện với nhà thiết kế AI" },
-  "interior-critique": { critique: true, room: true, hint: "Photo of the room to review · Ảnh căn phòng cần nhận xét" },
+  "interior-finder": { llm: true, hint: "Room photo or a generated design · Ảnh phòng hoặc thiết kế đã tạo" },
+  "interior-critique": { llm: true, room: true, hint: "Photo of the room to review · Ảnh căn phòng cần nhận xét" },
   "interior-compose": { items: true, room: true, hint: "Photo of your room · Ảnh căn phòng của bạn" },
   "interior-floorplan": { scope: "interior", planView: true, hint: "2D floor plan image or drawing · Ảnh hoặc bản vẽ mặt bằng 2D" },
   "exterior-redesign": { scope: "exterior", angle: true, hint: "House exterior photo · Ảnh mặt ngoài ngôi nhà" },
@@ -73,8 +75,9 @@ export function BeforeAfter({ before, after }: { before: string | null; after: s
 
 /** History items whose result is written text (a critique or an advisor chat) rather than an image. */
 export const isCritique = (h: { tool?: string }) => h.tool === "interior-critique";
+export const isFinder = (h: { tool?: string }) => h.tool === "interior-finder";
 export const isChat = (h: { tool?: string }) => h.tool === "interior-advisor";
-export const isTextResult = (h: { tool?: string }) => isCritique(h) || isChat(h);
+export const isTextResult = (h: { tool?: string }) => isCritique(h) || isFinder(h) || isChat(h);
 
 const PRIORITY: Record<Critique["improvements"][number]["priority"], { label: [string, string]; color: string; bg: string }> = {
   high: { label: ["High priority", "Ưu tiên cao"], color: "#9b1c1c", bg: "#fde8e7" },
@@ -113,6 +116,46 @@ export function CritiqueView({ photo, c }: { photo: string | null; c: Critique }
         </ol>
       </div>
       {c.quickWins.length > 0 && <div><h4 style={h}>{t("Quick wins this week", "Thay đổi nhanh trong tuần")}</h4><ul style={ul}>{c.quickWins.map((s) => <li key={s}>{s}</li>)}</ul></div>}
+    </div>
+  );
+}
+
+/** Shopping searches for one found item; Vietnamese users get local stores. */
+const shopLinks = (x: Finder["items"][number]): [string, string][] => {
+  const q = encodeURIComponent(x.query), lq = encodeURIComponent(x.localQuery || x.query);
+  return getLang() === "vi"
+    ? [["Google Shopping", `https://www.google.com/search?tbm=shop&q=${lq}`], ["Shopee", `https://shopee.vn/search?keyword=${lq}`], ["IKEA", `https://www.ikea.com/vn/vi/search/?q=${q}`]]
+    : [["Google Shopping", `https://www.google.com/search?tbm=shop&q=${q}`], ["Amazon", `https://www.amazon.com/s?k=${q}`], ["IKEA", `https://www.ikea.com/us/en/search/?q=${q}`]];
+};
+
+/** Found furniture: numbered markers on the photo and a list of items with shopping links. */
+export function FinderView({ photo, f }: { photo: string | null; f: Finder }) {
+  return (
+    <div style={{ display: "grid", gap: 14, textAlign: "left" }}>
+      {photo && (
+        <div style={{ position: "relative", borderRadius: 12, overflow: "hidden" }}>
+          <img src={photo} alt="" style={{ display: "block", width: "100%" }} />
+          {f.items.map((x, i) => x.box && (
+            <span key={i} aria-hidden style={{ position: "absolute", left: `${(x.box[1] + x.box[3]) / 20}%`, top: `${(x.box[0] + x.box[2]) / 20}%`, transform: "translate(-50%, -50%)", width: 26, height: 26, borderRadius: 999, display: "grid", placeItems: "center", background: "#1c1b19", color: "#fff", fontSize: 13, fontWeight: 700, boxShadow: "0 0 0 2px #fff" }}>{i + 1}</span>
+          ))}
+        </div>
+      )}
+      <ol style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 10 }}>
+        {f.items.map((x, i) => (
+          <li key={i} style={{ border: "1px solid rgba(0,0,0,0.1)", borderRadius: 10, padding: "10px 12px", display: "grid", gap: 6 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+              <b>{i + 1}. {x.name}</b>
+              <span style={{ fontSize: 12, opacity: 0.6 }}>{x.category}</span>
+              {x.priceRange && <span style={{ marginLeft: "auto", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>{x.priceRange}</span>}
+            </div>
+            {x.description && <p style={{ margin: 0, opacity: 0.8 }}>{x.description}</p>}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", fontSize: 13 }}>
+              {shopLinks(x).map(([label, href]) => <a key={label} href={href} target="_blank" rel="noreferrer" style={{ padding: "4px 10px", border: "1px solid rgba(0,0,0,0.15)", borderRadius: 999, color: "inherit", textDecoration: "none" }}>{label} ↗</a>)}
+            </div>
+          </li>
+        ))}
+      </ol>
+      <p style={{ margin: 0, fontSize: 12, opacity: 0.6 }}>{t("Links open a search for similar products; prices are AI estimates.", "Link mở trang tìm sản phẩm tương tự; giá là ước tính của AI.")}</p>
     </div>
   );
 }
@@ -176,7 +219,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     setGen(null); setErr(""); setBusy(false);
     setStyle(preset?.styleSlug && styles.some((s) => s.slug === preset.styleSlug) ? preset.styleSlug : cfg.text ? "" : styles[0]?.slug ?? "");
     if (preset?.roomType) setRoom(preset.roomType);
-    else if (cfg.text || cfg.critique) setRoom(""); // optional: the description or the photo usually shows the room
+    else if (cfg.text || cfg.llm) setRoom(""); // optional: the description or the photo usually shows the room
     if (preset?.intervention && meta) setLvl(Math.max(0, meta.intervention.indexOf(preset.intervention)));
     if (preset?.remove?.length) setRemove(preset.remove);
     if (preset?.weather) setWeather(preset.weather);
@@ -262,7 +305,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
           ...(cfg.paint ? { color, finish: paintFinish } : {}),
           ...(refKey ? { refKey } : {}),
           ...(itemKeys ? { itemKeys } : {}),
-          ...(cfg.critique ? { lang: getLang() } : {}),
+          ...(cfg.llm ? { lang: getLang() } : {}),
           ...(cfg.weather ? { weather } : {}),
           ...(cfg.angle ? { angle } : {}),
           ...(cfg.planView ? { view } : {}),
@@ -315,7 +358,7 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
             )}
           </div>
         )}
-        {cfg.room && <select className={field} value={room} onChange={(e) => setRoom(e.target.value)}>{(cfg.text || cfg.critique) && <option value="">{bi("Any room type · Loại phòng bất kỳ")}</option>}{meta.roomTypes.map((r) => <option key={r} value={r}>{bi(r)}</option>)}</select>}
+        {cfg.room && <select className={field} value={room} onChange={(e) => setRoom(e.target.value)}>{(cfg.text || cfg.llm) && <option value="">{bi("Any room type · Loại phòng bất kỳ")}</option>}{meta.roomTypes.map((r) => <option key={r} value={r}>{bi(r)}</option>)}</select>}
         {cfg.scope && <select className={field} value={style} onChange={(e) => setStyle(e.target.value)}>{cfg.text && <option value="">{bi("Any style · Phong cách bất kỳ")}</option>}{styles.map((s) => <option key={s.slug} value={s.slug}>{bi(s.name)}</option>)}</select>}
         {cfg.angle && <select className={field} value={angle} onChange={(e) => setAngle(e.target.value)}>{meta.angles.map((a) => <option key={a} value={a}>{bi("View · Góc nhìn")}: {bi(a)}</option>)}</select>}
         {cfg.planView && <select className={field} value={view} onChange={(e) => setView(e.target.value)}>{meta.planViews.map((v) => <option key={v} value={v}>{bi("View · Góc nhìn")}: {bi(v)}</option>)}</select>}
@@ -354,14 +397,21 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
           </label>
         )}
         <textarea className={field} rows={2} maxLength={500} placeholder={bi("Extra instructions (optional) · Yêu cầu thêm (tuỳ chọn)")} value={custom} onChange={(e) => setCustom(e.target.value)} />
-        {!cfg.critique && <select className={field} value={res} onChange={(e) => setRes(e.target.value)}>
+        {!cfg.llm && <select className={field} value={res} onChange={(e) => setRes(e.target.value)}>
           {Object.entries(RES_COST).map(([k, c]) => <option key={k} value={k}>{k.toUpperCase()} · {c} credit{c > 1 ? "s" : ""}</option>)}
         </select>}
         {err && <p className="text-sm text-red-600">{bi(err)}</p>}
         <button disabled={!ready || busy} onClick={run} className="rounded bg-black py-3 text-white disabled:opacity-40">{busy ? bi("Generating… (1–2 min) · Đang tạo…") : preparing ? bi("Optimizing image… · Đang tối ưu ảnh…") : bi("Generate · Tạo thiết kế")}</button>
       </div>
       <div>
-        {gen?.status === "SUCCESS" && gen.critique ? (
+        {gen?.status === "SUCCESS" && gen.finder ? (
+          <>
+            <FinderView photo={gen.inputUrl} f={gen.finder} />
+            <div className="mt-3 flex flex-wrap gap-2 text-sm">
+              <button onClick={remove_} className="rounded border px-4 py-2 text-red-600">{bi("Delete · Xoá")}</button>
+            </div>
+          </>
+        ) : gen?.status === "SUCCESS" && gen.critique ? (
           <>
             <CritiqueView photo={gen.inputUrl} c={gen.critique} />
             <div className="mt-3 flex flex-wrap gap-2 text-sm">
@@ -384,8 +434,8 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
           <h3 className="mb-2 font-semibold">{bi("History · Lịch sử")}</h3>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {history.filter((h) => h.outputUrl && !isChat(h)).map((h) => (
-              <button key={h.id} onClick={() => (isCritique(h) ? j<Gen>(`/api/generations/${h.id}`).then(setGen).catch(() => {}) : setGen({ id: h.id, status: "SUCCESS", public: h.public, inputUrl: h.inputUrl, outputUrl: h.outputUrl }))} className="overflow-hidden rounded-lg border">
-                <img src={isCritique(h) ? h.inputUrl : h.outputUrl} loading="lazy" className="aspect-square w-full object-cover" alt={h.tool} />
+              <button key={h.id} onClick={() => (isTextResult(h) ? j<Gen>(`/api/generations/${h.id}`).then(setGen).catch(() => {}) : setGen({ id: h.id, status: "SUCCESS", public: h.public, inputUrl: h.inputUrl, outputUrl: h.outputUrl }))} className="overflow-hidden rounded-lg border">
+                <img src={isTextResult(h) ? h.inputUrl : h.outputUrl} loading="lazy" className="aspect-square w-full object-cover" alt={h.tool} />
               </button>
             ))}
           </div>

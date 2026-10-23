@@ -3,7 +3,7 @@ const VI: Record<string, string> = {
   // categories & tools
   Interiors: "Nội thất", Exteriors: "Ngoại thất", Gardens: "Sân vườn",
   Redesign: "Thiết kế lại", "Virtual Staging": "Bài trí ảo", Declutter: "Dọn đồ", "Sketch to Render": "Phác thảo → ảnh thật",
-  "Material Swap": "Đổi vật liệu", "Video Walkthrough": "Video tham quan", "2D to 3D Floor Plan": "Mặt bằng 2D → 3D", "Room Composer": "Sắp xếp phòng", "Design Critique": "Nhận xét thiết kế", "Design Advisor": "Tư vấn thiết kế", "Under $500": "Dưới $500",
+  "Material Swap": "Đổi vật liệu", "Video Walkthrough": "Video tham quan", "2D to 3D Floor Plan": "Mặt bằng 2D → 3D", "Room Composer": "Sắp xếp phòng", "Design Critique": "Nhận xét thiết kế", "Design Advisor": "Tư vấn thiết kế", "Furniture Finder": "Tìm nội thất", "Under $500": "Dưới $500",
   "Sky & Weather Swap": "Đổi bầu trời & thời tiết",
   // rooms
   "Living room": "Phòng khách", Bedroom: "Phòng ngủ", Bathroom: "Phòng tắm", Kitchen: "Nhà bếp", "Dining room": "Phòng ăn",
