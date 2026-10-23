@@ -56,6 +56,12 @@ const WEATHER_PHOTOS: Record<string, string> = {
   Overcast: "photo-1762359365240-8c96c225165a", Twilight: "photo-1568605115459-4b731184f961", "Fresh snow": "photo-1583381707695-676570b40d38",
   "Misty morning": "photo-1672995912321-6faba4f7876f", "Dramatic storm clouds": "photo-1748701821466-0b9f8bf839ac",
 };
+/** Colour swatches for the lighting moods (sky colours at that time of day). */
+const LIGHT_SWATCH: Record<string, string> = {
+  morning: "linear-gradient(135deg, #cfe3f5, #f6e7c8)", midday: "linear-gradient(135deg, #7fb7ea, #e9f3fb)",
+  "golden-hour": "linear-gradient(135deg, #f2a65a, #f7d48b)", dusk: "linear-gradient(135deg, #1f3a6e, #e8a35c)",
+  night: "linear-gradient(135deg, #0d1424, #3b3220)", overcast: "linear-gradient(135deg, #8d949c, #c9ced3)",
+};
 const thumbOf = (map: Record<string, string>, key: string) => (map[key] ? U(map[key], 600) : undefined);
 
 type ToolDef = { name: string; desc: string; cat: string; photo: string; premium?: boolean; icon: string; spaces?: ToolId[]; popular?: boolean };
@@ -79,6 +85,7 @@ const TOOLS: ToolDef[] = [
   { name: "Room Composer", desc: "Upload your room and elements, and our AI will compose it into a stylish, cohesive space.", cat: "furnish", photo: "photo-1674058924341-a79eed7e9a89", icon: "sofa", spaces: ["interior-compose"] },
   { name: "Design Transfer", desc: "Recreate the style of inspiration images by applying their design style to a new space.", cat: "redesign", photo: "photo-1615529182904-14819c35db37", icon: "image" },
   { name: "Text to Design", desc: "Generate complete designs from text descriptions, turning words into beautifully crafted spaces.", cat: "redesign", photo: "photo-1757344454333-cc666252e596", icon: "file" },
+  { name: "Day & Night Lighting", desc: "See your room in morning sun, golden hour, at dusk or at night with the lights on.", cat: "redesign", photo: "photo-1618221195710-dd6b41faaea6", icon: "weather", spaces: ["interior-lighting"] },
   { name: "Sun & Wind Analysis", desc: "Tell us which way your home faces: AI reads the sun and wind on every side and suggests climate-smart design changes.", cat: "3d", photo: "photo-1568605115459-4b731184f961", icon: "weather", spaces: ["exterior-orient"] },
   { name: "Business 3D Floorplan", desc: "Upload one 2D plan. AI detects every room and generates consistent, photoreal renders for each space.", cat: "business", photo: "photo-1721244654210-a505a99661e9", icon: "house", premium: true, spaces: ["interior-bizplan"] },
   { name: "3D Floorplan", desc: "Generate realistic 3D renderings from 2D floorplans. Bring blueprints to life with complete accuracy.", cat: "3d", photo: "photo-1786550860329-f813516e9705", icon: "house", premium: true, spaces: ["interior-floorplan"] },
@@ -252,6 +259,11 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                     <div className="style-grid">{list(g.styles, "style").map((s, i) => choice(bi(s.name), i + 4, s.slug === g.style, () => g.setStyle(cfg.text && s.slug === g.style ? "" : s.slug), s.thumb))}</div>
                     {cfg.text && <p className="helper">{t("Room type and style are optional — click a selected card again to clear it.", "Loại phòng và phong cách không bắt buộc — bấm lại thẻ đã chọn để bỏ chọn.")}</p>}
                   </>
+                )}
+                {cfg.lighting && (
+                  <><h4>{t("Time of day", "Thời điểm trong ngày")}</h4>
+                    <div className="weather-grid">{meta.lighting.map((l) => <button key={l} type="button" className={`weather-card ${l === g.lighting ? "active" : ""}`} style={{ backgroundImage: LIGHT_SWATCH[l] }} onClick={() => g.setLighting(l)}><span>{bi(l)}</span></button>)}</div>
+                    <p className="helper">{t("Only the light changes; furniture, materials and the camera stay the same.", "Chỉ ánh sáng thay đổi; nội thất, vật liệu và góc chụp giữ nguyên.")}</p></>
                 )}
                 {cfg.orient && (
                   <>
