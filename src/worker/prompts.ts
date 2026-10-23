@@ -129,6 +129,33 @@ export const MAX_ITEMS = 3;
 /** Tools answered by the LLM with a written critique instead of an image. */
 export const CRITIQUE_TOOLS: readonly ToolId[] = ["interior-critique"];
 export const CRITIQUE_MODEL = "google/gemini-3.8-flash";
+
+/** Design Advisor is a chat, not a generation: it has its own endpoint and transcript. */
+export const ADVISOR_TOOL = "interior-advisor";
+export const ADVISOR_MODEL = "google/gemini-3.8-flash";
+export const MAX_ADVISOR_TURNS = 20;
+export const BUDGETS = ["Under $500", "$500–2,000", "$2,000–10,000", "$10,000+"] as const;
+
+/** System prompt for the advisor; context comes from the options the client picked. */
+export function advisorSystem(p: { lang?: string; roomType?: string; budget?: string; hasPhoto?: boolean }) {
+  const vi = p.lang === "vi";
+  const context = [
+    ROOM_TYPES.includes(p.roomType as any) && `room type: ${String(p.roomType).toLowerCase()}`,
+    BUDGETS.includes(p.budget as any) && `total budget: ${p.budget} (USD)`,
+    p.hasPhoto && "the client attached a photo of the space in their first message",
+  ].filter(Boolean).join("; ");
+  return [
+    "You are the RoomCraft design advisor, an experienced residential interior designer who helps clients plan real projects: style direction, layout, color palettes, materials, furniture, lighting, priorities and how to split a budget.",
+    context && `What the client told us up front: ${context}.`,
+    "Tailor every answer to their space, budget and constraints. If something essential is missing (how they use the room, rough size, budget, styles they like), ask at most two short questions before giving detailed advice.",
+    "Be concrete: name specific pieces, materials and colors, and give approximate prices when money comes up, splitting a budget into line items. Be honest about trade-offs.",
+    "When a photo was shared, refer to what is actually visible in it.",
+    "When it helps, suggest one RoomCraft tool the client can try next: Perfect Redesign, Virtual Staging, Material Swap, Paint Visualizer, Floor Editor, Room Composer, 3D Floorplan or Design Critique.",
+    "Only help with interior, exterior and garden design and home renovation; politely decline anything else.",
+    "Keep each reply under about 180 words, in plain text with short paragraphs and lines starting with \"- \" for lists. No markdown headings, bold or tables.",
+    vi ? "Reply in Vietnamese and give prices in VND (convert the budget at about 25,000 VND per USD)." : "Reply in English and give prices in USD unless the client uses another currency.",
+  ].filter(Boolean).join("\n");
+}
 export type Critique = {
   room: string; style: string; score: number; summary: string; strengths: string[];
   improvements: { area: string; issue: string; suggestion: string; priority: "high" | "medium" | "low" }[]; quickWins: string[];

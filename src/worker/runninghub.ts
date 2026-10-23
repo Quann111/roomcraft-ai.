@@ -51,6 +51,25 @@ export const queryTask = (apiKey: string, taskId: string, base = DEFAULT_BASE) =
 
 const LLM_BASE = "https://llm.runninghub.ai/v1";
 
+export type ChatMessage = { role: "system" | "user" | "assistant"; content: string | ({ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } })[] };
+
+/** Image part for a chat message. */
+export const imagePart = (img: InputImage) => ({ type: "image_url" as const, image_url: { url: toDataUri(img.bytes, img.mime) } });
+
+/** One chat completion; returns the assistant's text. */
+export async function chatText(apiKey: string, o: { model: string; messages: ChatMessage[] }, base = LLM_BASE): Promise<string> {
+  const r = await fetch(`${base}/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model: o.model, messages: o.messages }),
+  });
+  const data: any = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error?.message || data.message || `RunningHub LLM ${r.status}`);
+  const text = String(data.choices?.[0]?.message?.content ?? "").trim();
+  if (!text) throw new Error("The AI returned an empty answer · AI không trả lời");
+  return text;
+}
+
 /** One vision chat call that must answer with a JSON object; returns the parsed object. */
 export async function chatJson(apiKey: string, o: { model: string; prompt: string; image: InputImage }, base = LLM_BASE): Promise<any> {
   const r = await fetch(`${base}/chat/completions`, {

@@ -3,7 +3,8 @@ import "./sxapp.css";
 import { navigate, useLocation, Link } from "./router";
 import { bi, getLang, setLang, t } from "./i18n";
 import { api, useAuth } from "./auth";
-import { BeforeAfter, CritiqueView, isCritique, MAX_ITEMS, PrepInfo, useGenerator, type Preset, type ToolId } from "./GeneratePanel";
+import { AdvisorChat, Transcript } from "./AdvisorChat";
+import { BeforeAfter, CritiqueView, isChat, isCritique, isTextResult, MAX_ITEMS, PrepInfo, useGenerator, type Preset, type ToolId } from "./GeneratePanel";
 
 /* ---------- icons ---------- */
 const ICONS: Record<string, string> = {
@@ -80,7 +81,7 @@ const TOOLS: ToolDef[] = [
   { name: "3D Floorplan", desc: "Generate realistic 3D renderings from 2D floorplans. Bring blueprints to life with complete accuracy.", cat: "3d", photo: "photo-1786550860329-f813516e9705", icon: "house", premium: true, spaces: ["interior-floorplan"] },
   { name: "Video Generation", desc: "Turn design ideas into stunning AI-powered videos and realistic visual presentations.", cat: "business", photo: "photo-1743463685519-469d9ebe1b7f", icon: "spark", premium: true },
   { name: "Design Critique", desc: "Receive detailed AI-driven feedback on an uploaded room design and expert suggestions to refine it.", cat: "business", photo: "photo-1781888679143-01d758aedbe6", icon: "info", premium: true, spaces: ["interior-critique"] },
-  { name: "Design Advisor", desc: "Chat with our AI trained by top designers to get advice tailored to your project and budget.", cat: "business", photo: "photo-1664638413302-d1ca29ac885b", icon: "headset", premium: true },
+  { name: "Design Advisor", desc: "Chat with our AI trained by top designers to get advice tailored to your project and budget.", cat: "business", photo: "photo-1664638413302-d1ca29ac885b", icon: "headset", premium: true, spaces: ["interior-advisor"] },
 ];
 const SPACE_META: Record<string, { label: [string, string]; icon: string }> = {
   interior: { label: ["Interior", "Nội thất"], icon: "sofa" },
@@ -316,7 +317,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
           <div className="latest-grid">
             {done.slice(0, 12).map((h, i) => (
               <article className="latest-card" key={h.id} style={{ ["--card-index" as any]: i }}>
-                <div className="latest-image" style={{ backgroundImage: `url('${isCritique(h) ? h.inputUrl : h.outputUrl}')` }} />
+                <div className="latest-image" style={isChat(h) && !h.inputUrl ? { display: "grid", placeItems: "center", background: "#f4f1ea" } : { backgroundImage: `url('${isTextResult(h) ? h.inputUrl : h.outputUrl}')` }}>{isChat(h) && !h.inputUrl && <Icon n="headset" />}</div>
                 <div className="latest-body">
                   <div className="latest-meta">
                     <span><strong>Tool:</strong> {String(h.tool).replace("-", " · ")}</span>
@@ -324,10 +325,10 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                     {h.params?.roomType && <span><strong>Room:</strong> {h.params.roomType}</span>}
                   </div>
                   <div className="latest-actions">
-                    {!isCritique(h) && <a className="latest-action" title="Download" href={h.outputUrl} download={`design-${h.id}.png`}><Icon n="download" /></a>}
-                    <button className="latest-action" title="Preview" onClick={() => (isCritique(h) ? api(`/api/generations/${h.id}`).then((d: any) => setOpen({ ...h, critique: d.critique })).catch((e: any) => say(e.message)) : setOpen(h))}><Icon n="eye" /></button>
+                    {!isTextResult(h) && <a className="latest-action" title="Download" href={h.outputUrl} download={`design-${h.id}.png`}><Icon n="download" /></a>}
+                    <button className="latest-action" title="Preview" onClick={() => (isTextResult(h) ? api(`/api/generations/${h.id}`).then((d: any) => setOpen({ ...h, critique: d.critique, chat: d.chat })).catch((e: any) => say(e.message)) : setOpen(h))}><Icon n="eye" /></button>
                     <button className="latest-action" title="Reuse settings" onClick={() => navigate(`/app?tool=${h.tool}&p=${encodeURIComponent(JSON.stringify(h.params ?? {}))}`)}><Icon n="edit" /></button>
-                    {!isCritique(h) && <button className="latest-action" title={h.public ? "Unpublish" : "Publish"} onClick={() => publish(h)}><Icon n="globe" /></button>}
+                    {!isTextResult(h) && <button className="latest-action" title={h.public ? "Unpublish" : "Publish"} onClick={() => publish(h)}><Icon n="globe" /></button>}
                     <button className="latest-action" title="Delete" onClick={() => del(h.id)}><Icon n="trash" /></button>
                   </div>
                 </div>
@@ -341,7 +342,8 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
         <div className="modal-backdrop show" onClick={(e) => e.target === e.currentTarget && setOpen(null)}>
           <div className="modal" style={{ maxWidth: 560, maxHeight: "92vh", overflowY: "auto" }}>
             <button className="close" onClick={() => setOpen(null)} aria-label="Close">×</button>
-            {open.critique ? <CritiqueView photo={open.inputUrl} c={open.critique} /> : <BeforeAfter before={open.inputUrl} after={open.outputUrl} />}
+            {open.chat ? <><h3 style={{ marginTop: 0 }}>{t("Design Advisor", "Tư vấn thiết kế")}</h3>{open.inputUrl && <img src={open.inputUrl} alt="" style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 10, marginBottom: 12 }} />}<Transcript turns={open.chat} /></>
+              : open.critique ? <CritiqueView photo={open.inputUrl} c={open.critique} /> : <BeforeAfter before={open.inputUrl} after={open.outputUrl} />}
           </div>
         </div>
       )}
@@ -458,7 +460,9 @@ export function App() {
                 </header>
                 <div className="module-banner"><span className="info"><Icon n="info" /></span><div><h2>{active.name}</h2><p>{active.desc}</p></div></div>
                 <div>
-                  {active.spaces ? (
+                  {active.spaces?.[0] === "interior-advisor" ? (
+                    <div className="control-panel" style={{ margin: "20px 0" }}><AdvisorChat onCreditsChange={reload} /></div>
+                  ) : active.spaces ? (
                     <Workspace key={active.name + (toolParam ?? "")} tool={active} initialTool={toolParam ?? undefined} preset={preset} onCredits={reload} />
                   ) : (
                     <div className="control-panel" style={{ margin: "30px 0", textAlign: "center" }}>
