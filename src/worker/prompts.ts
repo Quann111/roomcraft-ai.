@@ -97,12 +97,14 @@ export const ANGLES = ["front", "side", "back"];
 
 export const TOOL_IDS = [
   "interior-redesign", "interior-staging", "interior-declutter", "interior-sketch", "interior-material",
-  "interior-paint", "interior-floor", "interior-transfer",
-  "exterior-redesign", "exterior-sky", "exterior-sketch", "exterior-paint", "garden-redesign",
+  "interior-paint", "interior-floor", "interior-transfer", "interior-text",
+  "exterior-redesign", "exterior-sky", "exterior-sketch", "exterior-paint", "exterior-text", "garden-redesign", "garden-text",
 ] as const;
 export type ToolId = (typeof TOOL_IDS)[number];
 /** Tools that take a second, style-reference image after the main photo. */
 export const REFERENCE_TOOLS: readonly ToolId[] = ["interior-transfer"];
+/** Tools that generate from a text description alone (no input photo). */
+export const TEXT_TOOLS: readonly ToolId[] = ["interior-text", "exterior-text", "garden-text"];
 
 const STRUCTURE_LOCK =
   "Keep the exact same room structure, wall layout, windows, doors, ceiling height, and camera angle. Keep the room proportions and perspective identical to the original photo. Photorealistic, high quality interior photography.";
@@ -125,6 +127,13 @@ function paintColor(v: unknown) {
   if (typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v)) return `the exact color ${v.toUpperCase()}`;
   throw new Error("Pick a paint color · Chọn màu sơn");
 }
+function description(p: any) {
+  const d = String(p.description ?? "").trim().slice(0, 1000).replace(/[.\s]+$/, "");
+  if (d.length < 10) throw new Error("Describe the space in a few words (10+ characters) · Hãy mô tả không gian (ít nhất 10 ký tự)");
+  return d;
+}
+/** Style is optional for text-to-design; when given it must match the tool's scope. */
+const optionalStyle = (p: any, scope: Style["scope"]) => (p.styleSlug ? `Design style: ${styleFor(p.styleSlug, scope).name}.` : "");
 const finish = (p: any) => oneOf(PAINT_FINISHES, p.finish) ?? "matte";
 const room = (p: any) => (ROOM_TYPES.includes(p.roomType) ? `The room is a ${String(p.roomType).toLowerCase()}.` : "");
 
@@ -178,6 +187,18 @@ export function buildPrompt(tool: string, p: any): string {
         "Redesign the room in the first image so it adopts the interior design style of the reference: its color palette, materials and finishes, furniture style, lighting mood and decor.",
         "Do not copy the reference room's layout or architecture, and do not paste objects from it verbatim — reinterpret its style for the first room.", room(p),
         INTERVENTION_TEXT[oneOf(INTERVENTION, p.intervention) ?? "medium"], custom(p), STRUCTURE_LOCK);
+    case "interior-text":
+      return join(
+        `A photorealistic interior design photograph of ${description(p)}.`, room(p), optionalStyle(p, "interior"), custom(p),
+        "Professional interior photography, natural daylight, realistic materials and proportions, eye-level wide-angle shot, no people, no text.");
+    case "exterior-text":
+      return join(
+        `A photorealistic architectural photograph of a house exterior: ${description(p)}.`, optionalStyle(p, "exterior"), custom(p),
+        "Professional architectural photography, realistic materials and landscaping, clear sky, eye-level shot, no people, no text.");
+    case "garden-text":
+      return join(
+        `A photorealistic landscape design photograph of a garden: ${description(p)}.`, optionalStyle(p, "garden"), custom(p),
+        "Professional landscape photography, natural light, realistic planting and hardscape, no people, no text.");
     case "exterior-paint":
       return join(
         `Repaint only the exterior wall surfaces of this house in ${paintColor(p.color)}. Paint finish: ${finish(p)}.`,
