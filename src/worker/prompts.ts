@@ -86,6 +86,18 @@ export const SURFACES: Record<string, string[]> = {
   cabinets: ["White shaker", "Walnut slab", "Matte black", "Sage green", "Navy blue", "Natural oak", "Two-tone"],
   ceiling: ["White painted", "Wood plank", "Exposed beams", "Coffered", "Shiplap", "Tin tile"],
 };
+/** What each wall finish looks like; a bare material name gave near-invisible changes. */
+const WALL_LOOK: Record<string, string> = {
+  "Warm white paint": "smooth warm white paint (#F2EDE4) with a soft matte sheen",
+  "Sage green paint": "smooth sage green paint (#A8B5A0) with a soft matte sheen",
+  "Navy paint": "deep navy blue paint (#2E3A55) with a soft matte sheen",
+  "Limewash plaster": "hand-applied limewash plaster in a warm chalky stone tone, with clearly visible soft cloudy brush strokes, mottled tonal variation and a velvety mineral texture",
+  "Exposed brick": "exposed red-brown brick with visible mortar joints and natural variation between bricks",
+  "Wood paneling": "warm natural oak vertical wood paneling with visible grain and fine grooves between boards",
+  "Wallpaper": "a subtle botanical-pattern wallpaper in muted green and cream, with the pattern repeating clearly across the wall",
+  "Zellige tile": "glossy handmade zellige tiles in soft white with uneven glazed surfaces, slight color variation and thin grout lines",
+  "Microcement": "seamless grey microcement with a smooth trowelled texture and subtle cloudy variation",
+};
 export const PAINT_COLORS: { name: string; hex: string }[] = [
   { name: "Warm white", hex: "#F2EDE4" }, { name: "Soft greige", hex: "#CFC6B8" }, { name: "Sage green", hex: "#A8B5A0" },
   { name: "Dusty blue", hex: "#8FA3B5" }, { name: "Navy", hex: "#2E3A55" }, { name: "Terracotta", hex: "#C46A4A" },
@@ -172,6 +184,11 @@ export function buildPrompt(tool: string, p: any): string {
       const surface = oneOf(Object.keys(SURFACES), p.surface);
       if (!surface) throw new Error("Pick a surface to change · Chọn bề mặt cần đổi");
       if (!SURFACES[surface].includes(p.material)) throw new Error("Invalid material · Vật liệu không hợp lệ");
+      if (surface === "walls")
+        return join(
+          `Change the finish of every visible wall in this room to ${WALL_LOOK[p.material] ?? p.material}.`,
+          "Cover all wall surfaces fully and evenly so the new finish is clearly visible and the original wall finish is gone. Show the material's real texture at the correct scale and perspective.",
+          "Keep the ceiling, floor, windows, doors, trim, furniture, artwork, plants and every object exactly as they are, sitting in front of the new walls. Match the original lighting, shadows and reflections.", custom(p), STRUCTURE_LOCK);
       return join(
         `Replace only the ${surface === "walls" ? "wall finish" : surface} in this room with ${p.material}.`,
         "Keep all furniture, objects, lighting and every other surface unchanged. Match the original lighting, reflections and perspective.", custom(p), STRUCTURE_LOCK);

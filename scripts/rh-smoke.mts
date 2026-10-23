@@ -3,7 +3,7 @@
 // Reads RUNNINGHUB_API_KEY from .dev.vars (never printed).
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { buildPrompt, TEXT_TOOLS, type ToolId } from "../src/worker/prompts.ts";
+import { buildPrompt, SURFACES, TEXT_TOOLS, type ToolId } from "../src/worker/prompts.ts";
 
 const BASE = "https://www.runninghub.ai/openapi/v2";
 const MODEL = "rhart-image-n-g31-flash";
@@ -15,6 +15,7 @@ const OUT = arg("out") ?? "rh-smoke-out";
 const ONLY = arg("only")?.split(",");
 mkdirSync(OUT, { recursive: true });
 
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 const U = (id: string) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=1600&q=85`;
 const ROOM = U("photo-1600210492486-724fe5c67fb0");
 const REFERENCE = U("photo-1618221195710-dd6b41faaea6");
@@ -48,6 +49,8 @@ const CASES: Case[] = [
   { id: "exterior-paint-2", tool: "exterior-paint", params: { color: "Warm white", finish: "matte" }, images: [HOUSE] },
   { id: "exterior-text", tool: "exterior-text", params: { description: "a two-storey brick townhouse with black steel windows and a small front garden" } },
   { id: "garden-redesign", tool: "garden-redesign", params: { styleSlug: "gar-japanese-zen" }, images: [GARDEN] },
+  ...SURFACES.walls.map((m): Case => ({ id: `walls-${slug(m)}`, tool: "interior-material", params: { surface: "walls", material: m }, images: [ROOM] })),
+  ...["Limewash plaster", "Exposed brick"].map((m): Case => ({ id: `walls-${slug(m)}-room2`, tool: "interior-material", params: { surface: "walls", material: m }, images: [REFERENCE] })),
   { id: "garden-text", tool: "garden-text", params: { description: "a small courtyard with olive trees, gravel and a stone bench", styleSlug: "gar-mediterranean" } },
 ];
 
