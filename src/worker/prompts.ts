@@ -105,12 +105,15 @@ const PLAN_VIEW_TEXT: Record<(typeof PLAN_VIEWS)[number], string> = {
 
 export const TOOL_IDS = [
   "interior-redesign", "interior-staging", "interior-declutter", "interior-sketch", "interior-material",
-  "interior-paint", "interior-floor", "interior-transfer", "interior-text", "interior-floorplan",
+  "interior-paint", "interior-floor", "interior-transfer", "interior-text", "interior-floorplan", "interior-compose",
   "exterior-redesign", "exterior-sky", "exterior-sketch", "exterior-paint", "exterior-text", "garden-redesign", "garden-text",
 ] as const;
 export type ToolId = (typeof TOOL_IDS)[number];
 /** Tools that take a second, style-reference image after the main photo. */
 export const REFERENCE_TOOLS: readonly ToolId[] = ["interior-transfer"];
+/** Tools that take 1–MAX_ITEMS item photos (furniture, decor) after the main photo. */
+export const ITEM_TOOLS: readonly ToolId[] = ["interior-compose"];
+export const MAX_ITEMS = 3;
 /** Tools that generate from a text description alone (no input photo). */
 export const TEXT_TOOLS: readonly ToolId[] = ["interior-text", "exterior-text", "garden-text"];
 
@@ -199,6 +202,15 @@ export function buildPrompt(tool: string, p: any): string {
       return join(
         `A photorealistic interior design photograph of ${description(p)}.`, room(p), optionalStyle(p, "interior"), custom(p),
         "Professional interior photography, natural daylight, realistic materials and proportions, eye-level wide-angle shot, no people, no text.");
+    case "interior-compose": {
+      const n = Array.isArray(p.itemKeys) ? p.itemKeys.length : 0;
+      if (n < 1 || n > MAX_ITEMS) throw new Error(`Add 1–${MAX_ITEMS} item photos · Thêm 1–${MAX_ITEMS} ảnh đồ vật`);
+      return join(
+        `You are given ${n + 1} images. The first image is the client's room. ${n === 1 ? "The second image shows one furniture or decor item" : `Images 2 to ${n + 1} each show one furniture or decor item`} that the client wants in this room.`,
+        `Place ${n === 1 ? "the item" : "every item"} into the room at a natural position for its function, at realistic scale, with the room's perspective, lighting and soft contact shadows.`,
+        "Keep each item's exact design: shape, proportions, color, material and details. Ignore the backgrounds of the item photos.",
+        "Move or remove existing furniture only where needed to make space, and keep the room looking styled and cohesive.", room(p), custom(p), STRUCTURE_LOCK);
+    }
     case "interior-floorplan": {
       const s = styleFor(p.styleSlug, "interior");
       return join(
