@@ -3,7 +3,7 @@ import "./sxapp.css";
 import { navigate, useLocation, Link } from "./router";
 import { bi, getLang, setLang, t } from "./i18n";
 import { api, useAuth } from "./auth";
-import { BeforeAfter, PrepInfo, useGenerator, type Preset, type ToolId } from "./GeneratePanel";
+import { BeforeAfter, MAX_ITEMS, PrepInfo, useGenerator, type Preset, type ToolId } from "./GeneratePanel";
 
 /* ---------- icons ---------- */
 const ICONS: Record<string, string> = {
@@ -73,7 +73,7 @@ const TOOLS: ToolDef[] = [
   { name: "Paint Visualizer", desc: "Change wall colors using presets or custom colors for interiors and exteriors.", cat: "furnish", photo: "photo-1562259949-e8e7689d7828", icon: "spark", spaces: ["interior-paint", "exterior-paint"] },
   { name: "Floor Editor", desc: "Replace the flooring in any image with custom materials to see how the new floor would look.", cat: "3d", photo: "photo-1761053130711-2515ef532bb5", icon: "layers", spaces: ["interior-floor"] },
   { name: "Furniture Finder", desc: "Identify and get purchase links for furniture in images and generated designs.", cat: "furnish", photo: "photo-1580480055273-228ff5388ef8", icon: "search" },
-  { name: "Room Composer", desc: "Upload your room and elements, and our AI will compose it into a stylish, cohesive space.", cat: "furnish", photo: "photo-1674058924341-a79eed7e9a89", icon: "sofa" },
+  { name: "Room Composer", desc: "Upload your room and elements, and our AI will compose it into a stylish, cohesive space.", cat: "furnish", photo: "photo-1674058924341-a79eed7e9a89", icon: "sofa", spaces: ["interior-compose"] },
   { name: "Design Transfer", desc: "Recreate the style of inspiration images by applying their design style to a new space.", cat: "redesign", photo: "photo-1615529182904-14819c35db37", icon: "image", spaces: ["interior-transfer"] },
   { name: "Text to Design", desc: "Generate complete designs from text descriptions, turning words into beautifully crafted spaces.", cat: "redesign", photo: "photo-1757344454333-cc666252e596", icon: "file", spaces: ["interior-text", "exterior-text", "garden-text"] },
   { name: "Business 3D Floorplan", desc: "Upload one 2D plan. AI detects every room and generates consistent, photoreal renders for each space.", cat: "business", photo: "photo-1721244654210-a505a99661e9", icon: "house", premium: true },
@@ -186,6 +186,26 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                   <input type="file" accept="image/*" hidden onChange={(e) => g.pickRef(e.target.files?.[0])} />
                 </label>
                 <PrepInfo p={g.refPrep} />
+              </>
+            )}
+            {cfg.items && (
+              <>
+                <h4>{t(`Items to add (up to ${MAX_ITEMS})`, `Đồ vật cần thêm (tối đa ${MAX_ITEMS})`)}</h4>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
+                  {g.items.map((x, i) => (
+                    <div key={x.preview} className="upload-zone" style={{ position: "relative", minHeight: 110, padding: 6, overflow: "hidden" }}>
+                      <img src={x.preview} alt="" style={{ maxHeight: 100, width: "100%", objectFit: "contain" }} />
+                      <button type="button" className="view-all" style={{ position: "absolute", top: 4, right: 6 }} onClick={() => g.removeItem(i)} aria-label={t("Remove item", "Xoá đồ vật")}>✕</button>
+                    </div>
+                  ))}
+                  {g.items.length < MAX_ITEMS && (
+                    <label className="upload-zone" style={{ cursor: "pointer", minHeight: 110, padding: 6 }}>
+                      <div><div className="upload-icon"><Icon n="upload" /></div><b>{t("Add item", "Thêm đồ vật")}</b></div>
+                      <input type="file" accept="image/*" hidden onChange={(e) => { g.pickItem(e.target.files?.[0]); e.target.value = ""; }} />
+                    </label>
+                  )}
+                </div>
+                <p className="helper">{t("Photos of furniture or decor you want in the room — product photos work best. Use Additional Instructions to say where each piece should go.", "Ảnh đồ nội thất hoặc decor bạn muốn đặt vào phòng — ảnh sản phẩm cho kết quả tốt nhất. Dùng mục Yêu cầu thêm để nói vị trí đặt từng món.")}</p>
               </>
             )}
             {tab === "preset" ? (

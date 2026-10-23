@@ -12,10 +12,10 @@ export type Preset = Partial<{ styleSlug: string; roomType: string; intervention
 
 export type ToolId =
   | "interior-redesign" | "interior-staging" | "interior-declutter" | "interior-sketch" | "interior-material"
-  | "interior-paint" | "interior-floor" | "interior-transfer" | "interior-text" | "interior-floorplan"
+  | "interior-paint" | "interior-floor" | "interior-transfer" | "interior-text" | "interior-floorplan" | "interior-compose"
   | "exterior-redesign" | "exterior-sky" | "exterior-sketch" | "exterior-paint" | "exterior-text" | "garden-redesign" | "garden-text";
 
-type Cfg = { scope?: "interior" | "exterior" | "garden"; room?: boolean; intervention?: boolean; remove?: boolean; surface?: boolean; weather?: boolean; angle?: boolean; planView?: boolean; paint?: boolean; floor?: boolean; reference?: boolean; text?: boolean; hint: string };
+type Cfg = { scope?: "interior" | "exterior" | "garden"; room?: boolean; intervention?: boolean; remove?: boolean; surface?: boolean; weather?: boolean; angle?: boolean; planView?: boolean; paint?: boolean; floor?: boolean; reference?: boolean; items?: boolean; text?: boolean; hint: string };
 const CFG: Record<ToolId, Cfg> = {
   "interior-redesign": { scope: "interior", room: true, intervention: true, hint: "Room photo to redesign · Ảnh phòng cần thiết kế lại" },
   "interior-staging": { scope: "interior", room: true, hint: "Empty room photo to stage · Ảnh phòng trống cần bài trí" },
@@ -26,6 +26,7 @@ const CFG: Record<ToolId, Cfg> = {
   "interior-floor": { floor: true, hint: "Room photo with a visible floor · Ảnh phòng thấy rõ sàn" },
   "interior-transfer": { reference: true, room: true, intervention: true, hint: "Your room photo · Ảnh phòng của bạn" },
   "interior-text": { text: true, scope: "interior", room: true, hint: "e.g. a bright Scandinavian living room with a big window, oak floor and a green sofa · VD: phòng khách Bắc Âu sáng sủa, cửa sổ lớn, sàn gỗ sồi, sofa xanh lá" },
+  "interior-compose": { items: true, room: true, hint: "Photo of your room · Ảnh căn phòng của bạn" },
   "interior-floorplan": { scope: "interior", planView: true, hint: "2D floor plan image or drawing · Ảnh hoặc bản vẽ mặt bằng 2D" },
   "exterior-redesign": { scope: "exterior", angle: true, hint: "House exterior photo · Ảnh mặt ngoài ngôi nhà" },
   "exterior-sky": { weather: true, hint: "House exterior photo · Ảnh mặt ngoài ngôi nhà" },
@@ -37,6 +38,8 @@ const CFG: Record<ToolId, Cfg> = {
 };
 
 const RES_COST: Record<string, number> = { "1k": 1, "2k": 2, "4k": 3 };
+/** Room Composer accepts up to this many item photos (matches MAX_ITEMS in the worker). */
+export const MAX_ITEMS = 3;
 
 async function j<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(path, init);
@@ -81,6 +84,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
   const [refPreview, setRefPreview] = useState("");
   const [prep, setPrep] = useState<PreparedImage | null>(null);
   const [refPrep, setRefPrep] = useState<PreparedImage | null>(null);
+  const [items, setItems] = useState<{ file: File; prep: PreparedImage; preview: string }[]>([]);
   const [preparing, setPreparing] = useState(0); // number of images still being optimised
   const [description, setDescription] = useState("");
   const [aspect, setAspect] = useState("16:9");
@@ -162,7 +166,12 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     if (!f) return;
     prepare(f, (p) => { setRefFile(p.file); setRefPrep(p); setRefPreview(URL.createObjectURL(p.file)); });
   };
-  const ready = !preparing && (cfg.text ? description.trim().length >= 10 : !!file && (!cfg.reference || !!refFile));
+  const pickItem = (f?: File) => {
+    if (!f) return;
+    prepare(f, (p) => setItems((a) => (a.length >= MAX_ITEMS ? a : [...a, { file: p.file, prep: p, preview: URL.createObjectURL(p.file) }])));
+  };
+  const removeItem = (i: number) => setItems((a) => a.filter((_, k) => k !== i));
+  const ready = !preparing && (cfg.text ? description.trim().length >= 10 : !!file && (!cfg.reference || !!refFile) && (!cfg.items || items.length > 0));
 
   const poll = (id: string) => {
     timer.current = window.setTimeout(async () => {
@@ -183,6 +192,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
       const upload = (f: File) => j<{ key: string }>("/api/upload", { method: "POST", headers: { "Content-Type": f.type }, body: f }).then((r) => r.key);
       const key = cfg.text || !file ? undefined : await upload(file);
       const refKey = cfg.reference && refFile ? await upload(refFile) : undefined;
+      const itemKeys = cfg.items ? await Promise.all(items.map((x) => upload(x.file))) : undefined;
       const g = await j<{ id: string }>("/api/generate", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -196,6 +206,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
           ...(cfg.floor ? { surface: "floor", material } : {}),
           ...(cfg.paint ? { color, finish: paintFinish } : {}),
           ...(refKey ? { refKey } : {}),
+          ...(itemKeys ? { itemKeys } : {}),
           ...(cfg.weather ? { weather } : {}),
           ...(cfg.angle ? { angle } : {}),
           ...(cfg.planView ? { view } : {}),
@@ -206,11 +217,11 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     } catch (e: any) { setErr(e.message); setBusy(false); onCreditsChange(); }
   };
 
-  return { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, view, setView, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory };
+  return { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, view, setView, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, items, pickItem, removeItem, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory };
 }
 
 export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId; preset?: Preset; onCreditsChange: () => void }) {
-  const { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, view, setView, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory } = useGenerator(tool, preset, onCreditsChange);
+  const { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, view, setView, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, items, pickItem, removeItem, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory } = useGenerator(tool, preset, onCreditsChange);
   if (!meta) return <p className="mt-8 text-center text-neutral-500">{bi("Loading… · Đang tải…")}</p>;
   const field = "w-full rounded border p-2";
   return (
@@ -230,6 +241,22 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
           </label>
         )}
         {cfg.reference && <PrepInfo p={refPrep} className="text-xs text-neutral-500" />}
+        {cfg.items && (
+          <div className="grid grid-cols-3 gap-2">
+            {items.map((x, i) => (
+              <div key={x.preview} className="relative overflow-hidden rounded-xl border">
+                <img src={x.preview} className="h-24 w-full object-contain" alt="" />
+                <button type="button" onClick={() => removeItem(i)} className="absolute right-1 top-1 rounded-full bg-white/90 px-2 text-xs" aria-label={bi("Remove item · Xoá đồ vật")}>✕</button>
+              </div>
+            ))}
+            {items.length < MAX_ITEMS && (
+              <label className="flex h-24 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed px-2 text-center text-xs text-neutral-500">
+                {bi("+ Item photo · + Ảnh đồ vật")}
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => { pickItem(e.target.files?.[0]); e.target.value = ""; }} />
+              </label>
+            )}
+          </div>
+        )}
         {cfg.room && <select className={field} value={room} onChange={(e) => setRoom(e.target.value)}>{cfg.text && <option value="">{bi("Any room type · Loại phòng bất kỳ")}</option>}{meta.roomTypes.map((r) => <option key={r} value={r}>{bi(r)}</option>)}</select>}
         {cfg.scope && <select className={field} value={style} onChange={(e) => setStyle(e.target.value)}>{cfg.text && <option value="">{bi("Any style · Phong cách bất kỳ")}</option>}{styles.map((s) => <option key={s.slug} value={s.slug}>{bi(s.name)}</option>)}</select>}
         {cfg.angle && <select className={field} value={angle} onChange={(e) => setAngle(e.target.value)}>{meta.angles.map((a) => <option key={a} value={a}>{bi("View · Góc nhìn")}: {bi(a)}</option>)}</select>}
