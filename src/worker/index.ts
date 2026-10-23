@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
-import { submitImageToImage, submitTextToImage, queryTask, chatJson, chatText, imagePart, type ChatMessage } from "./runninghub";
-import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, PLAN_DETECT_PROMPT, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt } from "./prompts";
+import { submitImageToImage, submitTextToImage, submitImageToVideo, queryTask, chatJson, chatText, imagePart, type ChatMessage } from "./runninghub";
+import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, VIDEO_TOOLS, VIDEO_COST, MOTIONS, PLAN_DETECT_PROMPT, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt } from "./prompts";
 
 type Env = { DB: D1Database; IMAGES: R2Bucket; DAILY_CREDITS: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
 type User = { id: string; email: string; credits: number; credits_refilled_at: number };
@@ -121,7 +121,7 @@ const ASPECTS = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "5:4", "4:5"
 const RES = ["1k", "2k", "4k"] as const;
 const RES_COST: Record<string, number> = { "1k": 1, "2k": 2, "4k": 3 };
 
-app.get("/api/styles", (c) => c.json({ styles: STYLES.map(({ slug, name, scope, img, photo }) => ({ slug, name, scope, thumb: img ? `https://drive.google.com/thumbnail?id=${img}&sz=w600` : photo ? `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=600&q=80` : undefined })), roomTypes: ROOM_TYPES, intervention: INTERVENTION, surfaces: SURFACES, paints: PAINT_COLORS, finishes: PAINT_FINISHES, weather: WEATHER, remove: REMOVE, angles: ANGLES, planViews: PLAN_VIEWS, budgets: BUDGETS }));
+app.get("/api/styles", (c) => c.json({ styles: STYLES.map(({ slug, name, scope, img, photo }) => ({ slug, name, scope, thumb: img ? `https://drive.google.com/thumbnail?id=${img}&sz=w600` : photo ? `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=600&q=80` : undefined })), roomTypes: ROOM_TYPES, intervention: INTERVENTION, surfaces: SURFACES, paints: PAINT_COLORS, finishes: PAINT_FINISHES, weather: WEATHER, remove: REMOVE, angles: ANGLES, planViews: PLAN_VIEWS, budgets: BUDGETS, motions: MOTIONS }));
 app.get("/api/prompts", requireAuth, (c) => c.json({ prompts: STYLES.map(({ slug, name, scope, prompt }) => ({ slug, name, scope, prompt })) }));
 
 app.post("/api/upload", requireAuth, async (c) => {
@@ -161,7 +161,8 @@ app.post("/api/generate", requireAuth, async (c) => {
   const items = needsItems ? await Promise.all((b.itemKeys as string[]).map((k) => c.env.IMAGES.get(k))) : [];
   if (items.some((o) => !o)) return c.json({ error: "Item image not found · Không tìm thấy ảnh đồ vật" }, 400);
 
-  const cost = isAdmin(u) ? 0 : RES_COST[resolution]; // admin: unlimited, no credits charged
+  const video = VIDEO_TOOLS.includes(b.tool);
+  const cost = isAdmin(u) ? 0 : video ? VIDEO_COST : RES_COST[resolution]; // admin: unlimited, no credits charged
   const id = crypto.randomUUID();
   const now = Date.now();
   const paid = await c.env.DB.prepare("UPDATE users SET credits=credits-? WHERE id=? AND credits>=?").bind(cost, u.id, cost).run();
@@ -181,14 +182,16 @@ app.post("/api/generate", requireAuth, async (c) => {
       return c.json({ id, status: "SUCCESS" });
     }
     const images = obj ? [obj, ...(ref ? [ref] : []), ...items.map((o) => o!)] : [];
-    const taskId = textOnly
+    const taskId = video
+      ? await submitImageToVideo(c.env.RUNNINGHUB_API_KEY, { image: { bytes: await obj!.arrayBuffer(), mime: obj!.httpMetadata?.contentType ?? "image/jpeg" }, prompt, aspectRatio: ["9:16", "2:3", "3:4", "4:5"].includes(aspectRatio ?? "") ? "9:16" : "16:9" }, c.env.RUNNINGHUB_BASE)
+      : textOnly
       ? await submitTextToImage(c.env.RUNNINGHUB_API_KEY, { prompt, aspectRatio: aspectRatio ?? "16:9", resolution }, c.env.RUNNINGHUB_BASE)
       : await submitImageToImage(c.env.RUNNINGHUB_API_KEY, {
         images: await Promise.all(images.map(async (o) => ({ bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" }))),
         prompt, aspectRatio, resolution,
       }, c.env.RUNNINGHUB_BASE);
     await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,rh_task_id,input_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: b.surface, material: b.material, weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
+      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: b.surface, material: b.material, weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
     return c.json({ id, status: "RUNNING" });
   } catch (e: any) {
     await refund("refund_submit_failed");
@@ -340,7 +343,7 @@ app.get("/api/generations/:id", requireAuth, async (c) => {
       if (img?.ok) {
         const ext = r.results[0].outputType || "png";
         const key = `out/${u.id}/${g.id}.${ext}`;
-        await c.env.IMAGES.put(key, await img.arrayBuffer(), { httpMetadata: { contentType: `image/${ext === "jpg" ? "jpeg" : ext}` } });
+        await c.env.IMAGES.put(key, await img.arrayBuffer(), { httpMetadata: { contentType: ext === "mp4" ? "video/mp4" : `image/${ext === "jpg" ? "jpeg" : ext}` } });
         await c.env.DB.prepare("UPDATE generations SET status='SUCCESS', output_key=? WHERE id=?").bind(key, g.id).run();
         g.status = "SUCCESS"; g.output_key = key;
       } else if (expired) await fail("Could not download the result image · Không tải được ảnh kết quả");
@@ -371,7 +374,7 @@ app.get("/api/images/:kind/:uid/:file", requireAuth, async (c) => {
 // ---------- Phase 4: gallery, deletion, rate limiting ----------
 app.post("/api/generations/:id/publish", requireAuth, async (c) => {
   const { public: pub } = await c.req.json<{ public?: boolean }>().catch(() => ({} as any));
-  const r = await c.env.DB.prepare("UPDATE generations SET is_public=? WHERE id=? AND user_id=? AND status='SUCCESS' AND output_key NOT LIKE '%.json'")
+  const r = await c.env.DB.prepare("UPDATE generations SET is_public=? WHERE id=? AND user_id=? AND status='SUCCESS' AND output_key NOT LIKE '%.json' AND output_key NOT LIKE '%.mp4'")
     .bind(pub ? 1 : 0, c.req.param("id"), c.get("user").id).run();
   return r.meta.changes ? c.json({ ok: true, public: !!pub }) : c.json({ error: "not found" }, 404);
 });

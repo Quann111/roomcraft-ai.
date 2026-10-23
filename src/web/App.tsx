@@ -5,7 +5,7 @@ import { bi, getLang, setLang, t } from "./i18n";
 import { api, useAuth } from "./auth";
 import { AdvisorChat, Transcript } from "./AdvisorChat";
 import { BizPlan } from "./BizPlan";
-import { BeforeAfter, CritiqueView, FinderView, isChat, isTextResult, MAX_ITEMS, PrepInfo, useGenerator, type Preset, type ToolId } from "./GeneratePanel";
+import { BeforeAfter, CritiqueView, FinderView, isChat, isTextResult, isVideo, resultFile, MAX_ITEMS, PrepInfo, useGenerator, type Preset, type ToolId } from "./GeneratePanel";
 
 /* ---------- icons ---------- */
 const ICONS: Record<string, string> = {
@@ -80,7 +80,7 @@ const TOOLS: ToolDef[] = [
   { name: "Text to Design", desc: "Generate complete designs from text descriptions, turning words into beautifully crafted spaces.", cat: "redesign", photo: "photo-1757344454333-cc666252e596", icon: "file", spaces: ["interior-text", "exterior-text", "garden-text"] },
   { name: "Business 3D Floorplan", desc: "Upload one 2D plan. AI detects every room and generates consistent, photoreal renders for each space.", cat: "business", photo: "photo-1721244654210-a505a99661e9", icon: "house", premium: true, spaces: ["interior-bizplan"] },
   { name: "3D Floorplan", desc: "Generate realistic 3D renderings from 2D floorplans. Bring blueprints to life with complete accuracy.", cat: "3d", photo: "photo-1786550860329-f813516e9705", icon: "house", premium: true, spaces: ["interior-floorplan"] },
-  { name: "Video Generation", desc: "Turn design ideas into stunning AI-powered videos and realistic visual presentations.", cat: "business", photo: "photo-1743463685519-469d9ebe1b7f", icon: "spark", premium: true },
+  { name: "Video Generation", desc: "Turn design ideas into stunning AI-powered videos and realistic visual presentations.", cat: "business", photo: "photo-1743463685519-469d9ebe1b7f", icon: "spark", premium: true, spaces: ["interior-video"] },
   { name: "Design Critique", desc: "Receive detailed AI-driven feedback on an uploaded room design and expert suggestions to refine it.", cat: "business", photo: "photo-1781888679143-01d758aedbe6", icon: "info", premium: true, spaces: ["interior-critique"] },
   { name: "Design Advisor", desc: "Chat with our AI trained by top designers to get advice tailored to your project and budget.", cat: "business", photo: "photo-1664638413302-d1ca29ac885b", icon: "headset", premium: true, spaces: ["interior-advisor"] },
 ];
@@ -167,13 +167,13 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
               <>
                 <BeforeAfter before={g.gen.inputUrl} after={g.gen.outputUrl} />
                 <div className="row-between" style={{ marginTop: 14, flexWrap: "wrap", gap: 8 }}>
-                  <a className="outline-btn" href={g.gen.outputUrl} download={`design-${g.gen.id}.png`}><Icon n="download" /> {t("Download", "Tải xuống")}</a>
-                  <button className="outline-btn" onClick={g.togglePublic}><Icon n="globe" /> {g.gen.public ? t("Unpublish", "Gỡ khỏi thư viện") : t("Publish", "Đăng lên thư viện")}</button>
+                  <a className="outline-btn" href={g.gen.outputUrl} download={resultFile(g.gen.id, g.gen.outputUrl)}><Icon n="download" /> {t("Download", "Tải xuống")}</a>
+                  {!g.gen.outputUrl.endsWith(".mp4") && <button className="outline-btn" onClick={g.togglePublic}><Icon n="globe" /> {g.gen.public ? t("Unpublish", "Gỡ khỏi thư viện") : t("Publish", "Đăng lên thư viện")}</button>}
                   <button className="outline-btn" onClick={g.remove_}><Icon n="trash" /> {t("Delete", "Xoá")}</button>
                 </div>
               </>
             ) : (
-              <p className="helper" style={{ textAlign: "center", padding: "40px 10px" }}>{g.busy ? (cfg.llm ? t("Analyzing your photo… about 20–30 seconds.", "Đang phân tích ảnh… khoảng 20–30 giây.") : t("Processing… this takes 1–2 minutes.", "Đang xử lý… mất khoảng 1–2 phút.")) : t("Your generated design appears here.", "Thiết kế được tạo sẽ hiện ở đây.")}</p>
+              <p className="helper" style={{ textAlign: "center", padding: "40px 10px" }}>{g.busy ? (cfg.video ? t("Rendering your video… about 1–3 minutes.", "Đang tạo video… khoảng 1–3 phút.") : cfg.llm ? t("Analyzing your photo… about 20–30 seconds.", "Đang phân tích ảnh… khoảng 20–30 giây.") : t("Processing… this takes 1–2 minutes.", "Đang xử lý… mất khoảng 1–2 phút.")) : t("Your generated design appears here.", "Thiết kế được tạo sẽ hiện ở đây.")}</p>
             )}
           </section>
         </div>
@@ -244,6 +244,10 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                     {cfg.text && <p className="helper">{t("Room type and style are optional — click a selected card again to clear it.", "Loại phòng và phong cách không bắt buộc — bấm lại thẻ đã chọn để bỏ chọn.")}</p>}
                   </>
                 )}
+                {cfg.video && (
+                  <><h4>{t("Camera movement", "Chuyển động camera")}</h4>
+                    <div className="segmented">{meta.motions.map((m) => <button key={m} type="button" className={m === g.motion ? "active" : ""} onClick={() => g.setMotion(m)}>{bi(m)}</button>)}</div></>
+                )}
                 {cfg.angle && (
                   <><h4>{t("View angle", "Góc nhìn")}</h4>
                     <div className="segmented">{meta.angles.map((a) => <button key={a} type="button" className={a === g.angle ? "active" : ""} onClick={() => g.setAngle(a)}>{bi(a)}</button>)}</div></>
@@ -307,7 +311,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
               <><h4>{t("Image shape", "Khung ảnh")}</h4>
                 <div className="segmented">{[["16:9", "Wide", "Ngang rộng"], ["4:3", "Landscape", "Ngang"], ["1:1", "Square", "Vuông"], ["3:4", "Portrait", "Dọc"]].map(([r, en, vi]) => <button key={r} type="button" className={r === g.aspect ? "active" : ""} onClick={() => g.setAspect(r)}>{t(en, vi)} · {r}</button>)}</div></>
             )}
-            {cfg.llm ? <p className="helper">{t("Each analysis costs 1 credit.", "Mỗi lần phân tích tốn 1 credit.")}</p> : <>
+            {cfg.video ? <p className="helper">{t("Each clip costs 5 credits · 8 seconds, 720p, with ambient sound.", "Mỗi clip tốn 5 credit · 8 giây, 720p, có âm thanh nền.")}</p> : cfg.llm ? <p className="helper">{t("Each analysis costs 1 credit.", "Mỗi lần phân tích tốn 1 credit.")}</p> : <>
               <h4>{t("Resolution", "Độ phân giải")}</h4>
               <div className="segmented">{[["1k", 1], ["2k", 2], ["4k", 3]].map(([k, c]) => <button key={k} type="button" className={k === g.res ? "active" : ""} onClick={() => g.setRes(k as string)}>{(k as string).toUpperCase()} · {c} credit</button>)}</div>
             </>}
@@ -325,7 +329,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
           <div className="latest-grid">
             {done.slice(0, 12).map((h, i) => (
               <article className="latest-card" key={h.id} style={{ ["--card-index" as any]: i }}>
-                <div className="latest-image" style={isChat(h) && !h.inputUrl ? { display: "grid", placeItems: "center", background: "#f4f1ea" } : { backgroundImage: `url('${isTextResult(h) ? h.inputUrl : h.outputUrl}')` }}>{isChat(h) && !h.inputUrl && <Icon n="headset" />}</div>
+                <div className="latest-image" style={isChat(h) && !h.inputUrl ? { display: "grid", placeItems: "center", background: "#f4f1ea" } : { backgroundImage: `url('${isTextResult(h) || isVideo(h) ? h.inputUrl : h.outputUrl}')`, ...(isVideo(h) ? { display: "grid", placeItems: "center" } : {}) }}>{isChat(h) && !h.inputUrl && <Icon n="headset" />}{isVideo(h) && <span style={{ width: 44, height: 44, borderRadius: 999, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.55)", color: "#fff", fontSize: 18 }}>▶</span>}</div>
                 <div className="latest-body">
                   <div className="latest-meta">
                     <span><strong>Tool:</strong> {String(h.tool).replace("-", " · ")}</span>
@@ -333,10 +337,10 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                     {h.params?.roomType && <span><strong>Room:</strong> {h.params.roomType}</span>}
                   </div>
                   <div className="latest-actions">
-                    {!isTextResult(h) && <a className="latest-action" title="Download" href={h.outputUrl} download={`design-${h.id}.png`}><Icon n="download" /></a>}
+                    {!isTextResult(h) && <a className="latest-action" title="Download" href={h.outputUrl} download={resultFile(h.id, h.outputUrl)}><Icon n="download" /></a>}
                     <button className="latest-action" title="Preview" onClick={() => (isTextResult(h) ? api(`/api/generations/${h.id}`).then((d: any) => setOpen({ ...h, critique: d.critique, finder: d.finder, chat: d.chat })).catch((e: any) => say(e.message)) : setOpen(h))}><Icon n="eye" /></button>
                     <button className="latest-action" title="Reuse settings" onClick={() => navigate(`/app?tool=${h.tool}&p=${encodeURIComponent(JSON.stringify(h.params ?? {}))}`)}><Icon n="edit" /></button>
-                    {!isTextResult(h) && <button className="latest-action" title={h.public ? "Unpublish" : "Publish"} onClick={() => publish(h)}><Icon n="globe" /></button>}
+                    {!isTextResult(h) && !isVideo(h) && <button className="latest-action" title={h.public ? "Unpublish" : "Publish"} onClick={() => publish(h)}><Icon n="globe" /></button>}
                     <button className="latest-action" title="Delete" onClick={() => del(h.id)}><Icon n="trash" /></button>
                   </div>
                 </div>
