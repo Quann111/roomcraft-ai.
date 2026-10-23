@@ -5,6 +5,7 @@ import { bi, getLang, setLang, t } from "./i18n";
 import { api, useAuth } from "./auth";
 import { AdvisorChat, Transcript } from "./AdvisorChat";
 import { BizPlan } from "./BizPlan";
+import { OrientView, DIRS, DIR_NAMES } from "./OrientView";
 import { BeforeAfter, CritiqueView, FinderView, isChat, isTextResult, isVideo, resultFile, MAX_ITEMS, PrepInfo, useGenerator, type Preset, type ToolId } from "./GeneratePanel";
 
 /* ---------- icons ---------- */
@@ -78,6 +79,7 @@ const TOOLS: ToolDef[] = [
   { name: "Room Composer", desc: "Upload your room and elements, and our AI will compose it into a stylish, cohesive space.", cat: "furnish", photo: "photo-1674058924341-a79eed7e9a89", icon: "sofa", spaces: ["interior-compose"] },
   { name: "Design Transfer", desc: "Recreate the style of inspiration images by applying their design style to a new space.", cat: "redesign", photo: "photo-1615529182904-14819c35db37", icon: "image" },
   { name: "Text to Design", desc: "Generate complete designs from text descriptions, turning words into beautifully crafted spaces.", cat: "redesign", photo: "photo-1757344454333-cc666252e596", icon: "file" },
+  { name: "Sun & Wind Analysis", desc: "Tell us which way your home faces: AI reads the sun and wind on every side and suggests climate-smart design changes.", cat: "3d", photo: "photo-1568605115459-4b731184f961", icon: "weather", spaces: ["exterior-orient"] },
   { name: "Business 3D Floorplan", desc: "Upload one 2D plan. AI detects every room and generates consistent, photoreal renders for each space.", cat: "business", photo: "photo-1721244654210-a505a99661e9", icon: "house", premium: true, spaces: ["interior-bizplan"] },
   { name: "3D Floorplan", desc: "Generate realistic 3D renderings from 2D floorplans. Bring blueprints to life with complete accuracy.", cat: "3d", photo: "photo-1786550860329-f813516e9705", icon: "house", premium: true, spaces: ["interior-floorplan"] },
   { name: "Video Generation", desc: "Turn design ideas into stunning AI-powered videos and realistic visual presentations.", cat: "business", photo: "photo-1743463685519-469d9ebe1b7f", icon: "spark", premium: true, spaces: ["interior-video"] },
@@ -148,7 +150,14 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
           {!cfg.text && <PrepInfo p={g.prep} />}
           <div className="or">{t("RESULT", "KẾT QUẢ")}</div>
           <section className="gallery-panel">
-            {g.gen?.status === "SUCCESS" && g.gen.finder ? (
+            {g.gen?.status === "SUCCESS" && g.gen.orient ? (
+              <>
+                <OrientView photo={g.gen.inputUrl} o={g.gen.orient} id={g.gen.id} params={g.gen.params ?? { kind: g.kind, facing: g.facing, city: g.city }} onCredits={onCredits} Compare={BeforeAfter} />
+                <div className="row-between" style={{ marginTop: 14, flexWrap: "wrap", gap: 8 }}>
+                  <button className="outline-btn" onClick={g.remove_}><Icon n="trash" /> {t("Delete", "Xoá")}</button>
+                </div>
+              </>
+            ) : g.gen?.status === "SUCCESS" && g.gen.finder ? (
               <>
                 <FinderView photo={g.gen.inputUrl} f={g.gen.finder} />
                 <div className="row-between" style={{ marginTop: 14, flexWrap: "wrap", gap: 8 }}>
@@ -244,6 +253,19 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                     {cfg.text && <p className="helper">{t("Room type and style are optional — click a selected card again to clear it.", "Loại phòng và phong cách không bắt buộc — bấm lại thẻ đã chọn để bỏ chọn.")}</p>}
                   </>
                 )}
+                {cfg.orient && (
+                  <>
+                    <h4>{t("What are you uploading?", "Bạn tải lên gì?")}</h4>
+                    <div className="segmented">{([["plan", "Floor plan", "Mặt bằng"], ["facade", "Facade photo", "Ảnh mặt tiền"]] as const).map(([k, en, vi]) => <button key={k} type="button" className={g.kind === k ? "active" : ""} onClick={() => g.setKind(k)}>{t(en, vi)}</button>)}</div>
+                    <h4>{g.kind === "plan" ? t("The top of the plan faces", "Phía trên bản vẽ nhìn về hướng") : t("The facade faces", "Mặt tiền nhìn về hướng")}</h4>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 6, maxWidth: 300 }}>
+                      {["NW", "N", "NE", "W", "", "E", "SW", "S", "SE"].map((d, i) => d ? <button key={d} type="button" className={`outline-btn ${g.facing === d ? "active" : ""}`} style={g.facing === d ? { background: "#1c1b19", color: "#fff" } : undefined} onClick={() => g.setFacing(d)}>{t(...DIR_NAMES[d])}</button> : <span key={i} style={{ display: "grid", placeItems: "center", fontSize: 20 }}>🧭</span>)}
+                    </div>
+                    <h4>{t("City", "Thành phố")}</h4>
+                    <select className="country" value={g.city} onChange={(e) => g.setCity(e.target.value)}><option value="">{t("Choose a city", "Chọn thành phố")}</option>{meta.cities.map((c) => <option key={c} value={c}>{c}</option>)}</select>
+                    <p className="helper">{t("We compute the sun on each side from the city's latitude, then the AI assesses sun and wind and suggests changes. 1 credit; the illustration is 1 more.", "Hệ thống tính nắng trên từng mặt theo vĩ độ thành phố, rồi AI đánh giá nắng gió và đề xuất. 1 credit; ảnh minh hoạ thêm 1 credit.")}</p>
+                  </>
+                )}
                 {cfg.video && (
                   <><h4>{t("Camera movement", "Chuyển động camera")}</h4>
                     <div className="segmented">{meta.motions.map((m) => <button key={m} type="button" className={m === g.motion ? "active" : ""} onClick={() => g.setMotion(m)}>{bi(m)}</button>)}</div></>
@@ -317,7 +339,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
             </>}
             {g.err && <p className="helper" style={{ color: "#b3261e" }}>{bi(g.err)}</p>}
             <button className="generate-btn" disabled={!g.ready || g.busy} onClick={g.run} style={!g.ready || g.busy ? { opacity: 0.5 } : undefined}>
-              <Icon n="spark" />{g.busy ? t("Generating… (1–2 min)", "Đang tạo… (1–2 phút)") : g.preparing ? t("Optimizing image…", "Đang tối ưu ảnh…") : g.ready ? t("Generate New Designs", "Tạo thiết kế mới") : cfg.text ? t("Describe your space first", "Hãy mô tả không gian trước") : !g.file ? t("Upload an image first", "Hãy tải ảnh lên trước") : t("Add a style reference", "Hãy thêm ảnh tham khảo")}
+              <Icon n="spark" />{g.busy ? t("Generating… (1–2 min)", "Đang tạo… (1–2 phút)") : g.preparing ? t("Optimizing image…", "Đang tối ưu ảnh…") : g.ready ? t("Generate New Designs", "Tạo thiết kế mới") : cfg.text ? t("Describe your space first", "Hãy mô tả không gian trước") : !g.file ? t("Upload an image first", "Hãy tải ảnh lên trước") : cfg.items && !g.items.length ? t("Add an item photo", "Hãy thêm ảnh đồ vật") : cfg.orient ? t("Pick the direction and the city", "Hãy chọn hướng và thành phố") : t("Add a style reference", "Hãy thêm ảnh tham khảo")}
             </button>
           </div>
         </div>
@@ -338,7 +360,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                   </div>
                   <div className="latest-actions">
                     {!isTextResult(h) && <a className="latest-action" title="Download" href={h.outputUrl} download={resultFile(h.id, h.outputUrl)}><Icon n="download" /></a>}
-                    <button className="latest-action" title="Preview" onClick={() => (isTextResult(h) ? api(`/api/generations/${h.id}`).then((d: any) => setOpen({ ...h, critique: d.critique, finder: d.finder, chat: d.chat })).catch((e: any) => say(e.message)) : setOpen(h))}><Icon n="eye" /></button>
+                    <button className="latest-action" title="Preview" onClick={() => (isTextResult(h) ? api(`/api/generations/${h.id}`).then((d: any) => setOpen({ ...h, critique: d.critique, finder: d.finder, orient: d.orient, params: d.params, chat: d.chat })).catch((e: any) => say(e.message)) : setOpen(h))}><Icon n="eye" /></button>
                     <button className="latest-action" title="Reuse settings" onClick={() => navigate(`/app?tool=${h.tool}&p=${encodeURIComponent(JSON.stringify(h.params ?? {}))}`)}><Icon n="edit" /></button>
                     {!isTextResult(h) && !isVideo(h) && <button className="latest-action" title={h.public ? "Unpublish" : "Publish"} onClick={() => publish(h)}><Icon n="globe" /></button>}
                     <button className="latest-action" title="Delete" onClick={() => del(h.id)}><Icon n="trash" /></button>
@@ -355,6 +377,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
           <div className="modal" style={{ maxWidth: 560, maxHeight: "92vh", overflowY: "auto" }}>
             <button className="close" onClick={() => setOpen(null)} aria-label="Close">×</button>
             {open.chat ? <><h3 style={{ marginTop: 0 }}>{t("Design Advisor", "Tư vấn thiết kế")}</h3>{open.inputUrl && <img src={open.inputUrl} alt="" style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 10, marginBottom: 12 }} />}<Transcript turns={open.chat} /></>
+              : open.orient ? <OrientView photo={open.inputUrl} o={open.orient} id={open.id} params={open.params ?? {}} Compare={BeforeAfter} />
               : open.finder ? <FinderView photo={open.inputUrl} f={open.finder} />
               : open.critique ? <CritiqueView photo={open.inputUrl} c={open.critique} /> : <BeforeAfter before={open.inputUrl} after={open.outputUrl} />}
           </div>

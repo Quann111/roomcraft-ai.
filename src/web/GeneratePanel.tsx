@@ -3,26 +3,27 @@ import { bi, getLang, t } from "./i18n";
 import { prepareImage, formatBytes, type PreparedImage } from "./imagePrep";
 import { AdvisorChat } from "./AdvisorChat";
 import { BizPlan } from "./BizPlan";
+import { OrientView, DIRS, DIR_NAMES, type Orient } from "./OrientView";
 
 type Meta = {
   styles: { slug: string; name: string; scope: string; thumb?: string }[];
   roomTypes: string[]; intervention: string[];
-  surfaces: Record<string, string[]>; paints: { name: string; hex: string }[]; finishes: string[]; weather: string[]; remove: string[]; angles: string[]; planViews: string[]; motions: string[];
+  surfaces: Record<string, string[]>; paints: { name: string; hex: string }[]; finishes: string[]; weather: string[]; remove: string[]; angles: string[]; planViews: string[]; motions: string[]; cities: string[];
 };
 export type Critique = {
   room: string; style: string; score: number; summary: string; strengths: string[];
   improvements: { area: string; issue: string; suggestion: string; priority: "high" | "medium" | "low" }[]; quickWins: string[];
 };
 export type Finder = { items: { name: string; category: string; description: string; query: string; localQuery: string; priceRange: string; box?: [number, number, number, number] }[] };
-type Gen = { id: string; status: string; error?: string; public?: boolean; inputUrl: string | null; outputUrl: string | null; critique?: Critique; finder?: Finder };
+type Gen = { id: string; status: string; error?: string; public?: boolean; inputUrl: string | null; outputUrl: string | null; critique?: Critique; finder?: Finder; orient?: Orient; params?: any };
 export type Preset = Partial<{ styleSlug: string; roomType: string; intervention: string; surface: string; material: string; weather: string; remove: string[]; angle: string; view: string; color: string; finish: string; description: string }>;
 
 export type ToolId =
   | "interior-redesign" | "interior-staging" | "interior-declutter" | "interior-sketch" | "interior-material"
-  | "interior-paint" | "interior-floor" | "interior-transfer" | "interior-text" | "interior-floorplan" | "interior-compose" | "interior-critique" | "interior-advisor" | "interior-bizplan" | "interior-finder" | "interior-video"
+  | "interior-paint" | "interior-floor" | "interior-transfer" | "interior-text" | "interior-floorplan" | "interior-compose" | "interior-critique" | "interior-advisor" | "interior-bizplan" | "interior-finder" | "interior-video" | "exterior-orient" | "exterior-orient-render"
   | "exterior-redesign" | "exterior-sky" | "exterior-sketch" | "exterior-paint" | "exterior-text" | "garden-redesign" | "garden-text";
 
-type Cfg = { scope?: "interior" | "exterior" | "garden"; room?: boolean; intervention?: boolean; remove?: boolean; surface?: boolean; weather?: boolean; angle?: boolean; planView?: boolean; video?: boolean; paint?: boolean; floor?: boolean; reference?: boolean; items?: boolean; llm?: boolean; chat?: boolean; bizplan?: boolean; text?: boolean; hint: string };
+type Cfg = { scope?: "interior" | "exterior" | "garden"; room?: boolean; intervention?: boolean; remove?: boolean; surface?: boolean; weather?: boolean; angle?: boolean; planView?: boolean; video?: boolean; orient?: boolean; paint?: boolean; floor?: boolean; reference?: boolean; items?: boolean; llm?: boolean; chat?: boolean; bizplan?: boolean; text?: boolean; hint: string };
 const CFG: Record<ToolId, Cfg> = {
   "interior-redesign": { scope: "interior", room: true, intervention: true, hint: "Room photo to redesign · Ảnh phòng cần thiết kế lại" },
   "interior-staging": { scope: "interior", room: true, hint: "Empty room photo to stage · Ảnh phòng trống cần bài trí" },
@@ -35,6 +36,8 @@ const CFG: Record<ToolId, Cfg> = {
   "interior-text": { text: true, scope: "interior", room: true, hint: "e.g. a bright Scandinavian living room with a big window, oak floor and a green sofa · VD: phòng khách Bắc Âu sáng sủa, cửa sổ lớn, sàn gỗ sồi, sofa xanh lá" },
   "interior-bizplan": { bizplan: true, hint: "2D floor plan · Mặt bằng 2D" },
   "interior-advisor": { chat: true, hint: "Chat with the AI designer · Trò chuyện với nhà thiết kế AI" },
+  "exterior-orient": { llm: true, orient: true, hint: "Floor plan or a photo of the facade · Mặt bằng hoặc ảnh mặt tiền" },
+  "exterior-orient-render": { hint: "" }, // started from an orientation analysis, not from a form
   "interior-video": { video: true, hint: "Room, house or garden photo · Ảnh phòng, nhà hoặc sân vườn" },
   "interior-finder": { llm: true, hint: "Room photo or a generated design · Ảnh phòng hoặc thiết kế đã tạo" },
   "interior-critique": { llm: true, room: true, hint: "Photo of the room to review · Ảnh căn phòng cần nhận xét" },
@@ -82,8 +85,9 @@ export function BeforeAfter({ before, after }: { before: string | null; after: s
 /** History items whose result is written text (a critique or an advisor chat) rather than an image. */
 export const isCritique = (h: { tool?: string }) => h.tool === "interior-critique";
 export const isFinder = (h: { tool?: string }) => h.tool === "interior-finder";
+export const isOrient = (h: { tool?: string }) => h.tool === "exterior-orient";
 export const isChat = (h: { tool?: string }) => h.tool === "interior-advisor";
-export const isTextResult = (h: { tool?: string }) => isCritique(h) || isFinder(h) || isChat(h);
+export const isTextResult = (h: { tool?: string }) => isCritique(h) || isFinder(h) || isOrient(h) || isChat(h);
 
 const PRIORITY: Record<Critique["improvements"][number]["priority"], { label: [string, string]; color: string; bg: string }> = {
   high: { label: ["High priority", "Ưu tiên cao"], color: "#9b1c1c", bg: "#fde8e7" },
@@ -204,6 +208,9 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
   const [angle, setAngle] = useState("front");
   const [view, setView] = useState("isometric");
   const [motion, setMotion] = useState("push-in");
+  const [kind, setKind] = useState<"plan" | "facade">("plan");
+  const [facing, setFacing] = useState("");
+  const [city, setCity] = useState("");
   const [color, setColor] = useState("Sage green");
   const [paintFinish, setPaintFinish] = useState("matte");
   const [busy, setBusy] = useState(false);
@@ -276,7 +283,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     prepare(f, (p) => setItems((a) => (a.length >= MAX_ITEMS ? a : [...a, { file: p.file, prep: p, preview: URL.createObjectURL(p.file) }])));
   };
   const removeItem = (i: number) => setItems((a) => a.filter((_, k) => k !== i));
-  const ready = !preparing && (cfg.text ? description.trim().length >= 10 : !!file && (!cfg.reference || !!refFile) && (!cfg.items || items.length > 0));
+  const ready = !preparing && (cfg.text ? description.trim().length >= 10 : !!file && (!cfg.reference || !!refFile) && (!cfg.items || items.length > 0) && (!cfg.orient || (!!facing && !!city)));
 
   const poll = (id: string) => {
     timer.current = window.setTimeout(async () => {
@@ -317,6 +324,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
           ...(cfg.angle ? { angle } : {}),
           ...(cfg.planView ? { view } : {}),
           ...(cfg.video ? { motion } : {}),
+          ...(cfg.orient ? { kind, facing, city } : {}),
         }),
       });
       onCreditsChange();
@@ -324,11 +332,11 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     } catch (e: any) { setErr(e.message); setBusy(false); onCreditsChange(); }
   };
 
-  return { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, view, setView, motion, setMotion, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, items, pickItem, removeItem, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory };
+  return { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, view, setView, motion, setMotion, kind, setKind, facing, setFacing, city, setCity, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, items, pickItem, removeItem, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory };
 }
 
 export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId; preset?: Preset; onCreditsChange: () => void }) {
-  const { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, view, setView, motion, setMotion, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, items, pickItem, removeItem, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory } = useGenerator(tool, preset, onCreditsChange);
+  const { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, view, setView, motion, setMotion, kind, setKind, facing, setFacing, city, setCity, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, items, pickItem, removeItem, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory } = useGenerator(tool, preset, onCreditsChange);
   if (cfg.chat) return <AdvisorChat onCreditsChange={onCreditsChange} />;
   if (cfg.bizplan) return <BizPlan onCreditsChange={onCreditsChange} />;
   if (!meta) return <p className="mt-8 text-center text-neutral-500">{bi("Loading… · Đang tải…")}</p>;
@@ -369,6 +377,11 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
         {cfg.room && <select className={field} value={room} onChange={(e) => setRoom(e.target.value)}>{(cfg.text || cfg.llm) && <option value="">{bi("Any room type · Loại phòng bất kỳ")}</option>}{meta.roomTypes.map((r) => <option key={r} value={r}>{bi(r)}</option>)}</select>}
         {cfg.scope && <select className={field} value={style} onChange={(e) => setStyle(e.target.value)}>{cfg.text && <option value="">{bi("Any style · Phong cách bất kỳ")}</option>}{styles.map((s) => <option key={s.slug} value={s.slug}>{bi(s.name)}</option>)}</select>}
         {cfg.angle && <select className={field} value={angle} onChange={(e) => setAngle(e.target.value)}>{meta.angles.map((a) => <option key={a} value={a}>{bi("View · Góc nhìn")}: {bi(a)}</option>)}</select>}
+        {cfg.orient && <>
+          <select className={field} value={kind} onChange={(e) => setKind(e.target.value as "plan" | "facade")}><option value="plan">{bi("Floor plan · Mặt bằng")}</option><option value="facade">{bi("Facade photo · Ảnh mặt tiền")}</option></select>
+          <select className={field} value={facing} onChange={(e) => setFacing(e.target.value)}><option value="">{kind === "plan" ? bi("Top of the plan faces… · Phía trên bản vẽ nhìn hướng…") : bi("The facade faces… · Mặt tiền nhìn hướng…")}</option>{DIRS.map((d) => <option key={d} value={d}>{t(...DIR_NAMES[d])}</option>)}</select>
+          <select className={field} value={city} onChange={(e) => setCity(e.target.value)}><option value="">{bi("City · Thành phố")}</option>{meta.cities.map((c) => <option key={c} value={c}>{c}</option>)}</select>
+        </>}
         {cfg.video && <select className={field} value={motion} onChange={(e) => setMotion(e.target.value)}>{meta.motions.map((m) => <option key={m} value={m}>{bi("Camera · Camera")}: {bi(m)}</option>)}</select>}
         {cfg.planView && <select className={field} value={view} onChange={(e) => setView(e.target.value)}>{meta.planViews.map((v) => <option key={v} value={v}>{bi("View · Góc nhìn")}: {bi(v)}</option>)}</select>}
         {cfg.weather && <select className={field} value={weather} onChange={(e) => setWeather(e.target.value)}>{meta.weather.map((w) => <option key={w} value={w}>{bi(w)}</option>)}</select>}
@@ -413,7 +426,14 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
         <button disabled={!ready || busy} onClick={run} className="rounded bg-black py-3 text-white disabled:opacity-40">{busy ? bi("Generating… (1–2 min) · Đang tạo…") : preparing ? bi("Optimizing image… · Đang tối ưu ảnh…") : bi("Generate · Tạo thiết kế")}</button>
       </div>
       <div>
-        {gen?.status === "SUCCESS" && gen.finder ? (
+        {gen?.status === "SUCCESS" && gen.orient ? (
+          <>
+            <OrientView photo={gen.inputUrl} o={gen.orient} id={gen.id} params={gen.params ?? { kind, facing, city }} onCredits={onCreditsChange} Compare={BeforeAfter} />
+            <div className="mt-3 flex flex-wrap gap-2 text-sm">
+              <button onClick={remove_} className="rounded border px-4 py-2 text-red-600">{bi("Delete · Xoá")}</button>
+            </div>
+          </>
+        ) : gen?.status === "SUCCESS" && gen.finder ? (
           <>
             <FinderView photo={gen.inputUrl} f={gen.finder} />
             <div className="mt-3 flex flex-wrap gap-2 text-sm">
