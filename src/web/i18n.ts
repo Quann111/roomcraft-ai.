@@ -3,7 +3,7 @@ const VI: Record<string, string> = {
   // categories & tools
   Interiors: "Nội thất", Exteriors: "Ngoại thất", Gardens: "Sân vườn",
   Redesign: "Thiết kế lại", "Virtual Staging": "Bài trí ảo", Declutter: "Dọn đồ", "Sketch to Render": "Phác thảo → ảnh thật",
-  "Material Swap": "Đổi vật liệu", "Video Walkthrough": "Video tham quan", "2D to 3D Floor Plan": "Mặt bằng 2D → 3D",
+  "Material Swap": "Đổi vật liệu", "Video Walkthrough": "Video tham quan", "2D to 3D Floor Plan": "Mặt bằng 2D → 3D", "Room Composer": "Sắp xếp phòng", "Design Critique": "Nhận xét thiết kế", "Design Advisor": "Tư vấn thiết kế", "Furniture Finder": "Tìm nội thất", morning: "Sáng sớm", midday: "Giữa trưa", "golden-hour": "Giờ vàng", dusk: "Chạng vạng (bật đèn)", night: "Ban đêm (bật đèn)", overcast: "Trời âm u", "Lighting · Ánh sáng": "Ánh sáng", "push-in": "Đẩy vào", pan: "Lia ngang", orbit: "Đi vòng", reveal: "Lùi ra toàn cảnh", "Camera · Camera": "Camera", "Under $500": "Dưới $500",
   "Sky & Weather Swap": "Đổi bầu trời & thời tiết",
   // rooms
   "Living room": "Phòng khách", Bedroom: "Phòng ngủ", Bathroom: "Phòng tắm", Kitchen: "Nhà bếp", "Dining room": "Phòng ăn",
@@ -25,6 +25,7 @@ const VI: Record<string, string> = {
   "Fresh snow": "Tuyết mới", "Misty morning": "Sáng sương mù", "Dramatic storm clouds": "Mây bão kịch tính",
   furniture: "Đồ nội thất", clutter: "Đồ lộn xộn", people: "Người", "everything (empty room)": "Tất cả (phòng trống)",
   front: "Mặt trước", side: "Mặt bên", back: "Mặt sau",
+  isometric: "Phối cảnh 3D (45°)", "top-down": "Nhìn từ trên xuống",
   // intervention
   "very-low": "Rất thấp", low: "Thấp", medium: "Vừa", high: "Cao", extreme: "Tối đa",
   // paint colors & finishes
@@ -59,8 +60,8 @@ const VI: Record<string, string> = {
   "Magic Redesign": "Thiết kế kỳ diệu", "Perfect Redesign": "Thiết kế hoàn hảo", "Beautiful Redesign": "Thiết kế đẹp mắt",
   "Creative Redesign": "Thiết kế sáng tạo", "Fill Spaces": "Lấp đầy không gian", "Decor Staging": "Bài trí trang trí", "Colors & Textures": "Màu sắc & kết cấu",
   "Furniture Removal": "Xoá đồ nội thất", "Sky Colors": "Đổi màu bầu trời", "Paint Visualizer": "Thử màu sơn", "Floor Editor": "Chỉnh sửa sàn",
-  "Furniture Finder": "Tìm nội thất", "Room Composer": "Sắp xếp phòng", "Design Transfer": "Chuyển phong cách thiết kế", "Text to Design": "Văn bản → thiết kế",
-  "Business 3D Floorplan": "Mặt bằng 3D cho doanh nghiệp", "3D Floorplan": "Mặt bằng 3D", "Video Generation": "Tạo video", "Design Critique": "Nhận xét thiết kế", "Design Advisor": "Cố vấn thiết kế",
+  "Design Transfer": "Chuyển phong cách thiết kế", "Text to Design": "Văn bản → thiết kế",
+  "Business 3D Floorplan": "Mặt bằng 3D cho doanh nghiệp", "3D Floorplan": "Mặt bằng 3D", "Video Generation": "Tạo video", 
   "Type your request and instantly transform any detail from your space with our conversational AI.": "Nhập yêu cầu và thay đổi ngay mọi chi tiết trong không gian của bạn bằng AI hội thoại.",
   "Complete redesign of your home spaces with enhanced results, while preserving structural elements.": "Thiết kế lại toàn bộ không gian nhà, giữ nguyên các yếu tố kết cấu.",
   "Change your room style and refresh your design using our AI model.": "Đổi phong cách phòng và làm mới thiết kế bằng mô hình AI.",

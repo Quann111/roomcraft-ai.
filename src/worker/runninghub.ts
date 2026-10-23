@@ -47,4 +47,51 @@ export async function submitTextToImage(apiKey: string, o: { prompt: string; asp
   return res.taskId;
 }
 
+/** Veo 3.1 Fast image-to-video (8 s, 720p, native audio); the result is an mp4. */
+export async function submitImageToVideo(apiKey: string, o: { image: InputImage; prompt: string; aspectRatio: "16:9" | "9:16" }, base = DEFAULT_BASE) {
+  const res = await rh(apiKey, `${base}/rhart-video-v3.1-fast/image-to-video`, {
+    prompt: o.prompt, aspectRatio: o.aspectRatio, imageUrls: [toDataUri(o.image.bytes, o.image.mime)], duration: "8", resolution: "720p",
+  });
+  if (!res.taskId) throw new Error(res.errorMessage || "RunningHub returned no taskId · RunningHub không trả taskId");
+  return res.taskId;
+}
+
 export const queryTask = (apiKey: string, taskId: string, base = DEFAULT_BASE) => rh(apiKey, `${base}/query`, { taskId });
+
+const LLM_BASE = "https://llm.runninghub.ai/v1";
+
+export type ChatMessage = { role: "system" | "user" | "assistant"; content: string | ({ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } })[] };
+
+/** Image part for a chat message. */
+export const imagePart = (img: InputImage) => ({ type: "image_url" as const, image_url: { url: toDataUri(img.bytes, img.mime) } });
+
+/** One chat completion; returns the assistant's text. */
+export async function chatText(apiKey: string, o: { model: string; messages: ChatMessage[] }, base = LLM_BASE): Promise<string> {
+  const r = await fetch(`${base}/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model: o.model, messages: o.messages }),
+  });
+  const data: any = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error?.message || data.message || `RunningHub LLM ${r.status}`);
+  const text = String(data.choices?.[0]?.message?.content ?? "").trim();
+  if (!text) throw new Error("The AI returned an empty answer · AI không trả lời");
+  return text;
+}
+
+/** One vision chat call that must answer with a JSON object; returns the parsed object. */
+export async function chatJson(apiKey: string, o: { model: string; prompt: string; image: InputImage }, base = LLM_BASE): Promise<any> {
+  const r = await fetch(`${base}/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: o.model,
+      response_format: { type: "json_object" },
+      messages: [{ role: "user", content: [{ type: "text", text: o.prompt }, { type: "image_url", image_url: { url: toDataUri(o.image.bytes, o.image.mime) } }] }],
+    }),
+  });
+  const data: any = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error?.message || data.message || `RunningHub LLM ${r.status}`);
+  const text = String(data.choices?.[0]?.message?.content ?? "").replace(/^```(?:json)?\s*|\s*```$/g, "");
+  try { return JSON.parse(text); } catch { throw new Error("The AI returned an unreadable answer · AI trả về kết quả không đọc được"); }
+}

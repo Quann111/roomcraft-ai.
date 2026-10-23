@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
-import { submitImageToImage, submitTextToImage, queryTask } from "./runninghub";
-import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, TOOL_IDS, REFERENCE_TOOLS, TEXT_TOOLS, buildPrompt } from "./prompts";
+import { submitImageToImage, submitTextToImage, submitImageToVideo, queryTask, chatJson, chatText, imagePart, type ChatMessage } from "./runninghub";
+import { CITIES, DIRECTIONS } from "./solar";
+import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, COMPARE_TOOLS, MAX_COMPARE, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt } from "./prompts";
 
 type Env = { DB: D1Database; IMAGES: R2Bucket; DAILY_CREDITS: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
 type User = { id: string; email: string; credits: number; credits_refilled_at: number };
@@ -121,7 +122,7 @@ const ASPECTS = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "5:4", "4:5"
 const RES = ["1k", "2k", "4k"] as const;
 const RES_COST: Record<string, number> = { "1k": 1, "2k": 2, "4k": 3 };
 
-app.get("/api/styles", (c) => c.json({ styles: STYLES.map(({ slug, name, scope, img, photo }) => ({ slug, name, scope, thumb: img ? `https://drive.google.com/thumbnail?id=${img}&sz=w600` : photo ? `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=600&q=80` : undefined })), roomTypes: ROOM_TYPES, intervention: INTERVENTION, surfaces: SURFACES, paints: PAINT_COLORS, finishes: PAINT_FINISHES, weather: WEATHER, remove: REMOVE, angles: ANGLES }));
+app.get("/api/styles", (c) => c.json({ styles: STYLES.map(({ slug, name, scope, img, photo }) => ({ slug, name, scope, thumb: img ? `https://drive.google.com/thumbnail?id=${img}&sz=w600` : photo ? `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=600&q=80` : undefined })), roomTypes: ROOM_TYPES, intervention: INTERVENTION, surfaces: SURFACES, paints: PAINT_COLORS, finishes: PAINT_FINISHES, weather: WEATHER, remove: REMOVE, angles: ANGLES, planViews: PLAN_VIEWS, budgets: BUDGETS, motions: MOTIONS, lighting: LIGHTING, cities: CITIES.map((c) => c.name), directions: DIRECTIONS }));
 app.get("/api/prompts", requireAuth, (c) => c.json({ prompts: STYLES.map(({ slug, name, scope, prompt }) => ({ slug, name, scope, prompt })) }));
 
 app.post("/api/upload", requireAuth, async (c) => {
@@ -144,10 +145,19 @@ app.post("/api/generate", requireAuth, async (c) => {
   if (!isAdmin(u) && !(await allow(c.env, `gen:${u.id}`, 3_600_000, 20))) return c.json({ error: "Limit is 20 generations per hour · Tối đa 20 lượt tạo mỗi giờ" }, 429);
   const busy = await c.env.DB.prepare("SELECT COUNT(*) n FROM generations WHERE user_id=? AND status IN ('QUEUED','RUNNING') AND created_at>?").bind(u.id, Date.now() - 600_000).first<{ n: number }>();
   if ((busy?.n ?? 0) >= 3) return c.json({ error: "3 images are already processing, wait for them to finish · Đang có 3 ảnh xử lý, hãy chờ xong rồi tạo tiếp" }, 429);
-  const resolution = RES.includes(b.resolution) ? b.resolution : "1k";
+  const critique = CRITIQUE_TOOLS.includes(b.tool); // answered by the LLM as text: always 1 credit
+  const resolution = !critique && RES.includes(b.resolution) ? b.resolution : "1k";
   const aspectRatio = ASPECTS.includes(b.aspectRatio) ? b.aspectRatio : undefined;
   let prompt: string;
   if (!(TOOL_IDS as readonly string[]).includes(b.tool)) return c.json({ error: "Invalid tool · Tool không hợp lệ" }, 400);
+  if (b.tool === "exterior-orient-render") {
+    // The illustration is driven by the stored analysis, so the client cannot inject its own prompt.
+    const src: any = await c.env.DB.prepare("SELECT params,input_key,output_key FROM generations WHERE id=? AND user_id=? AND tool='exterior-orient' AND status='SUCCESS'").bind(String(b.sourceId ?? ""), u.id).first();
+    const analysis: any = src ? await c.env.IMAGES.get(src.output_key).then((o) => o?.json()).catch(() => null) : null;
+    if (!analysis) return c.json({ error: "Run the orientation analysis first · Hãy phân tích hướng trước" }, 400);
+    const sp = JSON.parse(src.params);
+    Object.assign(b, { brief: analysis.renderBrief, kind: sp.kind, facing: sp.facing, inputKey: src.input_key, custom: undefined });
+  }
   try { prompt = buildPrompt(b.tool, b); } catch (e: any) { return c.json({ error: e.message }, 400); }
   const obj = textOnly ? null : await c.env.IMAGES.get(b.inputKey);
   if (!textOnly && !obj) return c.json({ error: "Image not found · Không tìm thấy ảnh" }, 400);
@@ -155,8 +165,13 @@ app.post("/api/generate", requireAuth, async (c) => {
   if (needsRef && (typeof b.refKey !== "string" || !b.refKey.startsWith(`in/${u.id}/`))) return c.json({ error: "Upload a style reference image · Hãy tải ảnh tham khảo phong cách" }, 400);
   const ref = needsRef ? await c.env.IMAGES.get(b.refKey) : null;
   if (needsRef && !ref) return c.json({ error: "Reference image not found · Không tìm thấy ảnh tham khảo" }, 400);
+  const needsItems = ITEM_TOOLS.includes(b.tool); // buildPrompt above already checked there are 1–MAX_ITEMS
+  if (needsItems && !b.itemKeys.every((k: unknown) => typeof k === "string" && k.startsWith(`in/${u.id}/`))) return c.json({ error: "Invalid item image · Ảnh đồ vật không hợp lệ" }, 400);
+  const items = needsItems ? await Promise.all((b.itemKeys as string[]).map((k) => c.env.IMAGES.get(k))) : [];
+  if (items.some((o) => !o)) return c.json({ error: "Item image not found · Không tìm thấy ảnh đồ vật" }, 400);
 
-  const cost = isAdmin(u) ? 0 : RES_COST[resolution]; // admin: unlimited, no credits charged
+  const video = VIDEO_TOOLS.includes(b.tool);
+  const cost = isAdmin(u) ? 0 : video ? VIDEO_COST : RES_COST[resolution]; // admin: unlimited, no credits charged
   const id = crypto.randomUUID();
   const now = Date.now();
   const paid = await c.env.DB.prepare("UPDATE users SET credits=credits-? WHERE id=? AND credits>=?").bind(cost, u.id, cost).run();
@@ -167,19 +182,183 @@ app.post("/api/generate", requireAuth, async (c) => {
   ]);
   await c.env.DB.prepare("INSERT INTO credit_ledger (user_id,delta,reason,generation_id,created_at) VALUES (?,?,?,?,?)").bind(u.id, -cost, "generate", id, now).run();
   try {
-    const images = obj ? [obj, ...(ref ? [ref] : [])] : [];
-    const taskId = textOnly
+    if (critique) {
+      const result = cleanLlmResult(b.tool, await chatJson(c.env.RUNNINGHUB_API_KEY, { model: CRITIQUE_MODEL, prompt, image: { bytes: await obj!.arrayBuffer(), mime: obj!.httpMetadata?.contentType ?? "image/jpeg" } }));
+      const outKey = `out/${u.id}/${id}.json`;
+      await c.env.IMAGES.put(outKey, JSON.stringify(result), { httpMetadata: { contentType: "application/json" } });
+      await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,input_key,output_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
+        .bind(id, u.id, b.tool, JSON.stringify({ roomType: b.roomType, lang: b.lang === "vi" ? "vi" : "en", kind: b.kind, facing: b.facing, city: b.city, resolution }), prompt, "SUCCESS", b.inputKey, outKey, cost, now).run();
+      return c.json({ id, status: "SUCCESS" });
+    }
+    const images = obj ? [obj, ...(ref ? [ref] : []), ...items.map((o) => o!)] : [];
+    const taskId = video
+      ? await submitImageToVideo(c.env.RUNNINGHUB_API_KEY, { image: { bytes: await obj!.arrayBuffer(), mime: obj!.httpMetadata?.contentType ?? "image/jpeg" }, prompt, aspectRatio: ["9:16", "2:3", "3:4", "4:5"].includes(aspectRatio ?? "") ? "9:16" : "16:9" }, c.env.RUNNINGHUB_BASE)
+      : textOnly
       ? await submitTextToImage(c.env.RUNNINGHUB_API_KEY, { prompt, aspectRatio: aspectRatio ?? "16:9", resolution }, c.env.RUNNINGHUB_BASE)
       : await submitImageToImage(c.env.RUNNINGHUB_API_KEY, {
         images: await Promise.all(images.map(async (o) => ({ bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" }))),
         prompt, aspectRatio, resolution,
       }, c.env.RUNNINGHUB_BASE);
     await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,rh_task_id,input_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: b.surface, material: b.material, weather: b.weather, remove: b.remove, angle: b.angle, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
+      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: b.surface, material: b.material, weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, lighting: b.tool === "interior-lighting" ? b.lighting : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
     return c.json({ id, status: "RUNNING" });
   } catch (e: any) {
     await refund("refund_submit_failed");
     return c.json({ error: `Could not submit request: ${e.message} · Không gửi được yêu cầu: ${e.message}` }, 502);
+  }
+});
+
+// ---------- Business 3D Floorplan: detect rooms, then one render per room ----------
+const ownImage = async (c: any, key: unknown) =>
+  typeof key === "string" && key.startsWith(`in/${c.get("user").id}/`) ? await c.env.IMAGES.get(key) : null;
+
+app.post("/api/bizplan/detect", requireAuth, async (c) => {
+  const u = c.get("user");
+  const b = await c.req.json<any>().catch(() => ({}));
+  if (!c.env.RUNNINGHUB_API_KEY) return c.json({ error: "Server is missing RUNNINGHUB_API_KEY · Server chưa cấu hình RUNNINGHUB_API_KEY" }, 500);
+  if (!isAdmin(u) && !(await allow(c.env, `plan:${u.id}`, 3_600_000, 30))) return c.json({ error: "Limit is 30 plan scans per hour · Tối đa 30 lần đọc mặt bằng mỗi giờ" }, 429);
+  const plan = await ownImage(c, b.inputKey);
+  if (!plan) return c.json({ error: "Upload a floor plan first · Hãy tải mặt bằng lên trước" }, 400);
+  try {
+    const r = await chatJson(c.env.RUNNINGHUB_API_KEY, { model: CRITIQUE_MODEL, prompt: PLAN_DETECT_PROMPT, image: { bytes: await plan.arrayBuffer(), mime: plan.httpMetadata?.contentType ?? "image/jpeg" } });
+    const rooms = cleanRooms(r?.rooms);
+    if (!rooms.length) return c.json({ error: "No rooms found — is this a floor plan? · Không tìm thấy phòng nào — ảnh này có phải mặt bằng không?" }, 422);
+    return c.json({ home: String(r?.home ?? "").trim().slice(0, 200), rooms });
+  } catch (e: any) {
+    return c.json({ error: `Could not read the plan: ${e.message} · Không đọc được mặt bằng: ${e.message}` }, 502);
+  }
+});
+
+type Job = { prompt: string; params: Record<string, unknown>; label: string };
+/**
+ * Several generations from one uploaded image in a single request (Business 3D Floorplan, material comparison).
+ * Credits for every job are charged up front; a job whose submission fails is refunded at once. Each job becomes a
+ * normal generation row, so polling, refunds on failure, downloads and history work as for single generations.
+ */
+async function runBatch(c: any, o: { tool: string; inputKey: string; image: { bytes: ArrayBuffer; mime: string }; jobs: Job[]; each: number; resolution: "1k" | "2k" | "4k"; aspectRatio?: string }) {
+  const u = c.get("user");
+  if (!isAdmin(u)) for (const _ of o.jobs) if (!(await allow(c.env, `gen:${u.id}`, 3_600_000, 20))) return { error: "Limit is 20 generations per hour · Tối đa 20 lượt tạo mỗi giờ", status: 429 as const };
+  const total = o.each * o.jobs.length;
+  const paid = await c.env.DB.prepare("UPDATE users SET credits=credits-? WHERE id=? AND credits>=?").bind(total, u.id, total).run();
+  if (!paid.meta.changes) return { error: `This needs ${total} credits · Cần ${total} credit`, status: 402 as const };
+  const batchId = crypto.randomUUID();
+  const items = await Promise.all(o.jobs.map(async (job) => {
+    const id = crypto.randomUUID();
+    const now = Date.now();
+    await c.env.DB.prepare("INSERT INTO credit_ledger (user_id,delta,reason,generation_id,created_at) VALUES (?,?,?,?,?)").bind(u.id, -o.each, "generate", id, now).run();
+    try {
+      const taskId = await submitImageToImage(c.env.RUNNINGHUB_API_KEY!, { images: [o.image], prompt: job.prompt, aspectRatio: o.aspectRatio, resolution: o.resolution }, c.env.RUNNINGHUB_BASE);
+      await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,rh_task_id,input_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
+        .bind(id, u.id, o.tool, JSON.stringify({ ...job.params, batchId, resolution: o.resolution, aspectRatio: o.aspectRatio }), job.prompt, "RUNNING", taskId, o.inputKey, o.each, now).run();
+      return { id, label: job.label };
+    } catch (e: any) {
+      await c.env.DB.batch([
+        c.env.DB.prepare("UPDATE users SET credits=credits+? WHERE id=?").bind(o.each, u.id),
+        c.env.DB.prepare("INSERT INTO credit_ledger (user_id,delta,reason,generation_id,created_at) VALUES (?,?,?,?,?)").bind(u.id, o.each, "refund_submit_failed", id, Date.now()),
+      ]);
+      return { label: job.label, error: e.message as string };
+    }
+  }));
+  return { batchId, items };
+}
+
+// Charges 1 credit per room up front; each room is a normal generation.
+app.post("/api/bizplan/render", requireAuth, async (c) => {
+  const u = c.get("user");
+  const b = await c.req.json<any>().catch(() => ({}));
+  if (!c.env.RUNNINGHUB_API_KEY) return c.json({ error: "Server is missing RUNNINGHUB_API_KEY · Server chưa cấu hình RUNNINGHUB_API_KEY" }, 500);
+  const rooms = cleanRooms(b.rooms);
+  if (!rooms.length || (Array.isArray(b.rooms) && b.rooms.length > MAX_PLAN_ROOMS)) return c.json({ error: `Pick 1–${MAX_PLAN_ROOMS} rooms · Chọn 1–${MAX_PLAN_ROOMS} phòng` }, 400);
+  const home = String(b.home ?? "").trim().slice(0, 200);
+  let jobs: Job[];
+  try { jobs = rooms.map((r) => ({ prompt: planRoomPrompt(b.styleSlug, r, home), params: { styleSlug: b.styleSlug, roomType: r.name }, label: r.name })); } catch (e: any) { return c.json({ error: e.message }, 400); }
+  const plan = await ownImage(c, b.inputKey);
+  if (!plan) return c.json({ error: "Upload a floor plan first · Hãy tải mặt bằng lên trước" }, 400);
+  const r = await runBatch(c, {
+    tool: BIZPLAN_TOOL, inputKey: b.inputKey, image: { bytes: await plan.arrayBuffer(), mime: plan.httpMetadata?.contentType ?? "image/jpeg" },
+    jobs, each: isAdmin(u) ? 0 : 1, resolution: "1k", aspectRatio: ASPECTS.includes(b.aspectRatio) ? b.aspectRatio : "4:3",
+  });
+  if ("error" in r) return c.json({ error: r.error }, r.status);
+  return c.json({ batchId: r.batchId, items: r.items.map(({ label, ...x }) => ({ ...x, room: label })) });
+});
+
+// Material comparison: the same photo with 2–MAX_COMPARE materials on one surface, one generation each.
+app.post("/api/compare", requireAuth, async (c) => {
+  const u = c.get("user");
+  const b = await c.req.json<any>().catch(() => ({}));
+  if (!c.env.RUNNINGHUB_API_KEY) return c.json({ error: "Server is missing RUNNINGHUB_API_KEY · Server chưa cấu hình RUNNINGHUB_API_KEY" }, 500);
+  if (!COMPARE_TOOLS.includes(b.tool)) return c.json({ error: "Invalid tool · Tool không hợp lệ" }, 400);
+  const materials: string[] = Array.isArray(b.materials) ? [...new Set<string>(b.materials.map(String))] : [];
+  if (materials.length < 2 || materials.length > MAX_COMPARE) return c.json({ error: `Pick 2–${MAX_COMPARE} materials · Chọn 2–${MAX_COMPARE} vật liệu` }, 400);
+  const surface = b.tool === "interior-floor" ? "floor" : b.surface;
+  let jobs: Job[];
+  try { jobs = materials.map((m) => ({ prompt: buildPrompt(b.tool, { surface, material: m, custom: b.custom }), params: { surface, material: m }, label: m })); } catch (e: any) { return c.json({ error: e.message }, 400); }
+  const photo = await ownImage(c, b.inputKey);
+  if (!photo) return c.json({ error: "Invalid input image · Ảnh đầu vào không hợp lệ" }, 400);
+  const resolution = RES.includes(b.resolution) ? b.resolution : "1k";
+  const r = await runBatch(c, {
+    tool: b.tool, inputKey: b.inputKey, image: { bytes: await photo.arrayBuffer(), mime: photo.httpMetadata?.contentType ?? "image/jpeg" },
+    jobs, each: isAdmin(u) ? 0 : RES_COST[resolution], resolution, aspectRatio: ASPECTS.includes(b.aspectRatio) ? b.aspectRatio : undefined,
+  });
+  if ("error" in r) return c.json({ error: r.error }, r.status);
+  return c.json({ batchId: r.batchId, items: r.items.map(({ label, ...x }) => ({ ...x, material: label })) });
+});
+
+// ---------- Design Advisor: a chat whose transcript lives in R2 ----------
+// The first message opens a conversation (1 credit, MAX_ADVISOR_TURNS questions); later messages pass its id.
+type Turn = { role: "user" | "assistant"; text: string };
+app.post("/api/advisor", requireAuth, async (c) => {
+  const u = c.get("user");
+  const b = await c.req.json<any>().catch(() => ({}));
+  if (!c.env.RUNNINGHUB_API_KEY) return c.json({ error: "Server is missing RUNNINGHUB_API_KEY · Server chưa cấu hình RUNNINGHUB_API_KEY" }, 500);
+  const message = String(b.message ?? "").trim().slice(0, 1000);
+  if (message.length < 2) return c.json({ error: "Type a question · Hãy nhập câu hỏi" }, 400);
+  if (!isAdmin(u) && !(await allow(c.env, `chat:${u.id}`, 3_600_000, 60))) return c.json({ error: "Limit is 60 messages per hour · Tối đa 60 tin nhắn mỗi giờ" }, 429);
+
+  let row: any = null, turns: Turn[] = [], opts: any = {};
+  if (b.id) {
+    row = await c.env.DB.prepare("SELECT * FROM generations WHERE id=? AND user_id=? AND tool=?").bind(String(b.id), u.id, ADVISOR_TOOL).first();
+    if (!row) return c.json({ error: "Conversation not found · Không tìm thấy cuộc trò chuyện" }, 404);
+    turns = ((await c.env.IMAGES.get(row.output_key).then((o) => o?.json()).catch(() => null)) as any)?.messages ?? [];
+    opts = JSON.parse(row.params);
+    if (turns.filter((t) => t.role === "user").length >= MAX_ADVISOR_TURNS) return c.json({ error: `This conversation reached ${MAX_ADVISOR_TURNS} questions — start a new one · Cuộc trò chuyện đã đủ ${MAX_ADVISOR_TURNS} câu hỏi — hãy bắt đầu cuộc mới` }, 429);
+  } else {
+    if (b.inputKey != null && (typeof b.inputKey !== "string" || !b.inputKey.startsWith(`in/${u.id}/`))) return c.json({ error: "Invalid input image · Ảnh đầu vào không hợp lệ" }, 400);
+    opts = { lang: b.lang === "vi" ? "vi" : "en", roomType: ROOM_TYPES.includes(b.roomType) ? b.roomType : undefined, budget: BUDGETS.includes(b.budget) ? b.budget : undefined };
+  }
+  const inputKey: string | null = row ? row.input_key : b.inputKey ?? null;
+  const photo = inputKey ? await c.env.IMAGES.get(inputKey) : null;
+  if (inputKey && !photo) return c.json({ error: "Image not found · Không tìm thấy ảnh" }, 400);
+
+  // A new conversation is paid up front and refunded if the first answer fails.
+  const id = row?.id ?? crypto.randomUUID();
+  const cost = row || isAdmin(u) ? 0 : 1;
+  if (cost) {
+    const paid = await c.env.DB.prepare("UPDATE users SET credits=credits-? WHERE id=? AND credits>=?").bind(cost, u.id, cost).run();
+    if (!paid.meta.changes) return c.json({ error: "Out of credits. Credits refill after 24 hours. · Hết credits. Credits được nạp lại sau 24 giờ." }, 402);
+    await c.env.DB.prepare("INSERT INTO credit_ledger (user_id,delta,reason,generation_id,created_at) VALUES (?,?,?,?,?)").bind(u.id, -cost, "advisor", id, Date.now()).run();
+  }
+  try {
+    const all: Turn[] = [...turns, { role: "user", text: message }];
+    const img = photo ? imagePart({ bytes: await photo.arrayBuffer(), mime: photo.httpMetadata?.contentType ?? "image/jpeg" }) : null;
+    const messages: ChatMessage[] = [
+      { role: "system", content: advisorSystem({ ...opts, hasPhoto: !!img }) },
+      ...all.map((t, i): ChatMessage => (i === 0 && t.role === "user" && img ? { role: "user", content: [{ type: "text", text: t.text }, img] } : { role: t.role, content: t.text })),
+    ];
+    const reply = (await chatText(c.env.RUNNINGHUB_API_KEY, { model: ADVISOR_MODEL, messages })).slice(0, 4000);
+    all.push({ role: "assistant", text: reply });
+    const outKey = row?.output_key ?? `out/${u.id}/${id}.json`;
+    await c.env.IMAGES.put(outKey, JSON.stringify({ messages: all }), { httpMetadata: { contentType: "application/json" } });
+    if (!row)
+      await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,input_key,output_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
+        .bind(id, u.id, ADVISOR_TOOL, JSON.stringify(opts), message, "SUCCESS", inputKey, outKey, cost, Date.now()).run();
+    return c.json({ id, reply, turnsLeft: MAX_ADVISOR_TURNS - all.filter((t) => t.role === "user").length });
+  } catch (e: any) {
+    if (cost) await c.env.DB.batch([
+      c.env.DB.prepare("UPDATE users SET credits=credits+? WHERE id=?").bind(cost, u.id),
+      c.env.DB.prepare("INSERT INTO credit_ledger (user_id,delta,reason,generation_id,created_at) VALUES (?,?,?,?,?)").bind(u.id, cost, "refund_advisor_failed", id, Date.now()),
+    ]);
+    return c.json({ error: `The advisor could not answer: ${e.message} · Trợ lý chưa trả lời được: ${e.message}` }, 502);
   }
 });
 
@@ -207,7 +386,7 @@ app.get("/api/generations/:id", requireAuth, async (c) => {
       if (img?.ok) {
         const ext = r.results[0].outputType || "png";
         const key = `out/${u.id}/${g.id}.${ext}`;
-        await c.env.IMAGES.put(key, await img.arrayBuffer(), { httpMetadata: { contentType: `image/${ext === "jpg" ? "jpeg" : ext}` } });
+        await c.env.IMAGES.put(key, await img.arrayBuffer(), { httpMetadata: { contentType: ext === "mp4" ? "video/mp4" : `image/${ext === "jpg" ? "jpeg" : ext}` } });
         await c.env.DB.prepare("UPDATE generations SET status='SUCCESS', output_key=? WHERE id=?").bind(key, g.id).run();
         g.status = "SUCCESS"; g.output_key = key;
       } else if (expired) await fail("Could not download the result image · Không tải được ảnh kết quả");
@@ -217,7 +396,9 @@ app.get("/api/generations/:id", requireAuth, async (c) => {
       await fail(pollError || "Timed out (15 minutes) · Hết thời gian chờ (15 phút)");
     }
   }
-  return c.json({ id: g.id, status: g.status, error: g.error, public: !!g.is_public, inputUrl: g.input_key ? `/api/images/${g.input_key}` : null, outputUrl: g.output_key ? `/api/images/${g.output_key}` : null });
+  // Written critiques and advisor transcripts are stored as JSON in place of an output image.
+  const json: any = g.status === "SUCCESS" && String(g.output_key).endsWith(".json") ? await c.env.IMAGES.get(g.output_key).then((o) => o?.json()).catch(() => null) : undefined;
+  return c.json({ id: g.id, tool: g.tool, params: JSON.parse(g.params), status: g.status, error: g.error, public: !!g.is_public, critique: g.tool === "interior-critique" ? json : undefined, finder: g.tool === "interior-finder" ? json : undefined, orient: g.tool === "exterior-orient" ? json : undefined, chat: g.tool === ADVISOR_TOOL ? json?.messages : undefined, inputUrl: g.input_key ? `/api/images/${g.input_key}` : null, outputUrl: g.output_key ? `/api/images/${g.output_key}` : null });
 });
 
 app.get("/api/generations", requireAuth, async (c) => {
@@ -236,7 +417,7 @@ app.get("/api/images/:kind/:uid/:file", requireAuth, async (c) => {
 // ---------- Phase 4: gallery, deletion, rate limiting ----------
 app.post("/api/generations/:id/publish", requireAuth, async (c) => {
   const { public: pub } = await c.req.json<{ public?: boolean }>().catch(() => ({} as any));
-  const r = await c.env.DB.prepare("UPDATE generations SET is_public=? WHERE id=? AND user_id=? AND status='SUCCESS'")
+  const r = await c.env.DB.prepare("UPDATE generations SET is_public=? WHERE id=? AND user_id=? AND status='SUCCESS' AND output_key NOT LIKE '%.json' AND output_key NOT LIKE '%.mp4'")
     .bind(pub ? 1 : 0, c.req.param("id"), c.get("user").id).run();
   return r.meta.changes ? c.json({ ok: true, public: !!pub }) : c.json({ error: "not found" }, 404);
 });

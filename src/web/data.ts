@@ -14,12 +14,12 @@ export const FEATURES: Feature[] = [
   { slug: "paint-visualizer", name: ["Paint Visualizer", "Thử màu sơn"], desc: ["Preview wall colors before you buy paint.", "Xem trước màu tường trước khi mua sơn."], group: "edit", icon: "🎨" },
   { slug: "virtual-staging-ai", name: ["Virtual Staging", "Bài trí ảo"], desc: ["Furnish empty rooms for listings and previews.", "Bày nội thất cho phòng trống để đăng tin và xem trước."], group: "staging", tool: "interior-staging", icon: "🛋️" },
   { slug: "ai-furniture-removal", name: ["Declutter", "Dọn đồ"], desc: ["Remove furniture, clutter or people from photos.", "Xoá đồ đạc, đồ lộn xộn hoặc người khỏi ảnh."], group: "staging", tool: "interior-declutter", icon: "🧹" },
-  { slug: "furniture-finder", name: ["Furniture Finder", "Tìm nội thất"], desc: ["Detect furniture in the image and find where to buy.", "Nhận diện nội thất trong ảnh và tìm nơi mua."], group: "staging", icon: "🔎" },
-  { slug: "room-composer", name: ["Room Composer", "Sắp xếp phòng"], desc: ["Arrange your own furniture inside the room.", "Sắp xếp đồ của bạn vào phòng."], group: "staging", icon: "🧩" },
+  { slug: "furniture-finder", name: ["Furniture Finder", "Tìm nội thất"], desc: ["Detect furniture in the image and find where to buy.", "Nhận diện nội thất trong ảnh và tìm nơi mua."], group: "staging", tool: "interior-finder", icon: "🔎" },
+  { slug: "room-composer", name: ["Room Composer", "Sắp xếp phòng"], desc: ["Arrange your own furniture inside the room.", "Sắp xếp đồ của bạn vào phòng."], group: "staging", tool: "interior-compose", icon: "🧩" },
   { slug: "text-to-design", name: ["Text to Design", "Văn bản → thiết kế"], desc: ["Describe the space and get design ideas.", "Mô tả không gian để nhận ý tưởng thiết kế."], group: "advice", icon: "💬" },
-  { slug: "design-critique", name: ["Design Critique", "Nhận xét thiết kế"], desc: ["Get feedback and improvement tips.", "Nhận phản hồi và gợi ý cải thiện."], group: "advice", icon: "📝" },
-  { slug: "ai-floor-plan-generator", name: ["2D to 3D Floor Plan", "Mặt bằng 2D → 3D"], desc: ["Turn a floor plan into a furnished 3D view.", "Biến mặt bằng thành mô hình 3D có nội thất."], group: "advice", icon: "📐" },
-  { slug: "video-walkthrough", name: ["Video Walkthrough", "Video tham quan"], desc: ["Animate a design into a short walkthrough clip.", "Biến thiết kế thành clip tham quan ngắn."], group: "advice", icon: "🎬" },
+  { slug: "design-critique", name: ["Design Critique", "Nhận xét thiết kế"], desc: ["Get feedback and improvement tips.", "Nhận phản hồi và gợi ý cải thiện."], group: "advice", tool: "interior-critique", icon: "📝" },
+  { slug: "ai-floor-plan-generator", name: ["2D to 3D Floor Plan", "Mặt bằng 2D → 3D"], desc: ["Turn a floor plan into a furnished 3D view.", "Biến mặt bằng thành mô hình 3D có nội thất."], group: "advice", tool: "interior-floorplan", icon: "📐" },
+  { slug: "video-walkthrough", name: ["Video Walkthrough", "Video tham quan"], desc: ["Animate a design into a short walkthrough clip.", "Biến thiết kế thành clip tham quan ngắn."], group: "advice", tool: "interior-video", icon: "🎬" },
 ];
 
 export const GROUPS: Record<Feature["group"], L2> = {
