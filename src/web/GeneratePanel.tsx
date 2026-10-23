@@ -11,10 +11,10 @@ export type Preset = Partial<{ styleSlug: string; roomType: string; intervention
 
 export type ToolId =
   | "interior-redesign" | "interior-staging" | "interior-declutter" | "interior-sketch" | "interior-material"
-  | "interior-paint" | "interior-floor"
+  | "interior-paint" | "interior-floor" | "interior-transfer"
   | "exterior-redesign" | "exterior-sky" | "exterior-sketch" | "exterior-paint" | "garden-redesign";
 
-type Cfg = { scope?: "interior" | "exterior" | "garden"; room?: boolean; intervention?: boolean; remove?: boolean; surface?: boolean; weather?: boolean; angle?: boolean; paint?: boolean; floor?: boolean; hint: string };
+type Cfg = { scope?: "interior" | "exterior" | "garden"; room?: boolean; intervention?: boolean; remove?: boolean; surface?: boolean; weather?: boolean; angle?: boolean; paint?: boolean; floor?: boolean; reference?: boolean; hint: string };
 const CFG: Record<ToolId, Cfg> = {
   "interior-redesign": { scope: "interior", room: true, intervention: true, hint: "Room photo to redesign · Ảnh phòng cần thiết kế lại" },
   "interior-staging": { scope: "interior", room: true, hint: "Empty room photo to stage · Ảnh phòng trống cần bài trí" },
@@ -23,6 +23,7 @@ const CFG: Record<ToolId, Cfg> = {
   "interior-material": { surface: true, hint: "Room photo to retexture · Ảnh phòng cần đổi vật liệu" },
   "interior-paint": { paint: true, hint: "Room photo to repaint · Ảnh phòng cần sơn lại" },
   "interior-floor": { floor: true, hint: "Room photo with a visible floor · Ảnh phòng thấy rõ sàn" },
+  "interior-transfer": { reference: true, room: true, intervention: true, hint: "Your room photo · Ảnh phòng của bạn" },
   "exterior-redesign": { scope: "exterior", angle: true, hint: "House exterior photo · Ảnh mặt ngoài ngôi nhà" },
   "exterior-sky": { weather: true, hint: "House exterior photo · Ảnh mặt ngoài ngôi nhà" },
   "exterior-sketch": { scope: "exterior", hint: "House sketch · Bản phác thảo ngôi nhà" },
@@ -56,6 +57,8 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
   const [meta, setMeta] = useState<Meta | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
+  const [refFile, setRefFile] = useState<File | null>(null);
+  const [refPreview, setRefPreview] = useState("");
   const [style, setStyle] = useState("");
   const [room, setRoom] = useState("Living room");
   const [lvl, setLvl] = useState(2);
@@ -122,6 +125,13 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     setPreview(URL.createObjectURL(f));
   };
 
+  const pickRef = (f?: File) => {
+    if (!f) return;
+    setRefFile(f); setGen(null); setErr("");
+    setRefPreview(URL.createObjectURL(f));
+  };
+  const ready = !!file && (!cfg.reference || !!refFile);
+
   const poll = (id: string) => {
     timer.current = window.setTimeout(async () => {
       try {
@@ -135,10 +145,12 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
   };
 
   const run = async () => {
-    if (!file || !meta) return;
+    if (!file || !meta || !ready) return;
     setBusy(true); setErr(""); setGen(null);
     try {
-      const { key } = await j<{ key: string }>("/api/upload", { method: "POST", headers: { "Content-Type": file.type }, body: file });
+      const upload = (f: File) => j<{ key: string }>("/api/upload", { method: "POST", headers: { "Content-Type": f.type }, body: f }).then((r) => r.key);
+      const key = await upload(file);
+      const refKey = cfg.reference && refFile ? await upload(refFile) : undefined;
       const g = await j<{ id: string }>("/api/generate", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -150,6 +162,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
           ...(cfg.surface ? { surface, material } : {}),
           ...(cfg.floor ? { surface: "floor", material } : {}),
           ...(cfg.paint ? { color, finish: paintFinish } : {}),
+          ...(refKey ? { refKey } : {}),
           ...(cfg.weather ? { weather } : {}),
           ...(cfg.angle ? { angle } : {}),
         }),
@@ -159,11 +172,11 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     } catch (e: any) { setErr(e.message); setBusy(false); onCreditsChange(); }
   };
 
-  return { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, color, setColor, paintFinish, setPaintFinish, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory };
+  return { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, ready, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory };
 }
 
 export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId; preset?: Preset; onCreditsChange: () => void }) {
-  const { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, color, setColor, paintFinish, setPaintFinish, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory } = useGenerator(tool, preset, onCreditsChange);
+  const { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, ready, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory } = useGenerator(tool, preset, onCreditsChange);
   if (!meta) return <p className="mt-8 text-center text-neutral-500">{bi("Loading… · Đang tải…")}</p>;
   const field = "w-full rounded border p-2";
   return (
@@ -173,6 +186,12 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
           {preview ? <img src={preview} className="max-h-72 w-full object-contain" alt="ảnh gốc" /> : <span className="px-4 text-center text-neutral-500">{bi(cfg.hint)} (JPG/PNG/WebP, ≤10MB)</span>}
           <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
         </label>
+        {cfg.reference && (
+          <label className="flex min-h-32 cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-dashed">
+            {refPreview ? <img src={refPreview} className="max-h-48 w-full object-contain" alt="" /> : <span className="px-4 text-center text-neutral-500">{bi("Style reference image · Ảnh tham khảo phong cách")}</span>}
+            <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => pickRef(e.target.files?.[0])} />
+          </label>
+        )}
         {cfg.room && <select className={field} value={room} onChange={(e) => setRoom(e.target.value)}>{meta.roomTypes.map((r) => <option key={r} value={r}>{bi(r)}</option>)}</select>}
         {cfg.scope && <select className={field} value={style} onChange={(e) => setStyle(e.target.value)}>{styles.map((s) => <option key={s.slug} value={s.slug}>{bi(s.name)}</option>)}</select>}
         {cfg.angle && <select className={field} value={angle} onChange={(e) => setAngle(e.target.value)}>{meta.angles.map((a) => <option key={a} value={a}>{bi("View · Góc nhìn")}: {bi(a)}</option>)}</select>}
@@ -215,7 +234,7 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
           {Object.entries(RES_COST).map(([k, c]) => <option key={k} value={k}>{k.toUpperCase()} · {c} credit{c > 1 ? "s" : ""}</option>)}
         </select>
         {err && <p className="text-sm text-red-600">{err}</p>}
-        <button disabled={!file || busy} onClick={run} className="rounded bg-black py-3 text-white disabled:opacity-40">{busy ? bi("Generating… (1–2 min) · Đang tạo…") : bi("Generate · Tạo thiết kế")}</button>
+        <button disabled={!ready || busy} onClick={run} className="rounded bg-black py-3 text-white disabled:opacity-40">{busy ? bi("Generating… (1–2 min) · Đang tạo…") : bi("Generate · Tạo thiết kế")}</button>
       </div>
       <div>
         {gen?.status === "SUCCESS" && gen.outputUrl ? (

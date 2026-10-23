@@ -19,6 +19,7 @@ const ok: [string, any][] = [
   ["interior-paint", { color: "#a1b2c3" }],
   ["exterior-paint", { color: "Navy", finish: "satin" }],
   ["interior-floor", { material: "Herringbone parquet" }],
+  ["interior-transfer", { roomType: "Living room", intervention: "high" }],
 ];
 for (const [k, p] of ok) console.log(k, "=>", buildPrompt(k, p).slice(0, 110));
 
