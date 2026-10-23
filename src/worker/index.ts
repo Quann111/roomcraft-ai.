@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { submitImageToImage, submitTextToImage, submitImageToVideo, queryTask, chatJson, chatText, imagePart, type ChatMessage } from "./runninghub";
 import { CITIES, DIRECTIONS } from "./solar";
-import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt } from "./prompts";
+import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, COMPARE_TOOLS, MAX_COMPARE, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt } from "./prompts";
 
 type Env = { DB: D1Database; IMAGES: R2Bucket; DAILY_CREDITS: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
 type User = { id: string; email: string; credits: number; credits_refilled_at: number };
@@ -229,7 +229,40 @@ app.post("/api/bizplan/detect", requireAuth, async (c) => {
   }
 });
 
-// Charges 1 credit per room up front; each room is a normal generation, so polling, refunds and history work as usual.
+type Job = { prompt: string; params: Record<string, unknown>; label: string };
+/**
+ * Several generations from one uploaded image in a single request (Business 3D Floorplan, material comparison).
+ * Credits for every job are charged up front; a job whose submission fails is refunded at once. Each job becomes a
+ * normal generation row, so polling, refunds on failure, downloads and history work as for single generations.
+ */
+async function runBatch(c: any, o: { tool: string; inputKey: string; image: { bytes: ArrayBuffer; mime: string }; jobs: Job[]; each: number; resolution: "1k" | "2k" | "4k"; aspectRatio?: string }) {
+  const u = c.get("user");
+  if (!isAdmin(u)) for (const _ of o.jobs) if (!(await allow(c.env, `gen:${u.id}`, 3_600_000, 20))) return { error: "Limit is 20 generations per hour · Tối đa 20 lượt tạo mỗi giờ", status: 429 as const };
+  const total = o.each * o.jobs.length;
+  const paid = await c.env.DB.prepare("UPDATE users SET credits=credits-? WHERE id=? AND credits>=?").bind(total, u.id, total).run();
+  if (!paid.meta.changes) return { error: `This needs ${total} credits · Cần ${total} credit`, status: 402 as const };
+  const batchId = crypto.randomUUID();
+  const items = await Promise.all(o.jobs.map(async (job) => {
+    const id = crypto.randomUUID();
+    const now = Date.now();
+    await c.env.DB.prepare("INSERT INTO credit_ledger (user_id,delta,reason,generation_id,created_at) VALUES (?,?,?,?,?)").bind(u.id, -o.each, "generate", id, now).run();
+    try {
+      const taskId = await submitImageToImage(c.env.RUNNINGHUB_API_KEY!, { images: [o.image], prompt: job.prompt, aspectRatio: o.aspectRatio, resolution: o.resolution }, c.env.RUNNINGHUB_BASE);
+      await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,rh_task_id,input_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
+        .bind(id, u.id, o.tool, JSON.stringify({ ...job.params, batchId, resolution: o.resolution, aspectRatio: o.aspectRatio }), job.prompt, "RUNNING", taskId, o.inputKey, o.each, now).run();
+      return { id, label: job.label };
+    } catch (e: any) {
+      await c.env.DB.batch([
+        c.env.DB.prepare("UPDATE users SET credits=credits+? WHERE id=?").bind(o.each, u.id),
+        c.env.DB.prepare("INSERT INTO credit_ledger (user_id,delta,reason,generation_id,created_at) VALUES (?,?,?,?,?)").bind(u.id, o.each, "refund_submit_failed", id, Date.now()),
+      ]);
+      return { label: job.label, error: e.message as string };
+    }
+  }));
+  return { batchId, items };
+}
+
+// Charges 1 credit per room up front; each room is a normal generation.
 app.post("/api/bizplan/render", requireAuth, async (c) => {
   const u = c.get("user");
   const b = await c.req.json<any>().catch(() => ({}));
@@ -237,37 +270,38 @@ app.post("/api/bizplan/render", requireAuth, async (c) => {
   const rooms = cleanRooms(b.rooms);
   if (!rooms.length || (Array.isArray(b.rooms) && b.rooms.length > MAX_PLAN_ROOMS)) return c.json({ error: `Pick 1–${MAX_PLAN_ROOMS} rooms · Chọn 1–${MAX_PLAN_ROOMS} phòng` }, 400);
   const home = String(b.home ?? "").trim().slice(0, 200);
-  let prompts: string[];
-  try { prompts = rooms.map((r) => planRoomPrompt(b.styleSlug, r, home)); } catch (e: any) { return c.json({ error: e.message }, 400); }
+  let jobs: Job[];
+  try { jobs = rooms.map((r) => ({ prompt: planRoomPrompt(b.styleSlug, r, home), params: { styleSlug: b.styleSlug, roomType: r.name }, label: r.name })); } catch (e: any) { return c.json({ error: e.message }, 400); }
   const plan = await ownImage(c, b.inputKey);
   if (!plan) return c.json({ error: "Upload a floor plan first · Hãy tải mặt bằng lên trước" }, 400);
-  if (!isAdmin(u)) for (const _ of rooms) if (!(await allow(c.env, `gen:${u.id}`, 3_600_000, 20))) return c.json({ error: "Limit is 20 generations per hour · Tối đa 20 lượt tạo mỗi giờ" }, 429);
+  const r = await runBatch(c, {
+    tool: BIZPLAN_TOOL, inputKey: b.inputKey, image: { bytes: await plan.arrayBuffer(), mime: plan.httpMetadata?.contentType ?? "image/jpeg" },
+    jobs, each: isAdmin(u) ? 0 : 1, resolution: "1k", aspectRatio: ASPECTS.includes(b.aspectRatio) ? b.aspectRatio : "4:3",
+  });
+  if ("error" in r) return c.json({ error: r.error }, r.status);
+  return c.json({ batchId: r.batchId, items: r.items.map(({ label, ...x }) => ({ ...x, room: label })) });
+});
 
-  const each = isAdmin(u) ? 0 : 1;
-  const total = each * rooms.length;
-  const paid = await c.env.DB.prepare("UPDATE users SET credits=credits-? WHERE id=? AND credits>=?").bind(total, u.id, total).run();
-  if (!paid.meta.changes) return c.json({ error: `This needs ${total} credits · Cần ${total} credit` }, 402);
-  const batchId = crypto.randomUUID();
-  const planImg = { bytes: await plan.arrayBuffer(), mime: plan.httpMetadata?.contentType ?? "image/jpeg" };
-  const aspectRatio = ASPECTS.includes(b.aspectRatio) ? b.aspectRatio : "4:3";
-  const results = await Promise.all(rooms.map(async (room, i) => {
-    const id = crypto.randomUUID();
-    const now = Date.now();
-    await c.env.DB.prepare("INSERT INTO credit_ledger (user_id,delta,reason,generation_id,created_at) VALUES (?,?,?,?,?)").bind(u.id, -each, "generate", id, now).run();
-    try {
-      const taskId = await submitImageToImage(c.env.RUNNINGHUB_API_KEY!, { images: [planImg], prompt: prompts[i], aspectRatio, resolution: "1k" }, c.env.RUNNINGHUB_BASE);
-      await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,rh_task_id,input_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-        .bind(id, u.id, BIZPLAN_TOOL, JSON.stringify({ styleSlug: b.styleSlug, roomType: room.name, batchId, resolution: "1k", aspectRatio }), prompts[i], "RUNNING", taskId, b.inputKey, each, now).run();
-      return { id, room: room.name };
-    } catch (e: any) {
-      await c.env.DB.batch([
-        c.env.DB.prepare("UPDATE users SET credits=credits+? WHERE id=?").bind(each, u.id),
-        c.env.DB.prepare("INSERT INTO credit_ledger (user_id,delta,reason,generation_id,created_at) VALUES (?,?,?,?,?)").bind(u.id, each, "refund_submit_failed", id, Date.now()),
-      ]);
-      return { room: room.name, error: e.message };
-    }
-  }));
-  return c.json({ batchId, items: results });
+// Material comparison: the same photo with 2–MAX_COMPARE materials on one surface, one generation each.
+app.post("/api/compare", requireAuth, async (c) => {
+  const u = c.get("user");
+  const b = await c.req.json<any>().catch(() => ({}));
+  if (!c.env.RUNNINGHUB_API_KEY) return c.json({ error: "Server is missing RUNNINGHUB_API_KEY · Server chưa cấu hình RUNNINGHUB_API_KEY" }, 500);
+  if (!COMPARE_TOOLS.includes(b.tool)) return c.json({ error: "Invalid tool · Tool không hợp lệ" }, 400);
+  const materials: string[] = Array.isArray(b.materials) ? [...new Set<string>(b.materials.map(String))] : [];
+  if (materials.length < 2 || materials.length > MAX_COMPARE) return c.json({ error: `Pick 2–${MAX_COMPARE} materials · Chọn 2–${MAX_COMPARE} vật liệu` }, 400);
+  const surface = b.tool === "interior-floor" ? "floor" : b.surface;
+  let jobs: Job[];
+  try { jobs = materials.map((m) => ({ prompt: buildPrompt(b.tool, { surface, material: m, custom: b.custom }), params: { surface, material: m }, label: m })); } catch (e: any) { return c.json({ error: e.message }, 400); }
+  const photo = await ownImage(c, b.inputKey);
+  if (!photo) return c.json({ error: "Invalid input image · Ảnh đầu vào không hợp lệ" }, 400);
+  const resolution = RES.includes(b.resolution) ? b.resolution : "1k";
+  const r = await runBatch(c, {
+    tool: b.tool, inputKey: b.inputKey, image: { bytes: await photo.arrayBuffer(), mime: photo.httpMetadata?.contentType ?? "image/jpeg" },
+    jobs, each: isAdmin(u) ? 0 : RES_COST[resolution], resolution, aspectRatio: ASPECTS.includes(b.aspectRatio) ? b.aspectRatio : undefined,
+  });
+  if ("error" in r) return c.json({ error: r.error }, r.status);
+  return c.json({ batchId: r.batchId, items: r.items.map(({ label, ...x }) => ({ ...x, material: label })) });
 });
 
 // ---------- Design Advisor: a chat whose transcript lives in R2 ----------
