@@ -137,14 +137,14 @@ export function Hero3D() {
 
   return (
     <div className="relative">
-      <div ref={mount} className="aspect-[4/3] w-full overflow-hidden rounded-3xl bg-gradient-to-br from-amber-50 to-sky-100 shadow-xl [&>canvas]:h-full [&>canvas]:w-full" role="img" aria-label="3D room that changes interior style">
+      <div ref={mount} className="aspect-[4/3] w-full overflow-hidden rounded-3xl bg-gradient-to-br from-amber-50 to-sky-100 shadow-xl [&>canvas]:h-full [&>canvas]:w-full" role="img" aria-label={bi("3D room that changes interior style · Phòng 3D đổi phong cách nội thất")}>
         {!ok && <p className="p-8 text-center text-neutral-500">{bi("WebGL unavailable · Trình duyệt không hỗ trợ WebGL")}</p>}
       </div>
       <div className="mt-3 flex flex-wrap justify-center gap-1.5">
         {NAMES.map((n) => (
           <button key={n} onClick={() => { setAuto(false); setStyle(n); }} className={`rounded-full px-3 py-1 text-xs backdrop-blur ${style === n ? "bg-black text-white" : "border bg-white/80 text-neutral-800"}`} aria-pressed={style === n}>{bi(n)}</button>
         ))}
-        <button onClick={() => setAuto(!auto)} className="rounded-full bg-white/80 px-3 py-1 text-xs backdrop-blur" aria-label="toggle autoplay">{auto ? "⏸" : "▶"}</button>
+        <button onClick={() => setAuto(!auto)} className="rounded-full bg-white/80 px-3 py-1 text-xs backdrop-blur" aria-label={bi("Toggle autoplay · Bật/tắt tự chạy")}>{auto ? "⏸" : "▶"}</button>
       </div>
     </div>
   );

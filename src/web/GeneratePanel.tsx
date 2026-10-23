@@ -46,14 +46,21 @@ async function j<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function BeforeAfter({ before, after }: { before: string | null; after: string }) {
   const [pos, setPos] = useState(50);
+  const move = (e: React.PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setPos(Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100)));
+  };
   // Text-to-design results have no input photo: show the output on its own.
   if (!before) return <img src={after} className="mx-auto block max-w-2xl rounded-xl" style={{ width: "100%" }} alt="" />;
   return (
-    <div className="relative mx-auto max-w-2xl select-none overflow-hidden rounded-xl">
+    <div className="ba relative mx-auto max-w-2xl select-none overflow-hidden rounded-xl" style={{ touchAction: "pan-y", cursor: "ew-resize" }}
+      onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); move(e); }}
+      onPointerMove={(e) => { if (e.buttons || e.pointerType === "touch") move(e); }}>
       <img src={after} className="block w-full" alt="after" />
-      <img src={before} alt="before" className="absolute inset-0 h-full w-full object-cover" style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }} />
-      <div className="absolute inset-y-0 w-0.5 bg-white shadow" style={{ left: `${pos}%` }} />
-      <input type="range" min={0} max={100} value={pos} onChange={(e) => setPos(+e.target.value)} className="absolute inset-x-0 bottom-2 w-full" aria-label={bi("Compare before/after · So sánh trước/sau")} />
+      <span className="ba-tag ba-tag-l">{bi("Before · Trước")}</span><span className="ba-tag ba-tag-r">{bi("After · Sau")}</span>
+      <img src={before} alt="before" className="absolute inset-0 h-full w-full bg-neutral-100 object-contain" style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }} />
+      <div className="absolute inset-y-0 w-0.5 bg-white shadow" style={{ left: `${pos}%` }}><span className="ba-knob"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m8 7-5 5 5 5M16 7l5 5-5 5" /></svg></span></div>
+      <input type="range" min={0} max={100} value={pos} onChange={(e) => setPos(+e.target.value)} className="ba-range absolute inset-0 h-full w-full" step={0.5} aria-label={bi("Compare before/after · So sánh trước/sau")} />
     </div>
   );
 }

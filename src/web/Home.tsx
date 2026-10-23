@@ -17,7 +17,7 @@ function HeroSlides() {
   return (
     <div style={{ position: "relative", aspectRatio: "4/3" }}>
       {HERO_IMGS.map((u, k) => (
-        <img key={u} src={u} alt="AI redesigned interior" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: k === i ? 1 : 0, transition: "opacity .8s ease" }} />
+        <img key={u} src={u} alt={t("AI redesigned interior", "Nội thất được AI thiết kế lại")} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: k === i ? 1 : 0, transition: "opacity .8s ease" }} />
       ))}
     </div>
   );
@@ -91,12 +91,12 @@ export function Home() {
   const l = t("en", "vi") === "vi" ? 1 : 0;
   const pick = (en: string, vi: string) => (l ? vi : en);
   const features: [string, string, string, string, string][] = [
-    ["✦", "Structure-Lock", "Structure-Lock", "Keeps your real room", "Giữ nguyên phòng thật"],
+    ["✦", "Structure-Lock", "Khoá cấu trúc", "Keeps your real room", "Giữ nguyên phòng thật"],
     ["◇", "200+ styles", "200+ phong cách", "Rooms, gardens & exteriors", "Phòng, sân vườn & ngoại thất"],
     ["◉", "1-click video", "Video 1 chạm", "Walkthroughs from your photo", "Video từ ảnh của bạn"],
     ["▦", "2D to 3D", "2D sang 3D", "Floor plans, instantly", "Mặt bằng tức thì"],
     ["⌂", "Shop the look", "Mua theo thiết kế", "Find the real furniture", "Tìm nội thất thật"],
-    ["⊘", "Empty a room", "Dọn trống phòng", "One-click virtual staging", "Staging ảo một chạm"],
+    ["⊘", "Empty a room", "Dọn trống phòng", "One-click virtual staging", "Bài trí ảo một chạm"],
     ["☼", "Swap weather", "Đổi thời tiết", "Sky and light changes", "Đổi bầu trời & ánh sáng"],
     ["▱", "Stage listings", "Staging tin đăng", "Empty spaces, furnished", "Không gian trống có nội thất"],
     ["$", "Budget estimator", "Ước tính ngân sách", "Know before you spend", "Biết chi phí trước khi chi"],
@@ -134,7 +134,7 @@ export function Home() {
         <div className="container">
           <div className="hero-grid">
             <div>
-              <p className="eyebrow">SOLYC Gen Labs / Material Intelligence</p>
+              <p className="eyebrow">SOLYC Gen Labs / {t("Material Intelligence", "Trí tuệ vật liệu")}</p>
               <h1>{t("Redesign", "Thiết kế lại")} <HeroWord /><br />{t("with AI, in less than 30 seconds", "bằng AI, trong chưa đầy 30 giây")}</h1>
               <p className="hero-copy">
                 <strong>{t("Upload one photo.", "Tải lên một bức ảnh.")}</strong>{" "}
@@ -172,7 +172,7 @@ export function Home() {
       <section className="feature-band">
         <div className="container">
           <div className="feature-head">
-            <div><p className="eyebrow">{t("One login. Every design tool.", "Một tài khoản. Mọi công cụ thiết kế.")}</p><h2 className="section-title">{t("Structure-Lock keeps your", "Structure-Lock giữ nguyên")} <span>{t("real room", "căn phòng thật")}</span></h2></div>
+            <div><p className="eyebrow">{t("One login. Every design tool.", "Một tài khoản. Mọi công cụ thiết kế.")}</p><h2 className="section-title">{t("Structure-Lock keeps your", "Khoá cấu trúc giữ nguyên")} <span>{t("real room", "căn phòng thật")}</span></h2></div>
             <p className="section-copy">{t("See the result before you spend. Explore 200+ styles and spaces, while the walls, windows and layout you started with stay exactly where they are.", "Xem kết quả trước khi chi tiền. Khám phá 200+ phong cách trong khi tường, cửa sổ và bố cục vẫn giữ nguyên.")}</p>
           </div>
           <div className="feature-grid">

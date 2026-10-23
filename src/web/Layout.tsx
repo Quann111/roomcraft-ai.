@@ -7,7 +7,7 @@ import { FEATURES, PERSONAS, USE_CASES } from "./data";
 function LangToggle() {
   const l = getLang();
   return (
-    <button onClick={() => setLang(l === "vi" ? "en" : "vi")} className="btn small ghost" aria-label="Language">
+    <button onClick={() => setLang(l === "vi" ? "en" : "vi")} className="btn small ghost" aria-label={t("Language", "Ngôn ngữ")}>
       {l === "vi" ? "VI · EN" : "EN · VI"}
     </button>
   );
@@ -27,7 +27,7 @@ export function Header() {
     <header className="site-header">
       <div className={`container header-inner${open ? " menu-open" : ""}`}>
         <Link to="/" className="brand" aria-label="SOLYC Gen Labs"><img src="/solyc/logo.png" alt="SOLYC Gen Labs" style={{ height: 46, width: "auto" }} /></Link>
-        <nav className="top-nav" aria-label="Primary navigation">
+        <nav className="top-nav" aria-label={t("Primary navigation", "Điều hướng chính")}>
           {nav.map(([to, label]) => <Link key={to} to={to} onClick={close}>{label}</Link>)}
         </nav>
         <div className="header-actions">
@@ -45,7 +45,7 @@ export function Header() {
             </>
           ))}
         </div>
-        <button className="mobile-menu" onClick={() => setOpen(!open)} aria-label="Menu" aria-expanded={open}>☰</button>
+        <button className="mobile-menu" onClick={() => setOpen(!open)} aria-label={t("Menu", "Menu")} aria-expanded={open}>☰</button>
       </div>
     </header>
   );
@@ -65,7 +65,7 @@ export function Footer() {
         <div className="footer-top">
           <div className="footer-brand">
             <img src="/solyc/logo.png" alt="SOLYC Gen Labs" style={{ height: 56, width: "auto", background: "#fff", borderRadius: 4, padding: "6px 10px" }} />
-            <p>{t("Material Intelligence Platform for Architecture, Construction & Interiors.", "Nền tảng trí tuệ vật liệu cho Kiến trúc, Xây dựng & Nội thất.")}<br /><span style={{ color: "var(--gold)", letterSpacing: ".1em" }}>DESIGN WHAT’S POSSIBLE.</span><br />{t("", "Thiết kế những khả thể mới.")}</p>
+            <p>{t("Material Intelligence Platform for Architecture, Construction & Interiors.", "Nền tảng trí tuệ vật liệu cho Kiến trúc, Xây dựng & Nội thất.")}<br /><span style={{ color: "var(--gold)", letterSpacing: ".1em" }}>{t("DESIGN WHAT’S POSSIBLE.", "THIẾT KẾ NHỮNG KHẢ THỂ MỚI.")}</span></p>
           </div>
           <div className="footer-links">
             {col(t("Product", "Sản phẩm"), [["/redesign", t("Redesign tool", "Công cụ thiết kế")], ["/pricing", t("Pricing", "Bảng giá")], ["/projects", t("My projects", "Dự án của tôi")], ["/free-ai-tools", t("Free tools", "Công cụ miễn phí")]])}

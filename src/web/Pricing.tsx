@@ -11,7 +11,7 @@ export function PricingTable() {
     <div>
       <div className="billing" style={{ marginTop: 0 }}>
         <span style={{ fontWeight: !yearly ? 700 : 400, color: !yearly ? "var(--ink)" : undefined }}>{t("MONTHLY", "HÀNG THÁNG")}</span>
-        <button className={`toggle ${yearly ? "" : "monthly"}`} onClick={() => setYearly(!yearly)} aria-label="Toggle yearly billing" />
+        <button className={`toggle ${yearly ? "" : "monthly"}`} onClick={() => setYearly(!yearly)} aria-label={t("Toggle yearly billing", "Chuyển sang thanh toán theo năm")} />
         <span style={{ fontWeight: yearly ? 700 : 400, color: yearly ? "var(--ink)" : undefined }}>{t("YEARLY", "HÀNG NĂM")}</span>
         <span className="save">{t("Save more", "Tiết kiệm hơn")}</span>
       </div>

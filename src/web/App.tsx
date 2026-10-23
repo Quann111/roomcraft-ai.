@@ -89,8 +89,11 @@ const SPACE_META: Record<string, { label: [string, string]; icon: string }> = {
 };
 const spaceOf = (id: ToolId) => (id.startsWith("interior") ? "interior" : id.startsWith("exterior") ? "exterior" : "garden");
 const toolByName = (n: string) => TOOLS.find((x) => x.name === n);
+const KIND: Record<string, string> = { redesign: "Redesign", staging: "Virtual Staging", declutter: "Declutter", material: "Material Swap", sketch: "Sketch to Render", sky: "Sky & Weather Swap" };
+const toolLabel = (id: string) => { const [sp, k] = id.split("-"); return `${bi(sp === "interior" ? "Interiors" : sp === "exterior" ? "Exteriors" : "Gardens")} · ${bi(KIND[k] ?? k)}`; };
+const styleName = (styles: { slug: string; name: string }[] | undefined, slug: string) => { const n = styles?.find((x) => x.slug === slug)?.name; return n ? bi(n) : slug; };
 const toolForId = (id: ToolId) => TOOLS.find((x) => x.spaces?.includes(id) && x.cat !== "xx");
-const FILTERS: [string, string, string][] = [["all", "All tools", "Tất cả"], ["redesign", "Redesign", "Thiết kế lại"], ["staging", "Staging", "Staging"], ["furnish", "Furnish & decor", "Nội thất & decor"], ["business", "Business", "Doanh nghiệp"], ["3d", "3D & floorplan", "3D & mặt bằng"]];
+const FILTERS: [string, string, string][] = [["all", "All tools", "Tất cả"], ["redesign", "Redesign", "Thiết kế lại"], ["staging", "Staging", "Bài trí ảo"], ["furnish", "Furnish & decor", "Nội thất & trang trí"], ["business", "Business", "Doanh nghiệp"], ["3d", "3D & floorplan", "3D & mặt bằng"]];
 
 /* ---------- Workspace (real generation) ---------- */
 function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDef; initialTool?: ToolId; preset?: Preset; onCredits: () => void }) {
@@ -99,6 +102,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
   const g = useGenerator(tool, preset, onCredits);
   const { cfg, meta } = g;
   const [showAll, setShowAll] = useState({ room: false, style: false });
+  const [zoom, setZoom] = useState<{ src: string; label: string } | null>(null);
   const [tab, setTab] = useState<"preset" | "extra">("preset");
   const touch = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
   const [open, setOpen] = useState<any>(null);
@@ -118,11 +122,24 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
   if (!meta) return <p className="helper" style={{ padding: 40 }}>{bi("Loading… · Đang tải…")}</p>;
   const list = <T,>(arr: T[], k: "room" | "style") => (showAll[k] ? arr : arr.slice(0, 8));
   const choice = (label: string, i: number, active: boolean, onClick: () => void, thumb?: string) => (
-    <button key={label + i} type="button" className={`visual-choice ${active ? "active" : ""}`} style={{ backgroundImage: `url('${thumb ?? img(i)}')` }} onClick={onClick}><span>{label}</span></button>
+    <div key={label + i} className="choice-wrap">
+      <button type="button" className={`visual-choice ${active ? "active" : ""}`} style={{ backgroundImage: `url('${thumb ?? img(i)}')` }} onClick={onClick}><span>{label}</span></button>
+      <button type="button" className="zoom-btn" aria-label={`${t("Zoom", "Phóng to")} ${label}`} title={t("Zoom", "Phóng to")} onClick={() => setZoom({ src: thumb ?? img(i), label })}>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5M11 8v6M8 11h6" /></svg>
+      </button>
+    </div>
   );
 
   return (
     <>
+      {zoom && (
+        <div className="zoom-modal" onClick={() => setZoom(null)}>
+          <div className="zoom-box" onClick={(e) => e.stopPropagation()}>
+            <img src={zoom.src} alt={zoom.label} />
+            <div className="zoom-cap"><b>{zoom.label}</b><button type="button" onClick={() => setZoom(null)} aria-label={t("Close", "Đóng")}>✕</button></div>
+          </div>
+        </div>
+      )}
       <div className="module-workspace">
         <div className="module-left">
           {cfg.text ? (
@@ -281,16 +298,16 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                 <div className="latest-image" style={{ backgroundImage: `url('${h.outputUrl}')` }} />
                 <div className="latest-body">
                   <div className="latest-meta">
-                    <span><strong>Tool:</strong> {String(h.tool).replace("-", " · ")}</span>
-                    {h.params?.styleSlug && <span><strong>Style:</strong> {h.params.styleSlug}</span>}
-                    {h.params?.roomType && <span><strong>Room:</strong> {h.params.roomType}</span>}
+                    <span><strong>{t("Tool", "Công cụ")}:</strong> {toolLabel(String(h.tool))}</span>
+                    {h.params?.styleSlug && <span><strong>{t("Style", "Phong cách")}:</strong> {styleName(g.styles, h.params.styleSlug)}</span>}
+                    {h.params?.roomType && <span><strong>{t("Room", "Phòng")}:</strong> {bi(h.params.roomType)}</span>}
                   </div>
                   <div className="latest-actions">
-                    <a className="latest-action" title="Download" href={h.outputUrl} download={`design-${h.id}.png`}><Icon n="download" /></a>
-                    <button className="latest-action" title="Preview" onClick={() => setOpen(h)}><Icon n="eye" /></button>
-                    <button className="latest-action" title="Reuse settings" onClick={() => navigate(`/app?tool=${h.tool}&p=${encodeURIComponent(JSON.stringify(h.params ?? {}))}`)}><Icon n="edit" /></button>
-                    <button className="latest-action" title={h.public ? "Unpublish" : "Publish"} onClick={() => publish(h)}><Icon n="globe" /></button>
-                    <button className="latest-action" title="Delete" onClick={() => del(h.id)}><Icon n="trash" /></button>
+                    <a className="latest-action" title={t("Download", "Tải xuống")} href={h.outputUrl} download={`design-${h.id}.png`}><Icon n="download" /></a>
+                    <button className="latest-action" title={t("Preview", "Xem trước")} onClick={() => setOpen(h)}><Icon n="eye" /></button>
+                    <button className="latest-action" title={t("Reuse settings", "Dùng lại cài đặt")} onClick={() => navigate(`/app?tool=${h.tool}&p=${encodeURIComponent(JSON.stringify(h.params ?? {}))}`)}><Icon n="edit" /></button>
+                    <button className="latest-action" title={h.public ? t("Unpublish", "Gỡ đăng") : t("Publish", "Đăng công khai")} onClick={() => publish(h)}><Icon n="globe" /></button>
+                    <button className="latest-action" title={t("Delete", "Xoá")} onClick={() => del(h.id)}><Icon n="trash" /></button>
                   </div>
                 </div>
               </article>
@@ -301,8 +318,8 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
 
       {open && (
         <div className="modal-backdrop show" onClick={(e) => e.target === e.currentTarget && setOpen(null)}>
-          <div className="modal" style={{ maxWidth: 560, maxHeight: "92vh", overflowY: "auto" }}>
-            <button className="close" onClick={() => setOpen(null)} aria-label="Close">×</button>
+          <div className="modal modal-xl">
+            <button className="close" onClick={() => setOpen(null)} aria-label={t("Close", "Đóng")}>×</button>
             <BeforeAfter before={open.inputUrl} after={open.outputUrl} />
           </div>
         </div>
@@ -328,7 +345,7 @@ export function App() {
   const moduleName = search.get("m") ?? (toolParam ? toolForId(toolParam)?.name : null) ?? null;
   const active = moduleName ? toolByName(moduleName) : undefined;
 
-  const visible = TOOLS.filter((x) => (filter === "all" || x.cat === filter) && (!q || x.name.toLowerCase().includes(q.toLowerCase())));
+  const visible = TOOLS.filter((x) => (filter === "all" || x.cat === filter) && (!q || `${x.name} ${bi(x.name)}`.toLowerCase().includes(q.toLowerCase())));
   const open = (name: string) => navigate(`/app?m=${encodeURIComponent(name)}`);
   const home = () => navigate("/app");
   const scrollTools = () => { if (active) home(); setTimeout(() => document.getElementById("tools")?.scrollIntoView({ behavior: "smooth" }), 60); };
@@ -345,8 +362,8 @@ export function App() {
             <img src="/solyc/logo.png" alt="SOLYC Gen Labs" style={{ background: "#fff", borderRadius: 4, padding: "8px 10px", width: "100%", boxSizing: "border-box" }} />
             <img className="brand-mark" src="/solyc/symbol-gold.svg" alt="" />
           </a>
-          <nav className="nav" aria-label="Primary navigation">
-            <a className="nav-item active" href="/app" onClick={(e) => { e.preventDefault(); home(); }}><Icon n="grid" className="nav-icon" /><span className="nav-label">Dashboard</span></a>
+          <nav className="nav" aria-label={t("Primary navigation", "Điều hướng chính")}>
+            <a className="nav-item active" href="/app" onClick={(e) => { e.preventDefault(); home(); }}><Icon n="grid" className="nav-icon" /><span className="nav-label">{t("Dashboard", "Bảng điều khiển")}</span></a>
             <a className="nav-item" href="#tools" onClick={(e) => { e.preventDefault(); scrollTools(); }}><Icon n="image" className="nav-icon" /><span className="nav-label">{t("All Tools", "Tất cả công cụ")}</span></a>
             <Link to="/projects" className="nav-item"><Icon n="image" className="nav-icon" /><span className="nav-label">{t("Image Gallery", "Thư viện ảnh")}</span></Link>
             <Link to="/design-styles" className="nav-item"><Icon n="layers" className="nav-icon" /><span className="nav-label">{t("Design styles", "Phong cách")}</span></Link>
@@ -360,14 +377,14 @@ export function App() {
         {!active && (
           <main className="main" id="top">
             <header className="topbar">
-              <label className="search" aria-label="Search tools"><Icon n="search" /><input type="search" placeholder={t("Search AI tools", "Tìm công cụ AI")} value={q} onChange={(e) => setQ(e.target.value)} /></label>
-              <button className="bell" aria-label="Language" onClick={() => { const n = lang === "vi" ? "en" : "vi"; setLang(n); setL(n); }} style={{ width: "auto", padding: "0 12px", fontSize: 12 }}>{lang === "vi" ? "VI · EN" : "EN · VI"}</button>
-              <div className="profile"><div className="avatar">{initials}</div><div><strong>{me.email}</strong><small>{credits} credits</small></div></div>
+              <label className="search" aria-label={t("Search tools", "Tìm công cụ")}><Icon n="search" /><input type="search" placeholder={t("Search AI tools", "Tìm công cụ AI")} value={q} onChange={(e) => setQ(e.target.value)} /></label>
+              <button className="bell" aria-label={t("Language", "Ngôn ngữ")} onClick={() => { const n = lang === "vi" ? "en" : "vi"; setLang(n); setL(n); }} style={{ width: "auto", padding: "0 12px", fontSize: 12 }}>{lang === "vi" ? "VI · EN" : "EN · VI"}</button>
+              <div className="profile"><div className="avatar">{initials}</div><div><strong>{me.email}</strong><small>{credits} {t("credits", "credit")}</small></div></div>
               <button className="outline-btn" onClick={logout}>{t("Log out", "Thoát")}</button>
             </header>
 
             <section className="hero">
-              <div><p className="eyebrow">SOLYC Gen Labs / Material Intelligence</p><h1>Design what’s <span>possible.</span></h1><p>{t("Thiết kế những khả thể mới. Chọn một nhóm công cụ bên dưới.", "Thiết kế những khả thể mới. Chọn một nhóm công cụ bên dưới.")}</p></div>
+              <div><p className="eyebrow">SOLYC Gen Labs / {t("Material Intelligence", "Trí tuệ vật liệu")}</p><h1>{t("Design what’s", "Thiết kế những")} <span>{t("possible.", "khả thể mới.")}</span></h1><p>{t("Design new possibilities. Pick a group of tools below.", "Thiết kế những khả thể mới. Chọn một nhóm công cụ bên dưới.")}</p></div>
             </section>
 
             <div className="chips" role="tablist">
@@ -375,8 +392,8 @@ export function App() {
             </div>
 
             <section className="spotlight">
-              <div className="spotlight-copy"><p className="eyebrow">Perfect redesign</p><h2>{t("Bring your next space to life with AI.", "Biến không gian tiếp theo của bạn thành hiện thực bằng AI.")}</h2><p>{t("Upload a photo, pick a style and let AI redesign it while keeping your walls, windows and layout.", "Tải ảnh, chọn phong cách và để AI thiết kế lại trong khi giữ nguyên tường, cửa sổ và bố cục.")}</p><button className="primary-btn" onClick={() => open("Perfect Redesign")}>{t("Start Now", "Bắt đầu ngay")} <span>→</span></button></div>
-              <div className="spotlight-art"><span className="spotlight-tag">AI Redesign</span></div>
+              <div className="spotlight-copy"><p className="eyebrow">{bi("Perfect Redesign")}</p><h2>{t("Bring your next space to life with AI.", "Biến không gian tiếp theo của bạn thành hiện thực bằng AI.")}</h2><p>{t("Upload a photo, pick a style and let AI redesign it while keeping your walls, windows and layout.", "Tải ảnh, chọn phong cách và để AI thiết kế lại trong khi giữ nguyên tường, cửa sổ và bố cục.")}</p><button className="primary-btn" onClick={() => open("Perfect Redesign")}>{t("Start Now", "Bắt đầu ngay")} <span>→</span></button></div>
+              <div className="spotlight-art"><span className="spotlight-tag">{t("AI Redesign", "Thiết kế lại bằng AI")}</span></div>
             </section>
 
             <section id="tools">
@@ -385,10 +402,10 @@ export function App() {
                 {visible.length === 0 && <div className="empty">{t("No tools matched your search.", "Không có công cụ phù hợp.")}</div>}
                 {visible.map((x, i) => (
                   <article className="card" key={x.name} style={{ ["--card-index" as any]: i }}>
-                    <div className="card-image"><img loading="lazy" src={U(x.photo)} alt={`${x.name} preview`} onError={(e) => { e.currentTarget.src = U(IMGS[i % IMGS.length]); }} />{x.popular && <span className="badge">Most Popular</span>}</div>
+                    <div className="card-image"><img loading="lazy" src={U(x.photo)} alt={bi(x.name)} onError={(e) => { e.currentTarget.src = U(IMGS[i % IMGS.length]); }} />{x.popular && <span className="badge">{t("Most Popular", "Phổ biến nhất")}</span>}</div>
                     <div className="card-body">
-                      <h3>{x.name}</h3><p>{x.desc}</p>
-                      <button className={x.spaces ? "" : "locked"} onClick={() => open(x.name)}>{x.spaces ? `${t("Try", "Dùng")} ${x.name}` : t("Coming soon", "Sắp ra mắt")}</button>
+                      <h3>{bi(x.name)}</h3><p>{bi(x.desc)}</p>
+                      <button className={x.spaces ? "" : "locked"} onClick={() => open(x.name)}>{x.spaces ? (getLang() === "vi" ? "Dùng thử" : `Try ${x.name}`) : t("Coming soon", "Sắp ra mắt")}</button>
                     </div>
                   </article>
                 ))}
@@ -402,31 +419,31 @@ export function App() {
             <div className="module-layout">
               <aside className="module-rail">
                 <div className="module-icons">
-                  <button className="module-logo" onClick={home} aria-label="Back to dashboard"><img src="/solyc/symbol-gold.svg" alt="SOLYC" /></button>
+                  <button className="module-logo" onClick={home} aria-label={t("Back to dashboard", "Về bảng điều khiển")}><img src="/solyc/symbol-gold.svg" alt="SOLYC" /></button>
                 </div>
                 <div className="module-tool-list">
-                  <h4>Tools</h4>
+                  <h4>{t("Tools", "Công cụ")}</h4>
                   {TOOLS.map((x) => (
                     <button key={x.name} className={`module-tool-link ${x.name === active.name ? "active" : ""}`} onClick={() => open(x.name)}>
-                      <span className="module-tool-icon"><Icon n={x.icon} /></span><span className="module-tool-label">{x.name}</span>
+                      <span className="module-tool-icon"><Icon n={x.icon} /></span><span className="module-tool-label">{bi(x.name)}</span>
                     </button>
                   ))}
                 </div>
               </aside>
               <section className="module-content">
                 <header className="module-head">
-                  <div className="module-title-row"><button className="module-back" onClick={home} aria-label="Back to dashboard"><Icon n="back" /></button><h1>{active.name}</h1></div>
-                  <div className="module-actions"><span className="nav-user" style={{ alignSelf: "center" }}>{credits} credits</span><button className="outline-btn" onClick={logout}>{t("Log out", "Thoát")}</button></div>
+                  <div className="module-title-row"><button className="module-back" onClick={home} aria-label={t("Back to dashboard", "Về bảng điều khiển")}><Icon n="back" /></button><h1>{bi(active.name)}</h1></div>
+                  <div className="module-actions"><span className="nav-user" style={{ alignSelf: "center" }}>{credits} {t("credits", "credit")}</span><button className="outline-btn" onClick={logout}>{t("Log out", "Thoát")}</button></div>
                 </header>
-                <div className="module-banner"><span className="info"><Icon n="info" /></span><div><h2>{active.name}</h2><p>{active.desc}</p></div></div>
+                <div className="module-banner"><span className="info"><Icon n="info" /></span><div><h2>{bi(active.name)}</h2><p>{bi(active.desc)}</p></div></div>
                 <div>
                   {active.spaces ? (
                     <Workspace key={active.name + (toolParam ?? "")} tool={active} initialTool={toolParam ?? undefined} preset={preset} onCredits={reload} />
                   ) : (
                     <div className="control-panel" style={{ margin: "30px 0", textAlign: "center" }}>
                       <h3>{t("This tool is coming soon.", "Công cụ này sắp ra mắt.")}</h3>
-                      <p className="helper">{t("Try Perfect Redesign, Virtual Staging, Material Swap, Furniture Removal or Sky Colors in the meantime.", "Hiện bạn có thể dùng Perfect Redesign, Virtual Staging, Material Swap, Furniture Removal hoặc Sky Colors.")}</p>
-                      <button className="generate-btn" onClick={() => open("Perfect Redesign")}><Icon n="spark" />Perfect Redesign</button>
+                      <p className="helper">{t("Try Perfect Redesign, Virtual Staging, Material Swap, Furniture Removal or Sky Colors in the meantime.", "Hiện bạn có thể dùng Thiết kế hoàn hảo, Bài trí ảo, Đổi vật liệu, Xoá đồ nội thất hoặc Đổi màu bầu trời.")}</p>
+                      <button className="generate-btn" onClick={() => open("Perfect Redesign")}><Icon n="spark" />{bi("Perfect Redesign")}</button>
                     </div>
                   )}
                 </div>
