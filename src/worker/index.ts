@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
-import { submitImageToImage, submitTextToImage, queryTask, chatJson } from "./runninghub";
-import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanCritique, TEXT_TOOLS, buildPrompt } from "./prompts";
+import { submitImageToImage, submitTextToImage, queryTask, chatJson, chatText, imagePart, type ChatMessage } from "./runninghub";
+import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanCritique, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, TEXT_TOOLS, buildPrompt } from "./prompts";
 
 type Env = { DB: D1Database; IMAGES: R2Bucket; DAILY_CREDITS: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
 type User = { id: string; email: string; credits: number; credits_refilled_at: number };
@@ -121,7 +121,7 @@ const ASPECTS = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "5:4", "4:5"
 const RES = ["1k", "2k", "4k"] as const;
 const RES_COST: Record<string, number> = { "1k": 1, "2k": 2, "4k": 3 };
 
-app.get("/api/styles", (c) => c.json({ styles: STYLES.map(({ slug, name, scope, img, photo }) => ({ slug, name, scope, thumb: img ? `https://drive.google.com/thumbnail?id=${img}&sz=w600` : photo ? `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=600&q=80` : undefined })), roomTypes: ROOM_TYPES, intervention: INTERVENTION, surfaces: SURFACES, paints: PAINT_COLORS, finishes: PAINT_FINISHES, weather: WEATHER, remove: REMOVE, angles: ANGLES, planViews: PLAN_VIEWS }));
+app.get("/api/styles", (c) => c.json({ styles: STYLES.map(({ slug, name, scope, img, photo }) => ({ slug, name, scope, thumb: img ? `https://drive.google.com/thumbnail?id=${img}&sz=w600` : photo ? `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=600&q=80` : undefined })), roomTypes: ROOM_TYPES, intervention: INTERVENTION, surfaces: SURFACES, paints: PAINT_COLORS, finishes: PAINT_FINISHES, weather: WEATHER, remove: REMOVE, angles: ANGLES, planViews: PLAN_VIEWS, budgets: BUDGETS }));
 app.get("/api/prompts", requireAuth, (c) => c.json({ prompts: STYLES.map(({ slug, name, scope, prompt }) => ({ slug, name, scope, prompt })) }));
 
 app.post("/api/upload", requireAuth, async (c) => {
@@ -196,6 +196,64 @@ app.post("/api/generate", requireAuth, async (c) => {
   }
 });
 
+// ---------- Design Advisor: a chat whose transcript lives in R2 ----------
+// The first message opens a conversation (1 credit, MAX_ADVISOR_TURNS questions); later messages pass its id.
+type Turn = { role: "user" | "assistant"; text: string };
+app.post("/api/advisor", requireAuth, async (c) => {
+  const u = c.get("user");
+  const b = await c.req.json<any>().catch(() => ({}));
+  if (!c.env.RUNNINGHUB_API_KEY) return c.json({ error: "Server is missing RUNNINGHUB_API_KEY · Server chưa cấu hình RUNNINGHUB_API_KEY" }, 500);
+  const message = String(b.message ?? "").trim().slice(0, 1000);
+  if (message.length < 2) return c.json({ error: "Type a question · Hãy nhập câu hỏi" }, 400);
+  if (!isAdmin(u) && !(await allow(c.env, `chat:${u.id}`, 3_600_000, 60))) return c.json({ error: "Limit is 60 messages per hour · Tối đa 60 tin nhắn mỗi giờ" }, 429);
+
+  let row: any = null, turns: Turn[] = [], opts: any = {};
+  if (b.id) {
+    row = await c.env.DB.prepare("SELECT * FROM generations WHERE id=? AND user_id=? AND tool=?").bind(String(b.id), u.id, ADVISOR_TOOL).first();
+    if (!row) return c.json({ error: "Conversation not found · Không tìm thấy cuộc trò chuyện" }, 404);
+    turns = ((await c.env.IMAGES.get(row.output_key).then((o) => o?.json()).catch(() => null)) as any)?.messages ?? [];
+    opts = JSON.parse(row.params);
+    if (turns.filter((t) => t.role === "user").length >= MAX_ADVISOR_TURNS) return c.json({ error: `This conversation reached ${MAX_ADVISOR_TURNS} questions — start a new one · Cuộc trò chuyện đã đủ ${MAX_ADVISOR_TURNS} câu hỏi — hãy bắt đầu cuộc mới` }, 429);
+  } else {
+    if (b.inputKey != null && (typeof b.inputKey !== "string" || !b.inputKey.startsWith(`in/${u.id}/`))) return c.json({ error: "Invalid input image · Ảnh đầu vào không hợp lệ" }, 400);
+    opts = { lang: b.lang === "vi" ? "vi" : "en", roomType: ROOM_TYPES.includes(b.roomType) ? b.roomType : undefined, budget: BUDGETS.includes(b.budget) ? b.budget : undefined };
+  }
+  const inputKey: string | null = row ? row.input_key : b.inputKey ?? null;
+  const photo = inputKey ? await c.env.IMAGES.get(inputKey) : null;
+  if (inputKey && !photo) return c.json({ error: "Image not found · Không tìm thấy ảnh" }, 400);
+
+  // A new conversation is paid up front and refunded if the first answer fails.
+  const id = row?.id ?? crypto.randomUUID();
+  const cost = row || isAdmin(u) ? 0 : 1;
+  if (cost) {
+    const paid = await c.env.DB.prepare("UPDATE users SET credits=credits-? WHERE id=? AND credits>=?").bind(cost, u.id, cost).run();
+    if (!paid.meta.changes) return c.json({ error: "Out of credits. Credits refill after 24 hours. · Hết credits. Credits được nạp lại sau 24 giờ." }, 402);
+    await c.env.DB.prepare("INSERT INTO credit_ledger (user_id,delta,reason,generation_id,created_at) VALUES (?,?,?,?,?)").bind(u.id, -cost, "advisor", id, Date.now()).run();
+  }
+  try {
+    const all: Turn[] = [...turns, { role: "user", text: message }];
+    const img = photo ? imagePart({ bytes: await photo.arrayBuffer(), mime: photo.httpMetadata?.contentType ?? "image/jpeg" }) : null;
+    const messages: ChatMessage[] = [
+      { role: "system", content: advisorSystem({ ...opts, hasPhoto: !!img }) },
+      ...all.map((t, i): ChatMessage => (i === 0 && t.role === "user" && img ? { role: "user", content: [{ type: "text", text: t.text }, img] } : { role: t.role, content: t.text })),
+    ];
+    const reply = (await chatText(c.env.RUNNINGHUB_API_KEY, { model: ADVISOR_MODEL, messages })).slice(0, 4000);
+    all.push({ role: "assistant", text: reply });
+    const outKey = row?.output_key ?? `out/${u.id}/${id}.json`;
+    await c.env.IMAGES.put(outKey, JSON.stringify({ messages: all }), { httpMetadata: { contentType: "application/json" } });
+    if (!row)
+      await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,input_key,output_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
+        .bind(id, u.id, ADVISOR_TOOL, JSON.stringify(opts), message, "SUCCESS", inputKey, outKey, cost, Date.now()).run();
+    return c.json({ id, reply, turnsLeft: MAX_ADVISOR_TURNS - all.filter((t) => t.role === "user").length });
+  } catch (e: any) {
+    if (cost) await c.env.DB.batch([
+      c.env.DB.prepare("UPDATE users SET credits=credits+? WHERE id=?").bind(cost, u.id),
+      c.env.DB.prepare("INSERT INTO credit_ledger (user_id,delta,reason,generation_id,created_at) VALUES (?,?,?,?,?)").bind(u.id, cost, "refund_advisor_failed", id, Date.now()),
+    ]);
+    return c.json({ error: `The advisor could not answer: ${e.message} · Trợ lý chưa trả lời được: ${e.message}` }, 502);
+  }
+});
+
 app.get("/api/generations/:id", requireAuth, async (c) => {
   const u = c.get("user");
   const g: any = await c.env.DB.prepare("SELECT * FROM generations WHERE id=? AND user_id=?").bind(c.req.param("id"), u.id).first();
@@ -230,9 +288,9 @@ app.get("/api/generations/:id", requireAuth, async (c) => {
       await fail(pollError || "Timed out (15 minutes) · Hết thời gian chờ (15 phút)");
     }
   }
-  // Written critiques are stored as JSON in place of an output image.
-  const critique = g.status === "SUCCESS" && String(g.output_key).endsWith(".json") ? await c.env.IMAGES.get(g.output_key).then((o) => o?.json()).catch(() => null) : undefined;
-  return c.json({ id: g.id, status: g.status, error: g.error, public: !!g.is_public, critique, inputUrl: g.input_key ? `/api/images/${g.input_key}` : null, outputUrl: g.output_key ? `/api/images/${g.output_key}` : null });
+  // Written critiques and advisor transcripts are stored as JSON in place of an output image.
+  const json: any = g.status === "SUCCESS" && String(g.output_key).endsWith(".json") ? await c.env.IMAGES.get(g.output_key).then((o) => o?.json()).catch(() => null) : undefined;
+  return c.json({ id: g.id, tool: g.tool, status: g.status, error: g.error, public: !!g.is_public, critique: g.tool === ADVISOR_TOOL ? undefined : json, chat: g.tool === ADVISOR_TOOL ? json?.messages : undefined, inputUrl: g.input_key ? `/api/images/${g.input_key}` : null, outputUrl: g.output_key ? `/api/images/${g.output_key}` : null });
 });
 
 app.get("/api/generations", requireAuth, async (c) => {

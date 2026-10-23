@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { bi, getLang, t } from "./i18n";
 import { prepareImage, formatBytes, type PreparedImage } from "./imagePrep";
+import { AdvisorChat } from "./AdvisorChat";
 
 type Meta = {
   styles: { slug: string; name: string; scope: string; thumb?: string }[];
@@ -16,10 +17,10 @@ export type Preset = Partial<{ styleSlug: string; roomType: string; intervention
 
 export type ToolId =
   | "interior-redesign" | "interior-staging" | "interior-declutter" | "interior-sketch" | "interior-material"
-  | "interior-paint" | "interior-floor" | "interior-transfer" | "interior-text" | "interior-floorplan" | "interior-compose" | "interior-critique"
+  | "interior-paint" | "interior-floor" | "interior-transfer" | "interior-text" | "interior-floorplan" | "interior-compose" | "interior-critique" | "interior-advisor"
   | "exterior-redesign" | "exterior-sky" | "exterior-sketch" | "exterior-paint" | "exterior-text" | "garden-redesign" | "garden-text";
 
-type Cfg = { scope?: "interior" | "exterior" | "garden"; room?: boolean; intervention?: boolean; remove?: boolean; surface?: boolean; weather?: boolean; angle?: boolean; planView?: boolean; paint?: boolean; floor?: boolean; reference?: boolean; items?: boolean; critique?: boolean; text?: boolean; hint: string };
+type Cfg = { scope?: "interior" | "exterior" | "garden"; room?: boolean; intervention?: boolean; remove?: boolean; surface?: boolean; weather?: boolean; angle?: boolean; planView?: boolean; paint?: boolean; floor?: boolean; reference?: boolean; items?: boolean; critique?: boolean; chat?: boolean; text?: boolean; hint: string };
 const CFG: Record<ToolId, Cfg> = {
   "interior-redesign": { scope: "interior", room: true, intervention: true, hint: "Room photo to redesign · Ảnh phòng cần thiết kế lại" },
   "interior-staging": { scope: "interior", room: true, hint: "Empty room photo to stage · Ảnh phòng trống cần bài trí" },
@@ -30,6 +31,7 @@ const CFG: Record<ToolId, Cfg> = {
   "interior-floor": { floor: true, hint: "Room photo with a visible floor · Ảnh phòng thấy rõ sàn" },
   "interior-transfer": { reference: true, room: true, intervention: true, hint: "Your room photo · Ảnh phòng của bạn" },
   "interior-text": { text: true, scope: "interior", room: true, hint: "e.g. a bright Scandinavian living room with a big window, oak floor and a green sofa · VD: phòng khách Bắc Âu sáng sủa, cửa sổ lớn, sàn gỗ sồi, sofa xanh lá" },
+  "interior-advisor": { chat: true, hint: "Chat with the AI designer · Trò chuyện với nhà thiết kế AI" },
   "interior-critique": { critique: true, room: true, hint: "Photo of the room to review · Ảnh căn phòng cần nhận xét" },
   "interior-compose": { items: true, room: true, hint: "Photo of your room · Ảnh căn phòng của bạn" },
   "interior-floorplan": { scope: "interior", planView: true, hint: "2D floor plan image or drawing · Ảnh hoặc bản vẽ mặt bằng 2D" },
@@ -67,8 +69,10 @@ export function BeforeAfter({ before, after }: { before: string | null; after: s
   );
 }
 
-/** History items whose result is a written critique (stored as JSON) rather than an image. */
-export const isCritique = (h: { outputUrl?: string | null }) => !!h.outputUrl?.endsWith(".json");
+/** History items whose result is written text (a critique or an advisor chat) rather than an image. */
+export const isCritique = (h: { tool?: string }) => h.tool === "interior-critique";
+export const isChat = (h: { tool?: string }) => h.tool === "interior-advisor";
+export const isTextResult = (h: { tool?: string }) => isCritique(h) || isChat(h);
 
 const PRIORITY: Record<Critique["improvements"][number]["priority"], { label: [string, string]; color: string; bg: string }> = {
   high: { label: ["High priority", "Ưu tiên cao"], color: "#9b1c1c", bg: "#fde8e7" },
@@ -272,6 +276,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
 
 export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId; preset?: Preset; onCreditsChange: () => void }) {
   const { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, view, setView, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, items, pickItem, removeItem, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory } = useGenerator(tool, preset, onCreditsChange);
+  if (cfg.chat) return <AdvisorChat onCreditsChange={onCreditsChange} />;
   if (!meta) return <p className="mt-8 text-center text-neutral-500">{bi("Loading… · Đang tải…")}</p>;
   const field = "w-full rounded border p-2";
   return (
@@ -375,7 +380,7 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
         <div className="md:col-span-2">
           <h3 className="mb-2 font-semibold">{bi("History · Lịch sử")}</h3>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {history.filter((h) => h.outputUrl).map((h) => (
+            {history.filter((h) => h.outputUrl && !isChat(h)).map((h) => (
               <button key={h.id} onClick={() => (isCritique(h) ? j<Gen>(`/api/generations/${h.id}`).then(setGen).catch(() => {}) : setGen({ id: h.id, status: "SUCCESS", public: h.public, inputUrl: h.inputUrl, outputUrl: h.outputUrl }))} className="overflow-hidden rounded-lg border">
                 <img src={isCritique(h) ? h.inputUrl : h.outputUrl} loading="lazy" className="aspect-square w-full object-cover" alt={h.tool} />
               </button>
