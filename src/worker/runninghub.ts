@@ -47,6 +47,15 @@ export async function submitTextToImage(apiKey: string, o: { prompt: string; asp
   return res.taskId;
 }
 
+/** Veo 3.1 Fast image-to-video (8 s, 720p, native audio); the result is an mp4. */
+export async function submitImageToVideo(apiKey: string, o: { image: InputImage; prompt: string; aspectRatio: "16:9" | "9:16" }, base = DEFAULT_BASE) {
+  const res = await rh(apiKey, `${base}/rhart-video-v3.1-fast/image-to-video`, {
+    prompt: o.prompt, aspectRatio: o.aspectRatio, imageUrls: [toDataUri(o.image.bytes, o.image.mime)], duration: "8", resolution: "720p",
+  });
+  if (!res.taskId) throw new Error(res.errorMessage || "RunningHub returned no taskId · RunningHub không trả taskId");
+  return res.taskId;
+}
+
 export const queryTask = (apiKey: string, taskId: string, base = DEFAULT_BASE) => rh(apiKey, `${base}/query`, { taskId });
 
 const LLM_BASE = "https://llm.runninghub.ai/v1";

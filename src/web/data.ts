@@ -19,7 +19,7 @@ export const FEATURES: Feature[] = [
   { slug: "text-to-design", name: ["Text to Design", "Văn bản → thiết kế"], desc: ["Describe the space and get design ideas.", "Mô tả không gian để nhận ý tưởng thiết kế."], group: "advice", icon: "💬" },
   { slug: "design-critique", name: ["Design Critique", "Nhận xét thiết kế"], desc: ["Get feedback and improvement tips.", "Nhận phản hồi và gợi ý cải thiện."], group: "advice", tool: "interior-critique", icon: "📝" },
   { slug: "ai-floor-plan-generator", name: ["2D to 3D Floor Plan", "Mặt bằng 2D → 3D"], desc: ["Turn a floor plan into a furnished 3D view.", "Biến mặt bằng thành mô hình 3D có nội thất."], group: "advice", tool: "interior-floorplan", icon: "📐" },
-  { slug: "video-walkthrough", name: ["Video Walkthrough", "Video tham quan"], desc: ["Animate a design into a short walkthrough clip.", "Biến thiết kế thành clip tham quan ngắn."], group: "advice", icon: "🎬" },
+  { slug: "video-walkthrough", name: ["Video Walkthrough", "Video tham quan"], desc: ["Animate a design into a short walkthrough clip.", "Biến thiết kế thành clip tham quan ngắn."], group: "advice", tool: "interior-video", icon: "🎬" },
 ];
 
 export const GROUPS: Record<Feature["group"], L2> = {

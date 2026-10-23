@@ -7,7 +7,7 @@ import { BizPlan } from "./BizPlan";
 type Meta = {
   styles: { slug: string; name: string; scope: string; thumb?: string }[];
   roomTypes: string[]; intervention: string[];
-  surfaces: Record<string, string[]>; paints: { name: string; hex: string }[]; finishes: string[]; weather: string[]; remove: string[]; angles: string[]; planViews: string[];
+  surfaces: Record<string, string[]>; paints: { name: string; hex: string }[]; finishes: string[]; weather: string[]; remove: string[]; angles: string[]; planViews: string[]; motions: string[];
 };
 export type Critique = {
   room: string; style: string; score: number; summary: string; strengths: string[];
@@ -19,10 +19,10 @@ export type Preset = Partial<{ styleSlug: string; roomType: string; intervention
 
 export type ToolId =
   | "interior-redesign" | "interior-staging" | "interior-declutter" | "interior-sketch" | "interior-material"
-  | "interior-paint" | "interior-floor" | "interior-transfer" | "interior-text" | "interior-floorplan" | "interior-compose" | "interior-critique" | "interior-advisor" | "interior-bizplan" | "interior-finder"
+  | "interior-paint" | "interior-floor" | "interior-transfer" | "interior-text" | "interior-floorplan" | "interior-compose" | "interior-critique" | "interior-advisor" | "interior-bizplan" | "interior-finder" | "interior-video"
   | "exterior-redesign" | "exterior-sky" | "exterior-sketch" | "exterior-paint" | "exterior-text" | "garden-redesign" | "garden-text";
 
-type Cfg = { scope?: "interior" | "exterior" | "garden"; room?: boolean; intervention?: boolean; remove?: boolean; surface?: boolean; weather?: boolean; angle?: boolean; planView?: boolean; paint?: boolean; floor?: boolean; reference?: boolean; items?: boolean; llm?: boolean; chat?: boolean; bizplan?: boolean; text?: boolean; hint: string };
+type Cfg = { scope?: "interior" | "exterior" | "garden"; room?: boolean; intervention?: boolean; remove?: boolean; surface?: boolean; weather?: boolean; angle?: boolean; planView?: boolean; video?: boolean; paint?: boolean; floor?: boolean; reference?: boolean; items?: boolean; llm?: boolean; chat?: boolean; bizplan?: boolean; text?: boolean; hint: string };
 const CFG: Record<ToolId, Cfg> = {
   "interior-redesign": { scope: "interior", room: true, intervention: true, hint: "Room photo to redesign · Ảnh phòng cần thiết kế lại" },
   "interior-staging": { scope: "interior", room: true, hint: "Empty room photo to stage · Ảnh phòng trống cần bài trí" },
@@ -35,6 +35,7 @@ const CFG: Record<ToolId, Cfg> = {
   "interior-text": { text: true, scope: "interior", room: true, hint: "e.g. a bright Scandinavian living room with a big window, oak floor and a green sofa · VD: phòng khách Bắc Âu sáng sủa, cửa sổ lớn, sàn gỗ sồi, sofa xanh lá" },
   "interior-bizplan": { bizplan: true, hint: "2D floor plan · Mặt bằng 2D" },
   "interior-advisor": { chat: true, hint: "Chat with the AI designer · Trò chuyện với nhà thiết kế AI" },
+  "interior-video": { video: true, hint: "Room, house or garden photo · Ảnh phòng, nhà hoặc sân vườn" },
   "interior-finder": { llm: true, hint: "Room photo or a generated design · Ảnh phòng hoặc thiết kế đã tạo" },
   "interior-critique": { llm: true, room: true, hint: "Photo of the room to review · Ảnh căn phòng cần nhận xét" },
   "interior-compose": { items: true, room: true, hint: "Photo of your room · Ảnh căn phòng của bạn" },
@@ -59,8 +60,13 @@ async function j<T>(path: string, init?: RequestInit): Promise<T> {
   return d as T;
 }
 
+export const isVideo = (h: { tool?: string; outputUrl?: string | null }) => h.tool === "interior-video" || !!h.outputUrl?.endsWith(".mp4");
+/** Download name for a result: videos are mp4, everything else png. */
+export const resultFile = (id: string, url: string) => `design-${id}.${url.endsWith(".mp4") ? "mp4" : "png"}`;
+
 export function BeforeAfter({ before, after }: { before: string | null; after: string }) {
   const [pos, setPos] = useState(50);
+  if (after.endsWith(".mp4")) return <video src={after} poster={before ?? undefined} controls autoPlay muted loop playsInline className="mx-auto block max-w-2xl rounded-xl" style={{ width: "100%" }} />;
   // Text-to-design results have no input photo: show the output on its own.
   if (!before) return <img src={after} className="mx-auto block max-w-2xl rounded-xl" style={{ width: "100%" }} alt="" />;
   return (
@@ -197,6 +203,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
   const [weather, setWeather] = useState("");
   const [angle, setAngle] = useState("front");
   const [view, setView] = useState("isometric");
+  const [motion, setMotion] = useState("push-in");
   const [color, setColor] = useState("Sage green");
   const [paintFinish, setPaintFinish] = useState("matte");
   const [busy, setBusy] = useState(false);
@@ -309,6 +316,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
           ...(cfg.weather ? { weather } : {}),
           ...(cfg.angle ? { angle } : {}),
           ...(cfg.planView ? { view } : {}),
+          ...(cfg.video ? { motion } : {}),
         }),
       });
       onCreditsChange();
@@ -316,11 +324,11 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     } catch (e: any) { setErr(e.message); setBusy(false); onCreditsChange(); }
   };
 
-  return { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, view, setView, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, items, pickItem, removeItem, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory };
+  return { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, view, setView, motion, setMotion, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, items, pickItem, removeItem, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory };
 }
 
 export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId; preset?: Preset; onCreditsChange: () => void }) {
-  const { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, view, setView, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, items, pickItem, removeItem, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory } = useGenerator(tool, preset, onCreditsChange);
+  const { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, view, setView, motion, setMotion, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, items, pickItem, removeItem, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory } = useGenerator(tool, preset, onCreditsChange);
   if (cfg.chat) return <AdvisorChat onCreditsChange={onCreditsChange} />;
   if (cfg.bizplan) return <BizPlan onCreditsChange={onCreditsChange} />;
   if (!meta) return <p className="mt-8 text-center text-neutral-500">{bi("Loading… · Đang tải…")}</p>;
@@ -361,6 +369,7 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
         {cfg.room && <select className={field} value={room} onChange={(e) => setRoom(e.target.value)}>{(cfg.text || cfg.llm) && <option value="">{bi("Any room type · Loại phòng bất kỳ")}</option>}{meta.roomTypes.map((r) => <option key={r} value={r}>{bi(r)}</option>)}</select>}
         {cfg.scope && <select className={field} value={style} onChange={(e) => setStyle(e.target.value)}>{cfg.text && <option value="">{bi("Any style · Phong cách bất kỳ")}</option>}{styles.map((s) => <option key={s.slug} value={s.slug}>{bi(s.name)}</option>)}</select>}
         {cfg.angle && <select className={field} value={angle} onChange={(e) => setAngle(e.target.value)}>{meta.angles.map((a) => <option key={a} value={a}>{bi("View · Góc nhìn")}: {bi(a)}</option>)}</select>}
+        {cfg.video && <select className={field} value={motion} onChange={(e) => setMotion(e.target.value)}>{meta.motions.map((m) => <option key={m} value={m}>{bi("Camera · Camera")}: {bi(m)}</option>)}</select>}
         {cfg.planView && <select className={field} value={view} onChange={(e) => setView(e.target.value)}>{meta.planViews.map((v) => <option key={v} value={v}>{bi("View · Góc nhìn")}: {bi(v)}</option>)}</select>}
         {cfg.weather && <select className={field} value={weather} onChange={(e) => setWeather(e.target.value)}>{meta.weather.map((w) => <option key={w} value={w}>{bi(w)}</option>)}</select>}
         {cfg.remove && (
@@ -397,7 +406,7 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
           </label>
         )}
         <textarea className={field} rows={2} maxLength={500} placeholder={bi("Extra instructions (optional) · Yêu cầu thêm (tuỳ chọn)")} value={custom} onChange={(e) => setCustom(e.target.value)} />
-        {!cfg.llm && <select className={field} value={res} onChange={(e) => setRes(e.target.value)}>
+        {!cfg.llm && !cfg.video && <select className={field} value={res} onChange={(e) => setRes(e.target.value)}>
           {Object.entries(RES_COST).map(([k, c]) => <option key={k} value={k}>{k.toUpperCase()} · {c} credit{c > 1 ? "s" : ""}</option>)}
         </select>}
         {err && <p className="text-sm text-red-600">{bi(err)}</p>}
@@ -422,8 +431,8 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
           <>
             <BeforeAfter before={gen.inputUrl} after={gen.outputUrl} />
             <div className="mt-3 flex flex-wrap gap-2 text-sm">
-              <a href={gen.outputUrl} download={`design-${gen.id}.png`} className="rounded border px-4 py-2">{bi("Download · Tải ảnh xuống")}</a>
-              <button onClick={togglePublic} className="rounded border px-4 py-2">{gen.public ? bi("Unpublish · Gỡ khỏi thư viện") : bi("Publish · Đăng lên thư viện")}</button>
+              <a href={gen.outputUrl} download={resultFile(gen.id, gen.outputUrl)} className="rounded border px-4 py-2">{bi("Download · Tải ảnh xuống")}</a>
+              {!gen.outputUrl.endsWith(".mp4") && <button onClick={togglePublic} className="rounded border px-4 py-2">{gen.public ? bi("Unpublish · Gỡ khỏi thư viện") : bi("Publish · Đăng lên thư viện")}</button>}
               <button onClick={remove_} className="rounded border px-4 py-2 text-red-600">{bi("Delete · Xoá")}</button>
             </div>
           </>
@@ -435,7 +444,7 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {history.filter((h) => h.outputUrl && !isChat(h)).map((h) => (
               <button key={h.id} onClick={() => (isTextResult(h) ? j<Gen>(`/api/generations/${h.id}`).then(setGen).catch(() => {}) : setGen({ id: h.id, status: "SUCCESS", public: h.public, inputUrl: h.inputUrl, outputUrl: h.outputUrl }))} className="overflow-hidden rounded-lg border">
-                <img src={isTextResult(h) ? h.inputUrl : h.outputUrl} loading="lazy" className="aspect-square w-full object-cover" alt={h.tool} />
+                <img src={isTextResult(h) || isVideo(h) ? h.inputUrl : h.outputUrl} loading="lazy" className="aspect-square w-full object-cover" alt={h.tool} />
               </button>
             ))}
           </div>

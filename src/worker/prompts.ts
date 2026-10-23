@@ -105,7 +105,7 @@ const PLAN_VIEW_TEXT: Record<(typeof PLAN_VIEWS)[number], string> = {
 
 export const TOOL_IDS = [
   "interior-redesign", "interior-staging", "interior-declutter", "interior-sketch", "interior-material",
-  "interior-paint", "interior-floor", "interior-transfer", "interior-text", "interior-floorplan", "interior-compose", "interior-critique", "interior-finder",
+  "interior-paint", "interior-floor", "interior-transfer", "interior-text", "interior-floorplan", "interior-compose", "interior-critique", "interior-finder", "interior-video",
   "exterior-redesign", "exterior-sky", "exterior-sketch", "exterior-paint", "exterior-text", "garden-redesign", "garden-text",
 ] as const;
 export type ToolId = (typeof TOOL_IDS)[number];
@@ -114,6 +114,16 @@ export const REFERENCE_TOOLS: readonly ToolId[] = ["interior-transfer"];
 /** Tools that take 1–MAX_ITEMS item photos (furniture, decor) after the main photo. */
 export const ITEM_TOOLS: readonly ToolId[] = ["interior-compose"];
 export const MAX_ITEMS = 3;
+/** Image-to-video tools (Veo 3.1 Fast on RunningHub, 8 s, 720p, with audio); a clip costs VIDEO_COST credits. */
+export const VIDEO_TOOLS: readonly ToolId[] = ["interior-video"];
+export const VIDEO_COST = 5;
+export const MOTIONS = ["push-in", "pan", "orbit", "reveal"] as const;
+const MOTION_TEXT: Record<(typeof MOTIONS)[number], string> = {
+  "push-in": "a slow, steady dolly push-in toward the center of the space",
+  pan: "a slow horizontal pan from left to right",
+  orbit: "a gentle arc around the main furniture group",
+  reveal: "a slow pull-back that reveals the whole space",
+};
 /** Tools answered by the LLM with structured text (a critique, a furniture list) instead of an image. */
 export const CRITIQUE_TOOLS: readonly ToolId[] = ["interior-critique", "interior-finder"];
 export const CRITIQUE_MODEL = "google/gemini-3.8-flash";
@@ -306,6 +316,12 @@ export function buildPrompt(tool: string, p: any): string {
         "Keep each item's exact design: shape, proportions, color, material and details. Ignore the backgrounds of the item photos.",
         "Move or remove existing furniture only where needed to make space, and keep the room looking styled and cohesive.", room(p), custom(p), STRUCTURE_LOCK);
     }
+    case "interior-video":
+      return join(
+        "Animate this photo of a room, home or garden into a smooth, cinematic 8-second real-estate video.",
+        `Camera movement: ${MOTION_TEXT[oneOf(MOTIONS, p.motion) ?? "push-in"]}.`,
+        "Keep every wall, window, piece of furniture, plant, material and color exactly as in the photo; nothing appears, disappears or deforms.",
+        "Natural light with subtle life (moving sunlight, curtains or leaves stirring). No people, no text, no logos. Soft ambient room tone, no music, no speech.", custom(p));
     case "interior-finder": {
       const vi = p.lang === "vi";
       return join(
