@@ -105,7 +105,7 @@ const PLAN_VIEW_TEXT: Record<(typeof PLAN_VIEWS)[number], string> = {
 
 export const TOOL_IDS = [
   "interior-redesign", "interior-staging", "interior-declutter", "interior-sketch", "interior-material",
-  "interior-paint", "interior-floor", "interior-transfer", "interior-text", "interior-floorplan", "interior-compose", "interior-critique",
+  "interior-paint", "interior-floor", "interior-transfer", "interior-text", "interior-floorplan", "interior-compose", "interior-critique", "interior-finder",
   "exterior-redesign", "exterior-sky", "exterior-sketch", "exterior-paint", "exterior-text", "garden-redesign", "garden-text",
 ] as const;
 export type ToolId = (typeof TOOL_IDS)[number];
@@ -114,8 +114,8 @@ export const REFERENCE_TOOLS: readonly ToolId[] = ["interior-transfer"];
 /** Tools that take 1–MAX_ITEMS item photos (furniture, decor) after the main photo. */
 export const ITEM_TOOLS: readonly ToolId[] = ["interior-compose"];
 export const MAX_ITEMS = 3;
-/** Tools answered by the LLM with a written critique instead of an image. */
-export const CRITIQUE_TOOLS: readonly ToolId[] = ["interior-critique"];
+/** Tools answered by the LLM with structured text (a critique, a furniture list) instead of an image. */
+export const CRITIQUE_TOOLS: readonly ToolId[] = ["interior-critique", "interior-finder"];
 export const CRITIQUE_MODEL = "google/gemini-3.8-flash";
 
 /** Business 3D Floorplan: the LLM lists the rooms on a plan, then each room is rendered as its own generation. */
@@ -193,6 +193,22 @@ export function cleanCritique(r: any): Critique {
   if (!c.summary || !c.improvements.length) throw new Error("The AI returned an incomplete critique · AI trả về nhận xét chưa đầy đủ");
   return c;
 }
+
+export const FINDER_CATEGORIES = ["sofa", "chair", "table", "bed", "storage", "lighting", "rug", "textile", "decor", "plant", "other"] as const;
+export type FoundItem = { name: string; category: (typeof FINDER_CATEGORIES)[number]; description: string; query: string; localQuery: string; priceRange: string; box?: [number, number, number, number] };
+/** Coerce the LLM's furniture list into bounded items; boxes are [ymin, xmin, ymax, xmax] on a 0–1000 grid. */
+export function cleanFinder(r: any): { items: FoundItem[] } {
+  const str = (v: unknown, n: number) => String(v ?? "").trim().slice(0, n);
+  const items = (Array.isArray(r?.items) ? r.items.slice(0, 8) : []).map((x: any): FoundItem => {
+    const box = Array.isArray(x?.box) && x.box.length === 4 && x.box.every((n: unknown) => Number.isFinite(Number(n))) ? x.box.map((n: unknown) => Math.min(1000, Math.max(0, Math.round(Number(n))))) as FoundItem["box"] : undefined;
+    const query = str(x?.query, 120);
+    return { name: str(x?.name, 60), category: (FINDER_CATEGORIES as readonly string[]).includes(x?.category) ? x.category : "other", description: str(x?.description, 300), query, localQuery: str(x?.localQuery, 120) || query, priceRange: str(x?.priceRange, 60), box };
+  }).filter((x: FoundItem) => x.name && x.query);
+  if (!items.length) throw new Error("No furniture found in this photo · Không tìm thấy đồ nội thất nào trong ảnh");
+  return { items };
+}
+/** Validate the LLM's JSON for a structured-text tool. */
+export const cleanLlmResult = (tool: string, raw: unknown) => (tool === "interior-finder" ? cleanFinder(raw) : cleanCritique(raw));
 /** Tools that generate from a text description alone (no input photo). */
 export const TEXT_TOOLS: readonly ToolId[] = ["interior-text", "exterior-text", "garden-text"];
 
@@ -289,6 +305,15 @@ export function buildPrompt(tool: string, p: any): string {
         `Place ${n === 1 ? "the item" : "every item"} into the room at a natural position for its function, at realistic scale, with the room's perspective, lighting and soft contact shadows.`,
         "Keep each item's exact design: shape, proportions, color, material and details. Ignore the backgrounds of the item photos.",
         "Move or remove existing furniture only where needed to make space, and keep the room looking styled and cohesive.", room(p), custom(p), STRUCTURE_LOCK);
+    }
+    case "interior-finder": {
+      const vi = p.lang === "vi";
+      return join(
+        "You are a furniture sourcing assistant. Identify the distinct furniture, lighting, rugs, textiles and decor pieces visible in this room photo, so the client can buy similar ones.",
+        "List at most 8 items, the largest and most important first. Skip walls, floors, windows, doors and other built-in architecture.",
+        `For each item give: "name" (short, in ${vi ? "Vietnamese" : "English"}); "category" (one of ${FINDER_CATEGORIES.join(", ")}); "description" (color, material, shape and style, in ${vi ? "Vietnamese" : "English"}); "query" (an English online shopping search of 4–8 words that finds a similar product, e.g. "cognac leather 3 seater sofa mid century"); "localQuery" (${vi ? "the same search in Vietnamese" : "the same as query"}); "priceRange" (a typical retail price range ${vi ? "in VND" : "in USD"}); "box" ([ymin, xmin, ymax, xmax] of the item on a 0–1000 grid of the image).`,
+        'Reply with JSON only: {"items": [...]}.',
+      );
     }
     case "interior-critique": {
       const vi = p.lang === "vi";

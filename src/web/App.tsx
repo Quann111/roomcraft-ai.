@@ -5,7 +5,7 @@ import { bi, getLang, setLang, t } from "./i18n";
 import { api, useAuth } from "./auth";
 import { AdvisorChat, Transcript } from "./AdvisorChat";
 import { BizPlan } from "./BizPlan";
-import { BeforeAfter, CritiqueView, isChat, isCritique, isTextResult, MAX_ITEMS, PrepInfo, useGenerator, type Preset, type ToolId } from "./GeneratePanel";
+import { BeforeAfter, CritiqueView, FinderView, isChat, isTextResult, MAX_ITEMS, PrepInfo, useGenerator, type Preset, type ToolId } from "./GeneratePanel";
 
 /* ---------- icons ---------- */
 const ICONS: Record<string, string> = {
@@ -74,7 +74,7 @@ const TOOLS: ToolDef[] = [
   { name: "Material Swap", desc: "Replace materials on surfaces to explore different textures and finishes.", cat: "furnish", photo: "photo-1749212387838-c4c4e6e58348", icon: "layers", spaces: ["interior-material"] },
   { name: "Paint Visualizer", desc: "Change wall colors using presets or custom colors for interiors and exteriors.", cat: "furnish", photo: "photo-1562259949-e8e7689d7828", icon: "spark", spaces: ["interior-material"] },
   { name: "Floor Editor", desc: "Replace the flooring in any image with custom materials to see how the new floor would look.", cat: "3d", photo: "photo-1761053130711-2515ef532bb5", icon: "layers", spaces: ["interior-material"] },
-  { name: "Furniture Finder", desc: "Identify and get purchase links for furniture in images and generated designs.", cat: "furnish", photo: "photo-1580480055273-228ff5388ef8", icon: "search" },
+  { name: "Furniture Finder", desc: "Identify and get purchase links for furniture in images and generated designs.", cat: "furnish", photo: "photo-1580480055273-228ff5388ef8", icon: "search", spaces: ["interior-finder"] },
   { name: "Room Composer", desc: "Upload your room and elements, and our AI will compose it into a stylish, cohesive space.", cat: "furnish", photo: "photo-1674058924341-a79eed7e9a89", icon: "sofa", spaces: ["interior-compose"] },
   { name: "Design Transfer", desc: "Recreate the style of inspiration images by applying their design style to a new space.", cat: "redesign", photo: "photo-1615529182904-14819c35db37", icon: "image" },
   { name: "Text to Design", desc: "Generate complete designs from text descriptions, turning words into beautifully crafted spaces.", cat: "redesign", photo: "photo-1757344454333-cc666252e596", icon: "file" },
@@ -148,7 +148,14 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
           {!cfg.text && <PrepInfo p={g.prep} />}
           <div className="or">{t("RESULT", "KẾT QUẢ")}</div>
           <section className="gallery-panel">
-            {g.gen?.status === "SUCCESS" && g.gen.critique ? (
+            {g.gen?.status === "SUCCESS" && g.gen.finder ? (
+              <>
+                <FinderView photo={g.gen.inputUrl} f={g.gen.finder} />
+                <div className="row-between" style={{ marginTop: 14, flexWrap: "wrap", gap: 8 }}>
+                  <button className="outline-btn" onClick={g.remove_}><Icon n="trash" /> {t("Delete", "Xoá")}</button>
+                </div>
+              </>
+            ) : g.gen?.status === "SUCCESS" && g.gen.critique ? (
               <>
                 <CritiqueView photo={g.gen.inputUrl} c={g.gen.critique} />
                 <div className="row-between" style={{ marginTop: 14, flexWrap: "wrap", gap: 8 }}>
@@ -166,7 +173,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                 </div>
               </>
             ) : (
-              <p className="helper" style={{ textAlign: "center", padding: "40px 10px" }}>{g.busy ? (cfg.critique ? t("Reviewing your room… about 20–30 seconds.", "Đang nhận xét căn phòng… khoảng 20–30 giây.") : t("Processing… this takes 1–2 minutes.", "Đang xử lý… mất khoảng 1–2 phút.")) : t("Your generated design appears here.", "Thiết kế được tạo sẽ hiện ở đây.")}</p>
+              <p className="helper" style={{ textAlign: "center", padding: "40px 10px" }}>{g.busy ? (cfg.llm ? t("Analyzing your photo… about 20–30 seconds.", "Đang phân tích ảnh… khoảng 20–30 giây.") : t("Processing… this takes 1–2 minutes.", "Đang xử lý… mất khoảng 1–2 phút.")) : t("Your generated design appears here.", "Thiết kế được tạo sẽ hiện ở đây.")}</p>
             )}
           </section>
         </div>
@@ -227,7 +234,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                 {cfg.room && (
                   <>
                     <h4>{t("1. Select Room Type", "1. Chọn loại phòng")} <button type="button" className="view-all" onClick={() => setShowAll({ ...showAll, room: !showAll.room })}>{showAll.room ? t("Less", "Thu gọn") : t("View All", "Xem tất cả")}</button></h4>
-                    <div className="preset-grid">{list(meta.roomTypes, "room").map((r, i) => choice(bi(r), i, r === g.room, () => g.setRoom((cfg.text || cfg.critique) && r === g.room ? "" : r), thumbOf(ROOM_PHOTOS, r)))}</div>
+                    <div className="preset-grid">{list(meta.roomTypes, "room").map((r, i) => choice(bi(r), i, r === g.room, () => g.setRoom((cfg.text || cfg.llm) && r === g.room ? "" : r), thumbOf(ROOM_PHOTOS, r)))}</div>
                   </>
                 )}
                 {cfg.scope && (
@@ -300,7 +307,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
               <><h4>{t("Image shape", "Khung ảnh")}</h4>
                 <div className="segmented">{[["16:9", "Wide", "Ngang rộng"], ["4:3", "Landscape", "Ngang"], ["1:1", "Square", "Vuông"], ["3:4", "Portrait", "Dọc"]].map(([r, en, vi]) => <button key={r} type="button" className={r === g.aspect ? "active" : ""} onClick={() => g.setAspect(r)}>{t(en, vi)} · {r}</button>)}</div></>
             )}
-            {cfg.critique ? <p className="helper">{t("Each review costs 1 credit.", "Mỗi lần nhận xét tốn 1 credit.")}</p> : <>
+            {cfg.llm ? <p className="helper">{t("Each analysis costs 1 credit.", "Mỗi lần phân tích tốn 1 credit.")}</p> : <>
               <h4>{t("Resolution", "Độ phân giải")}</h4>
               <div className="segmented">{[["1k", 1], ["2k", 2], ["4k", 3]].map(([k, c]) => <button key={k} type="button" className={k === g.res ? "active" : ""} onClick={() => g.setRes(k as string)}>{(k as string).toUpperCase()} · {c} credit</button>)}</div>
             </>}
@@ -327,7 +334,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                   </div>
                   <div className="latest-actions">
                     {!isTextResult(h) && <a className="latest-action" title="Download" href={h.outputUrl} download={`design-${h.id}.png`}><Icon n="download" /></a>}
-                    <button className="latest-action" title="Preview" onClick={() => (isTextResult(h) ? api(`/api/generations/${h.id}`).then((d: any) => setOpen({ ...h, critique: d.critique, chat: d.chat })).catch((e: any) => say(e.message)) : setOpen(h))}><Icon n="eye" /></button>
+                    <button className="latest-action" title="Preview" onClick={() => (isTextResult(h) ? api(`/api/generations/${h.id}`).then((d: any) => setOpen({ ...h, critique: d.critique, finder: d.finder, chat: d.chat })).catch((e: any) => say(e.message)) : setOpen(h))}><Icon n="eye" /></button>
                     <button className="latest-action" title="Reuse settings" onClick={() => navigate(`/app?tool=${h.tool}&p=${encodeURIComponent(JSON.stringify(h.params ?? {}))}`)}><Icon n="edit" /></button>
                     {!isTextResult(h) && <button className="latest-action" title={h.public ? "Unpublish" : "Publish"} onClick={() => publish(h)}><Icon n="globe" /></button>}
                     <button className="latest-action" title="Delete" onClick={() => del(h.id)}><Icon n="trash" /></button>
@@ -344,6 +351,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
           <div className="modal" style={{ maxWidth: 560, maxHeight: "92vh", overflowY: "auto" }}>
             <button className="close" onClick={() => setOpen(null)} aria-label="Close">×</button>
             {open.chat ? <><h3 style={{ marginTop: 0 }}>{t("Design Advisor", "Tư vấn thiết kế")}</h3>{open.inputUrl && <img src={open.inputUrl} alt="" style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 10, marginBottom: 12 }} />}<Transcript turns={open.chat} /></>
+              : open.finder ? <FinderView photo={open.inputUrl} f={open.finder} />
               : open.critique ? <CritiqueView photo={open.inputUrl} c={open.critique} /> : <BeforeAfter before={open.inputUrl} after={open.outputUrl} />}
           </div>
         </div>
