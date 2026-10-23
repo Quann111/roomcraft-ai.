@@ -154,10 +154,13 @@ export function buildPrompt(tool: string, p: any): string {
     case "interior-declutter": {
       const sel = Array.isArray(p.remove) ? REMOVE.filter((r) => p.remove.includes(r)) : [];
       if (!sel.length) throw new Error("Pick at least one thing to remove · Chọn ít nhất một thứ cần xoá");
-      const what = sel.includes("everything (empty room)")
-        ? "Remove all furniture, objects, decor and people so the room is completely empty, showing clean bare walls and floors."
-        : `Remove all ${sel.join(", ").replace(/, ([^,]*)$/, " and $1")} from this room, and realistically fill in the walls and floors behind them.`;
-      return join(what, "Keep everything else untouched.", custom(p), STRUCTURE_LOCK);
+      // "Keep everything else untouched" contradicts an empty-room request, so the model kept the large pieces.
+      if (sel.includes("everything (empty room)"))
+        return join(
+          "Empty this room completely. Remove every piece of furniture and every movable object: sofas, armchairs, chairs, tables, coffee and side tables, beds, shelves and cabinets that are not built in, rugs, lamps, plants, artwork, mirrors, cushions, decor and people.",
+          "No furniture of any kind may remain. Realistically reconstruct the bare floor and walls where the objects were, with continuous flooring, consistent lighting and natural shadows.",
+          "Keep only the architecture: walls, floor, ceiling, windows, doors, built-in fixtures and ceiling lights.", custom(p), STRUCTURE_LOCK);
+      return join(`Remove all ${sel.join(", ").replace(/, ([^,]*)$/, " and $1")} from this room, and realistically fill in the walls and floors behind them.`, "Keep everything else untouched.", custom(p), STRUCTURE_LOCK);
     }
     case "interior-sketch": {
       const s = styleFor(p.styleSlug, "interior");
@@ -203,8 +206,9 @@ export function buildPrompt(tool: string, p: any): string {
         "Professional landscape photography, natural light, realistic planting and hardscape, no people, no text.");
     case "exterior-paint":
       return join(
-        `Repaint only the exterior wall surfaces of this house in ${paintColor(p.color)}. Paint finish: ${finish(p)}.`,
-        "Keep the roof, windows, doors, trim, stone or brick details, landscaping and sky unchanged. Preserve the original sunlight and shadows on the facade.", custom(p), EXT_LOCK);
+        `Repaint only the main painted wall cladding or siding of this house in ${paintColor(p.color)}. Paint finish: ${finish(p)}.`,
+        "Change only the surfaces that currently share the main siding's color and material. Every surface with a different color or material keeps its exact original color, especially natural wood and timber elements (beams, posts, gable frames, panels), window and door frames, glass, trim, fascia, soffits, columns, stone, brick, chimney and roof.",
+        "Keep the landscaping and sky unchanged. Preserve the original sunlight and shadows on the facade.", custom(p), EXT_LOCK);
     case "exterior-redesign": {
       const s = styleFor(p.styleSlug, "exterior");
       const a = oneOf(ANGLES, p.angle);
