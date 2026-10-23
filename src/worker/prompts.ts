@@ -1,4 +1,5 @@
 import excelStyles from "../../seed/styles.json" with { type: "json" };
+import { CITIES, DIRECTIONS, WINDS, exposureText, type Direction } from "./solar.ts";
 
 export type Style = { slug: string; name: string; scope: "interior" | "exterior" | "garden"; prompt: string; img?: string; photo?: string };
 
@@ -117,7 +118,7 @@ const PLAN_VIEW_TEXT: Record<(typeof PLAN_VIEWS)[number], string> = {
 
 export const TOOL_IDS = [
   "interior-redesign", "interior-staging", "interior-declutter", "interior-sketch", "interior-material",
-  "interior-paint", "interior-floor", "interior-transfer", "interior-text", "interior-floorplan", "interior-compose", "interior-critique", "interior-finder", "interior-video",
+  "interior-paint", "interior-floor", "interior-transfer", "interior-text", "interior-floorplan", "interior-compose", "interior-critique", "interior-finder", "interior-video", "exterior-orient", "exterior-orient-render",
   "exterior-redesign", "exterior-sky", "exterior-sketch", "exterior-paint", "exterior-text", "garden-redesign", "garden-text",
 ] as const;
 export type ToolId = (typeof TOOL_IDS)[number];
@@ -137,7 +138,7 @@ const MOTION_TEXT: Record<(typeof MOTIONS)[number], string> = {
   reveal: "a slow pull-back that reveals the whole space",
 };
 /** Tools answered by the LLM with structured text (a critique, a furniture list) instead of an image. */
-export const CRITIQUE_TOOLS: readonly ToolId[] = ["interior-critique", "interior-finder"];
+export const CRITIQUE_TOOLS: readonly ToolId[] = ["interior-critique", "interior-finder", "exterior-orient"];
 export const CRITIQUE_MODEL = "google/gemini-3.8-flash";
 
 /** Business 3D Floorplan: the LLM lists the rooms on a plan, then each room is rendered as its own generation. */
@@ -230,7 +231,33 @@ export function cleanFinder(r: any): { items: FoundItem[] } {
   return { items };
 }
 /** Validate the LLM's JSON for a structured-text tool. */
-export const cleanLlmResult = (tool: string, raw: unknown) => (tool === "interior-finder" ? cleanFinder(raw) : cleanCritique(raw));
+export type OrientResult = {
+  summary: string;
+  sides: { side: string; direction: Direction; rating: "good" | "mixed" | "harsh"; sun: string; wind: string; impact: string }[];
+  recommendations: { area: string; suggestion: string; why: string; priority: "high" | "medium" | "low" }[];
+  roomNotes: string[]; renderBrief: string;
+};
+/** Bound the orientation analysis; renderBrief is kept server-side to drive the illustration. */
+export function cleanOrient(r: any): OrientResult {
+  const str = (v: unknown, n: number) => String(v ?? "").trim().slice(0, n);
+  const list = (v: unknown, max: number): any[] => (Array.isArray(v) ? v.slice(0, max) : []);
+  const o: OrientResult = {
+    summary: str(r?.summary, 800),
+    sides: list(r?.sides, 4).map((x) => ({
+      side: str(x?.side, 40), direction: (DIRECTIONS as readonly string[]).includes(x?.direction) ? x.direction : "N",
+      rating: ["good", "mixed", "harsh"].includes(x?.rating) ? x.rating : "mixed", sun: str(x?.sun, 300), wind: str(x?.wind, 300), impact: str(x?.impact, 400),
+    })),
+    recommendations: list(r?.recommendations, 7).map((x) => ({ area: str(x?.area, 60), suggestion: str(x?.suggestion, 400), why: str(x?.why, 300), priority: ["high", "medium", "low"].includes(x?.priority) ? x.priority : "medium" })).filter((x) => x.suggestion),
+    roomNotes: list(r?.roomNotes, 6).map((x) => str(x, 300)).filter(Boolean),
+    renderBrief: str(r?.renderBrief, 600),
+  };
+  if (!o.summary || !o.recommendations.length) throw new Error("The AI returned an incomplete analysis · AI trả về phân tích chưa đầy đủ");
+  return o;
+}
+export const cleanLlmResult = (tool: string, raw: unknown) => (tool === "interior-finder" ? cleanFinder(raw) : tool === "exterior-orient" ? cleanOrient(raw) : cleanCritique(raw));
+export const PLAN_KINDS = ["plan", "facade"] as const;
+/** Side names for the prompt; a street photo is read from outside, so its left/right are mirrored vs. the plan convention. */
+const facadeLabels = { front: "front (the facade in the photo)", right: "side on the LEFT of the photo", back: "back", left: "side on the RIGHT of the photo" };
 /** Tools that generate from a text description alone (no input photo). */
 export const TEXT_TOOLS: readonly ToolId[] = ["interior-text", "exterior-text", "garden-text"];
 
@@ -335,6 +362,39 @@ export function buildPrompt(tool: string, p: any): string {
         `Place ${n === 1 ? "the item" : "every item"} into the room at a natural position for its function, at realistic scale, with the room's perspective, lighting and soft contact shadows.`,
         "Keep each item's exact design: shape, proportions, color, material and details. Ignore the backgrounds of the item photos.",
         "Move or remove existing furniture only where needed to make space, and keep the room looking styled and cohesive.", room(p), custom(p), STRUCTURE_LOCK);
+    }
+    case "exterior-orient": {
+      const city = CITIES.find((c) => c.name === p.city);
+      const facing = oneOf(DIRECTIONS, p.facing);
+      if (!city || !facing) throw new Error("Pick the direction and the city · Chọn hướng và thành phố");
+      const plan = p.kind !== "facade";
+      const vi = p.lang === "vi";
+      return [
+        "You are a climate-responsive architect working in Vietnam.",
+        plan
+          ? `The image is a 2D floor plan. Its TOP edge faces ${facing}: the top edge is the "front side", the right edge the "right side", the bottom edge the "back side" and the left edge the "left side".`
+          : `The image is a street photo of the home's main facade, which faces ${facing}.`,
+        `Location: ${city.name}, latitude ${city.lat}°N. Computed direct sun on each side (accurate, use these numbers and do not contradict them):`,
+        exposureText(city.lat, facing, plan ? {} : facadeLabels),
+        `Prevailing winds: ${WINDS[city.region]}`,
+        `Assess how sun and wind affect each side${plan ? " and the rooms along it (read the room labels)" : ""}: overheating and glare from low afternoon sun, pleasant morning light, cross-ventilation, hot dry winds, cold or rain-driven winds.`,
+        `Then give concrete recommendations that respond to this orientation: shading (vertical fins, louvres, deep eaves, balconies), the size and type of glazing, wall insulation and color, greenery (trees, green walls, climbing plants), ventilation openings, materials${plan ? ", and moving or swapping rooms" : ""}. Rank them by impact and refer to specific windows, walls${plan ? " and rooms" : ""} you can see.`,
+        custom(p) && `Client's goals or constraints: ${String(p.custom).trim().slice(0, 500)}`,
+        `Write every text value in ${vi ? "Vietnamese" : "English"}, except renderBrief which is always English.`,
+        `Reply with JSON only: {"summary": string (2–3 sentences), "sides": [{"side": string (as named above), "direction": one of ${DIRECTIONS.join(", ")}, "rating": "good" | "mixed" | "harsh", "sun": string, "wind": string, "impact": string}] (the 4 sides), "recommendations": [{"area": string, "suggestion": string, "why": string, "priority": "high" | "medium" | "low"}] (4–7, most important first), "roomNotes": string[] (${plan ? "which rooms are affected and what to change" : "empty array"}), "renderBrief": string (2–3 English sentences listing the visible exterior changes an illustration should show, e.g. vertical timber fins over the west windows, smaller west glazing, a green wall, a shade tree at the southwest corner)}.`,
+      ].filter(Boolean).join("\n");
+    }
+    case "exterior-orient-render": {
+      // p.brief / p.kind / p.facing are filled in by the server from the stored analysis, never by the client.
+      const brief = String(p.brief ?? "").trim();
+      if (!brief) throw new Error("Run the orientation analysis first · Hãy phân tích hướng trước");
+      return p.kind === "facade"
+        ? join("Edit this photo of the house to show a climate-responsive upgrade. Apply exactly these visible changes:", brief,
+          "Keep the building's shape, size, roof, camera angle and surroundings. Photorealistic architectural photography in daylight.")
+        // A plan may be an apartment, so show the plan itself in 3D (roofless cutaway) with the features at its outer walls.
+        : join("This image is a 2D floor plan. Render it as a photorealistic roofless 3D cutaway seen from an elevated 45-degree angle, furnished, with the same rooms, walls, doors and windows exactly where the plan shows them.",
+          "At the outer walls and windows, show these climate-responsive features:", brief,
+          "The result contains no text, labels or dimension lines. Architectural visualization in soft daylight.");
     }
     case "interior-video":
       return join(

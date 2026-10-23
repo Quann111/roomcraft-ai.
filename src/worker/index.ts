@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { submitImageToImage, submitTextToImage, submitImageToVideo, queryTask, chatJson, chatText, imagePart, type ChatMessage } from "./runninghub";
+import { CITIES, DIRECTIONS } from "./solar";
 import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, VIDEO_TOOLS, VIDEO_COST, MOTIONS, PLAN_DETECT_PROMPT, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt } from "./prompts";
 
 type Env = { DB: D1Database; IMAGES: R2Bucket; DAILY_CREDITS: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
@@ -121,7 +122,7 @@ const ASPECTS = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "5:4", "4:5"
 const RES = ["1k", "2k", "4k"] as const;
 const RES_COST: Record<string, number> = { "1k": 1, "2k": 2, "4k": 3 };
 
-app.get("/api/styles", (c) => c.json({ styles: STYLES.map(({ slug, name, scope, img, photo }) => ({ slug, name, scope, thumb: img ? `https://drive.google.com/thumbnail?id=${img}&sz=w600` : photo ? `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=600&q=80` : undefined })), roomTypes: ROOM_TYPES, intervention: INTERVENTION, surfaces: SURFACES, paints: PAINT_COLORS, finishes: PAINT_FINISHES, weather: WEATHER, remove: REMOVE, angles: ANGLES, planViews: PLAN_VIEWS, budgets: BUDGETS, motions: MOTIONS }));
+app.get("/api/styles", (c) => c.json({ styles: STYLES.map(({ slug, name, scope, img, photo }) => ({ slug, name, scope, thumb: img ? `https://drive.google.com/thumbnail?id=${img}&sz=w600` : photo ? `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=600&q=80` : undefined })), roomTypes: ROOM_TYPES, intervention: INTERVENTION, surfaces: SURFACES, paints: PAINT_COLORS, finishes: PAINT_FINISHES, weather: WEATHER, remove: REMOVE, angles: ANGLES, planViews: PLAN_VIEWS, budgets: BUDGETS, motions: MOTIONS, cities: CITIES.map((c) => c.name), directions: DIRECTIONS }));
 app.get("/api/prompts", requireAuth, (c) => c.json({ prompts: STYLES.map(({ slug, name, scope, prompt }) => ({ slug, name, scope, prompt })) }));
 
 app.post("/api/upload", requireAuth, async (c) => {
@@ -149,6 +150,14 @@ app.post("/api/generate", requireAuth, async (c) => {
   const aspectRatio = ASPECTS.includes(b.aspectRatio) ? b.aspectRatio : undefined;
   let prompt: string;
   if (!(TOOL_IDS as readonly string[]).includes(b.tool)) return c.json({ error: "Invalid tool · Tool không hợp lệ" }, 400);
+  if (b.tool === "exterior-orient-render") {
+    // The illustration is driven by the stored analysis, so the client cannot inject its own prompt.
+    const src: any = await c.env.DB.prepare("SELECT params,input_key,output_key FROM generations WHERE id=? AND user_id=? AND tool='exterior-orient' AND status='SUCCESS'").bind(String(b.sourceId ?? ""), u.id).first();
+    const analysis: any = src ? await c.env.IMAGES.get(src.output_key).then((o) => o?.json()).catch(() => null) : null;
+    if (!analysis) return c.json({ error: "Run the orientation analysis first · Hãy phân tích hướng trước" }, 400);
+    const sp = JSON.parse(src.params);
+    Object.assign(b, { brief: analysis.renderBrief, kind: sp.kind, facing: sp.facing, inputKey: src.input_key, custom: undefined });
+  }
   try { prompt = buildPrompt(b.tool, b); } catch (e: any) { return c.json({ error: e.message }, 400); }
   const obj = textOnly ? null : await c.env.IMAGES.get(b.inputKey);
   if (!textOnly && !obj) return c.json({ error: "Image not found · Không tìm thấy ảnh" }, 400);
@@ -178,7 +187,7 @@ app.post("/api/generate", requireAuth, async (c) => {
       const outKey = `out/${u.id}/${id}.json`;
       await c.env.IMAGES.put(outKey, JSON.stringify(result), { httpMetadata: { contentType: "application/json" } });
       await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,input_key,output_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-        .bind(id, u.id, b.tool, JSON.stringify({ roomType: b.roomType, lang: b.lang === "vi" ? "vi" : "en", resolution }), prompt, "SUCCESS", b.inputKey, outKey, cost, now).run();
+        .bind(id, u.id, b.tool, JSON.stringify({ roomType: b.roomType, lang: b.lang === "vi" ? "vi" : "en", kind: b.kind, facing: b.facing, city: b.city, resolution }), prompt, "SUCCESS", b.inputKey, outKey, cost, now).run();
       return c.json({ id, status: "SUCCESS" });
     }
     const images = obj ? [obj, ...(ref ? [ref] : []), ...items.map((o) => o!)] : [];
@@ -191,7 +200,7 @@ app.post("/api/generate", requireAuth, async (c) => {
         prompt, aspectRatio, resolution,
       }, c.env.RUNNINGHUB_BASE);
     await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,rh_task_id,input_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: b.surface, material: b.material, weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
+      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: b.surface, material: b.material, weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
     return c.json({ id, status: "RUNNING" });
   } catch (e: any) {
     await refund("refund_submit_failed");
@@ -355,7 +364,7 @@ app.get("/api/generations/:id", requireAuth, async (c) => {
   }
   // Written critiques and advisor transcripts are stored as JSON in place of an output image.
   const json: any = g.status === "SUCCESS" && String(g.output_key).endsWith(".json") ? await c.env.IMAGES.get(g.output_key).then((o) => o?.json()).catch(() => null) : undefined;
-  return c.json({ id: g.id, tool: g.tool, status: g.status, error: g.error, public: !!g.is_public, critique: g.tool === "interior-critique" ? json : undefined, finder: g.tool === "interior-finder" ? json : undefined, chat: g.tool === ADVISOR_TOOL ? json?.messages : undefined, inputUrl: g.input_key ? `/api/images/${g.input_key}` : null, outputUrl: g.output_key ? `/api/images/${g.output_key}` : null });
+  return c.json({ id: g.id, tool: g.tool, params: JSON.parse(g.params), status: g.status, error: g.error, public: !!g.is_public, critique: g.tool === "interior-critique" ? json : undefined, finder: g.tool === "interior-finder" ? json : undefined, orient: g.tool === "exterior-orient" ? json : undefined, chat: g.tool === ADVISOR_TOOL ? json?.messages : undefined, inputUrl: g.input_key ? `/api/images/${g.input_key}` : null, outputUrl: g.output_key ? `/api/images/${g.output_key}` : null });
 });
 
 app.get("/api/generations", requireAuth, async (c) => {
