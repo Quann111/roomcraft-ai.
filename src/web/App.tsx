@@ -56,6 +56,12 @@ const WEATHER_PHOTOS: Record<string, string> = {
   Overcast: "photo-1762359365240-8c96c225165a", Twilight: "photo-1568605115459-4b731184f961", "Fresh snow": "photo-1583381707695-676570b40d38",
   "Misty morning": "photo-1672995912321-6faba4f7876f", "Dramatic storm clouds": "photo-1748701821466-0b9f8bf839ac",
 };
+/** Colour swatches for the lighting moods (sky colours at that time of day). */
+const LIGHT_SWATCH: Record<string, string> = {
+  morning: "linear-gradient(135deg, #cfe3f5, #f6e7c8)", midday: "linear-gradient(135deg, #7fb7ea, #e9f3fb)",
+  "golden-hour": "linear-gradient(135deg, #f2a65a, #f7d48b)", dusk: "linear-gradient(135deg, #1f3a6e, #e8a35c)",
+  night: "linear-gradient(135deg, #0d1424, #3b3220)", overcast: "linear-gradient(135deg, #8d949c, #c9ced3)",
+};
 const thumbOf = (map: Record<string, string>, key: string) => (map[key] ? U(map[key], 600) : undefined);
 
 type ToolDef = { name: string; desc: string; cat: string; photo: string; premium?: boolean; icon: string; spaces?: ToolId[]; popular?: boolean };
@@ -251,6 +257,11 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                     <div className="style-grid">{list(g.styles, "style").map((s, i) => choice(bi(s.name), i + 4, s.slug === g.style, () => g.setStyle(cfg.text && s.slug === g.style ? "" : s.slug), s.thumb))}</div>
                     {cfg.text && <p className="helper">{t("Room type and style are optional — click a selected card again to clear it.", "Loại phòng và phong cách không bắt buộc — bấm lại thẻ đã chọn để bỏ chọn.")}</p>}
                   </>
+                )}
+                {cfg.lighting && (
+                  <><h4>{t("Time of day", "Thời điểm trong ngày")}</h4>
+                    <div className="weather-grid">{meta.lighting.map((l) => <button key={l} type="button" className={`weather-card ${l === g.lighting ? "active" : ""}`} style={{ backgroundImage: LIGHT_SWATCH[l] }} onClick={() => g.setLighting(l)}><span>{bi(l)}</span></button>)}</div>
+                    <p className="helper">{t("Only the light changes; furniture, materials and the camera stay the same.", "Chỉ ánh sáng thay đổi; nội thất, vật liệu và góc chụp giữ nguyên.")}</p></>
                 )}
                 {cfg.orient && (
                   <>

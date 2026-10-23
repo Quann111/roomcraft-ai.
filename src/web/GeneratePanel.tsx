@@ -8,7 +8,7 @@ import { OrientView, DIRS, DIR_NAMES, type Orient } from "./OrientView";
 type Meta = {
   styles: { slug: string; name: string; scope: string; thumb?: string }[];
   roomTypes: string[]; intervention: string[];
-  surfaces: Record<string, string[]>; paints: { name: string; hex: string }[]; finishes: string[]; weather: string[]; remove: string[]; angles: string[]; planViews: string[]; motions: string[]; cities: string[];
+  surfaces: Record<string, string[]>; paints: { name: string; hex: string }[]; finishes: string[]; weather: string[]; remove: string[]; angles: string[]; planViews: string[]; motions: string[]; lighting: string[]; cities: string[];
 };
 export type Critique = {
   room: string; style: string; score: number; summary: string; strengths: string[];
@@ -20,10 +20,10 @@ export type Preset = Partial<{ styleSlug: string; roomType: string; intervention
 
 export type ToolId =
   | "interior-redesign" | "interior-staging" | "interior-declutter" | "interior-sketch" | "interior-material"
-  | "interior-paint" | "interior-floor" | "interior-transfer" | "interior-text" | "interior-floorplan" | "interior-compose" | "interior-critique" | "interior-advisor" | "interior-bizplan" | "interior-finder" | "interior-video" | "exterior-orient" | "exterior-orient-render"
+  | "interior-paint" | "interior-floor" | "interior-transfer" | "interior-text" | "interior-floorplan" | "interior-compose" | "interior-critique" | "interior-advisor" | "interior-bizplan" | "interior-finder" | "interior-video" | "exterior-orient" | "exterior-orient-render" | "interior-lighting"
   | "exterior-redesign" | "exterior-sky" | "exterior-sketch" | "exterior-paint" | "exterior-text" | "garden-redesign" | "garden-text";
 
-type Cfg = { scope?: "interior" | "exterior" | "garden"; room?: boolean; intervention?: boolean; remove?: boolean; surface?: boolean; weather?: boolean; angle?: boolean; planView?: boolean; video?: boolean; orient?: boolean; paint?: boolean; floor?: boolean; reference?: boolean; items?: boolean; llm?: boolean; chat?: boolean; bizplan?: boolean; text?: boolean; hint: string };
+type Cfg = { scope?: "interior" | "exterior" | "garden"; room?: boolean; intervention?: boolean; remove?: boolean; surface?: boolean; weather?: boolean; angle?: boolean; planView?: boolean; video?: boolean; orient?: boolean; lighting?: boolean; paint?: boolean; floor?: boolean; reference?: boolean; items?: boolean; llm?: boolean; chat?: boolean; bizplan?: boolean; text?: boolean; hint: string };
 const CFG: Record<ToolId, Cfg> = {
   "interior-redesign": { scope: "interior", room: true, intervention: true, hint: "Room photo to redesign · Ảnh phòng cần thiết kế lại" },
   "interior-staging": { scope: "interior", room: true, hint: "Empty room photo to stage · Ảnh phòng trống cần bài trí" },
@@ -38,6 +38,7 @@ const CFG: Record<ToolId, Cfg> = {
   "interior-advisor": { chat: true, hint: "Chat with the AI designer · Trò chuyện với nhà thiết kế AI" },
   "exterior-orient": { llm: true, orient: true, hint: "Floor plan or a photo of the facade · Mặt bằng hoặc ảnh mặt tiền" },
   "exterior-orient-render": { hint: "" }, // started from an orientation analysis, not from a form
+  "interior-lighting": { lighting: true, hint: "Room photo to relight · Ảnh phòng cần đổi ánh sáng" },
   "interior-video": { video: true, hint: "Room, house or garden photo · Ảnh phòng, nhà hoặc sân vườn" },
   "interior-finder": { llm: true, hint: "Room photo or a generated design · Ảnh phòng hoặc thiết kế đã tạo" },
   "interior-critique": { llm: true, room: true, hint: "Photo of the room to review · Ảnh căn phòng cần nhận xét" },
@@ -208,6 +209,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
   const [angle, setAngle] = useState("front");
   const [view, setView] = useState("isometric");
   const [motion, setMotion] = useState("push-in");
+  const [lighting, setLighting] = useState("golden-hour");
   const [kind, setKind] = useState<"plan" | "facade">("plan");
   const [facing, setFacing] = useState("");
   const [city, setCity] = useState("");
@@ -324,6 +326,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
           ...(cfg.angle ? { angle } : {}),
           ...(cfg.planView ? { view } : {}),
           ...(cfg.video ? { motion } : {}),
+          ...(cfg.lighting ? { lighting } : {}),
           ...(cfg.orient ? { kind, facing, city } : {}),
         }),
       });
@@ -332,11 +335,11 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     } catch (e: any) { setErr(e.message); setBusy(false); onCreditsChange(); }
   };
 
-  return { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, view, setView, motion, setMotion, kind, setKind, facing, setFacing, city, setCity, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, items, pickItem, removeItem, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory };
+  return { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, view, setView, motion, setMotion, lighting, setLighting, kind, setKind, facing, setFacing, city, setCity, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, items, pickItem, removeItem, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory };
 }
 
 export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId; preset?: Preset; onCreditsChange: () => void }) {
-  const { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, view, setView, motion, setMotion, kind, setKind, facing, setFacing, city, setCity, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, items, pickItem, removeItem, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory } = useGenerator(tool, preset, onCreditsChange);
+  const { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, view, setView, motion, setMotion, lighting, setLighting, kind, setKind, facing, setFacing, city, setCity, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, items, pickItem, removeItem, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory } = useGenerator(tool, preset, onCreditsChange);
   if (cfg.chat) return <AdvisorChat onCreditsChange={onCreditsChange} />;
   if (cfg.bizplan) return <BizPlan onCreditsChange={onCreditsChange} />;
   if (!meta) return <p className="mt-8 text-center text-neutral-500">{bi("Loading… · Đang tải…")}</p>;
@@ -382,6 +385,7 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
           <select className={field} value={facing} onChange={(e) => setFacing(e.target.value)}><option value="">{kind === "plan" ? bi("Top of the plan faces… · Phía trên bản vẽ nhìn hướng…") : bi("The facade faces… · Mặt tiền nhìn hướng…")}</option>{DIRS.map((d) => <option key={d} value={d}>{t(...DIR_NAMES[d])}</option>)}</select>
           <select className={field} value={city} onChange={(e) => setCity(e.target.value)}><option value="">{bi("City · Thành phố")}</option>{meta.cities.map((c) => <option key={c} value={c}>{c}</option>)}</select>
         </>}
+        {cfg.lighting && <select className={field} value={lighting} onChange={(e) => setLighting(e.target.value)}>{meta.lighting.map((l) => <option key={l} value={l}>{bi("Lighting · Ánh sáng")}: {bi(l)}</option>)}</select>}
         {cfg.video && <select className={field} value={motion} onChange={(e) => setMotion(e.target.value)}>{meta.motions.map((m) => <option key={m} value={m}>{bi("Camera · Camera")}: {bi(m)}</option>)}</select>}
         {cfg.planView && <select className={field} value={view} onChange={(e) => setView(e.target.value)}>{meta.planViews.map((v) => <option key={v} value={v}>{bi("View · Góc nhìn")}: {bi(v)}</option>)}</select>}
         {cfg.weather && <select className={field} value={weather} onChange={(e) => setWeather(e.target.value)}>{meta.weather.map((w) => <option key={w} value={w}>{bi(w)}</option>)}</select>}

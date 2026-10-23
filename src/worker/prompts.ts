@@ -118,7 +118,7 @@ const PLAN_VIEW_TEXT: Record<(typeof PLAN_VIEWS)[number], string> = {
 
 export const TOOL_IDS = [
   "interior-redesign", "interior-staging", "interior-declutter", "interior-sketch", "interior-material",
-  "interior-paint", "interior-floor", "interior-transfer", "interior-text", "interior-floorplan", "interior-compose", "interior-critique", "interior-finder", "interior-video", "exterior-orient", "exterior-orient-render",
+  "interior-paint", "interior-floor", "interior-transfer", "interior-text", "interior-floorplan", "interior-compose", "interior-critique", "interior-finder", "interior-video", "exterior-orient", "exterior-orient-render", "interior-lighting",
   "exterior-redesign", "exterior-sky", "exterior-sketch", "exterior-paint", "exterior-text", "garden-redesign", "garden-text",
 ] as const;
 export type ToolId = (typeof TOOL_IDS)[number];
@@ -131,6 +131,16 @@ export const MAX_ITEMS = 3;
 export const VIDEO_TOOLS: readonly ToolId[] = ["interior-video"];
 export const VIDEO_COST = 5;
 export const MOTIONS = ["push-in", "pan", "orbit", "reveal"] as const;
+/** Times of day for relighting an interior photo. */
+export const LIGHTING = ["morning", "midday", "golden-hour", "dusk", "night", "overcast"] as const;
+const LIGHTING_TEXT: Record<(typeof LIGHTING)[number], string> = {
+  morning: "soft early-morning daylight: gentle, slightly cool sun entering low through the windows, pale blue sky outside, all lamps off",
+  midday: "bright midday daylight: neutral white light from a high sun, crisp short shadows near the windows, clear sky outside, all lamps off",
+  "golden-hour": "golden hour in the late afternoon: warm, low sun streaming through the windows and casting long warm shadows across the floor and furniture, orange-tinted sky outside, lamps off",
+  dusk: "blue-hour dusk: a deep blue twilight sky outside the windows, the light fixtures already in the room switched on with warm 2700K light, balanced exposure",
+  night: "night: a completely dark sky outside, the light fixtures already in the room switched on with warm 3000K light, cosy pools of light and soft shadows, reflections in the dark windows",
+  overcast: "an overcast, rainy day: soft, diffuse grey daylight with no direct sun, raindrops on the window glass, lamps off",
+};
 const MOTION_TEXT: Record<(typeof MOTIONS)[number], string> = {
   "push-in": "a slow, steady dolly push-in toward the center of the space",
   pan: "a slow horizontal pan from left to right",
@@ -395,6 +405,14 @@ export function buildPrompt(tool: string, p: any): string {
         : join("This image is a 2D floor plan. Render it as a photorealistic roofless 3D cutaway seen from an elevated 45-degree angle, furnished, with the same rooms, walls, doors and windows exactly where the plan shows them.",
           "At the outer walls and windows, show these climate-responsive features:", brief,
           "The result contains no text, labels or dimension lines. Architectural visualization in soft daylight.");
+    }
+    case "interior-lighting": {
+      const l = oneOf(LIGHTING, p.lighting);
+      if (!l) throw new Error("Pick a lighting mood · Chọn kiểu ánh sáng");
+      return join(
+        `Relight this interior photo for ${LIGHTING_TEXT[l]}.`,
+        "Change only the light: sunlight direction and color through the windows, the sky seen outside, which artificial lights are on, shadows, reflections and overall exposure.",
+        "Keep every wall, window, piece of furniture, material, color and object, and the camera angle, exactly as in the photo. Do not add new lamps or light fixtures; only turn on the ones you can see.", custom(p), "Photorealistic interior photography.");
     }
     case "interior-video":
       return join(
