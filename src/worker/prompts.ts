@@ -127,6 +127,9 @@ export const REFERENCE_TOOLS: readonly ToolId[] = ["interior-transfer"];
 /** Tools that take 1–MAX_ITEMS item photos (furniture, decor) after the main photo. */
 export const ITEM_TOOLS: readonly ToolId[] = ["interior-compose"];
 export const MAX_ITEMS = 3;
+/** Surface tools that can render several materials side by side in one request. */
+export const COMPARE_TOOLS: readonly ToolId[] = ["interior-material", "interior-floor"];
+export const MAX_COMPARE = 4;
 /** Image-to-video tools (Veo 3.1 Fast on RunningHub, 8 s, 720p, with audio); a clip costs VIDEO_COST credits. */
 export const VIDEO_TOOLS: readonly ToolId[] = ["interior-video"];
 export const VIDEO_COST = 5;

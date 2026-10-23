@@ -6,6 +6,7 @@ import { api, useAuth } from "./auth";
 import { AdvisorChat, Transcript } from "./AdvisorChat";
 import { BizPlan } from "./BizPlan";
 import { ToolGuide } from "./ToolGuide";
+import { CompareResults, MAX_COMPARE, useCompare } from "./MaterialCompare";
 import { OrientView, DIRS, DIR_NAMES } from "./OrientView";
 import { BeforeAfter, CritiqueView, FinderView, isChat, isTextResult, isVideo, resultFile, MAX_ITEMS, PrepInfo, useGenerator, type Preset, type ToolId } from "./GeneratePanel";
 
@@ -107,6 +108,28 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
   const spaces = def.spaces!;
   const [tool, setTool] = useState<ToolId>(initialTool && spaces.includes(initialTool) ? initialTool : spaces[0]);
   const g = useGenerator(tool, preset, onCredits);
+  // Material comparison (surface tools only): several materials on the same photo, side by side.
+  const canCompare = !!(g.cfg.surface || g.cfg.floor);
+  const [compare, setCompare] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const cmp = useCompare(onCredits);
+  useEffect(() => { setPicked([]); cmp.reset(); }, [g.surface, tool]);
+  const togglePick = (m: string) => setPicked((a) => (a.includes(m) ? a.filter((x) => x !== m) : a.length >= MAX_COMPARE ? a : [...a, m]));
+  const cost = ({ "1k": 1, "2k": 2, "4k": 3 } as Record<string, number>)[g.res] ?? 1;
+  const runCompare = () => g.file && cmp.run({ tool, file: g.file, surface: g.cfg.floor ? "floor" : g.surface, materials: picked, resolution: g.res, aspectRatio: g.prep?.aspectRatio, custom: g.custom });
+  const comparing = compare && canCompare;
+  const modeSwitch = canCompare && (
+    <div className="segmented" style={{ marginBottom: 10 }}>
+      <button type="button" className={!compare ? "active" : ""} onClick={() => setCompare(false)}>{t("One material", "Một vật liệu")}</button>
+      <button type="button" className={compare ? "active" : ""} onClick={() => setCompare(true)}>{t(`Compare up to ${MAX_COMPARE}`, `So sánh tối đa ${MAX_COMPARE}`)}</button>
+    </div>
+  );
+  const pickGrid = (list: string[]) => (
+    <>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{list.map((m) => <button key={m} type="button" className={`outline-btn ${picked.includes(m) ? "active" : ""}`} style={picked.includes(m) ? { background: "#1c1b19", color: "#fff" } : undefined} onClick={() => togglePick(m)}>{bi(m)}</button>)}</div>
+      <p className="helper">{t(`${picked.length} selected · pick 2–${MAX_COMPARE}; each material is one image (${cost} credit each).`, `Đã chọn ${picked.length} · chọn 2–${MAX_COMPARE}; mỗi vật liệu là một ảnh (${cost} credit mỗi ảnh).`)}</p>
+    </>
+  );
   const { cfg, meta } = g;
   const [showAll, setShowAll] = useState({ room: false, style: false });
   const [tab, setTab] = useState<"preset" | "extra">("preset");
@@ -156,7 +179,9 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
           {!cfg.text && <PrepInfo p={g.prep} />}
           <div className="or">{t("RESULT", "KẾT QUẢ")}</div>
           <section className="gallery-panel">
-            {g.gen?.status === "SUCCESS" && g.gen.orient ? (
+            {comparing && cmp.items.length > 0 && g.preview ? (
+              <CompareResults original={g.preview} items={cmp.items} Compare={BeforeAfter} />
+            ) : g.gen?.status === "SUCCESS" && g.gen.orient ? (
               <>
                 <OrientView photo={g.gen.inputUrl} o={g.gen.orient} id={g.gen.id} params={g.gen.params ?? { kind: g.kind, facing: g.facing, city: g.city }} onCredits={onCredits} Compare={BeforeAfter} />
                 <div className="row-between" style={{ marginTop: 14, flexWrap: "wrap", gap: 8 }}>
@@ -304,12 +329,14 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                 {cfg.surface && (
                   <><h4>{t("Surface", "Bề mặt")}</h4>
                     <div className="segmented">{Object.keys(meta.surfaces).map((s) => <button key={s} type="button" className={s === g.surface ? "active" : ""} onClick={() => g.setSurface(s)}>{bi(s)}</button>)}</div>
-                    <h4>{t("Material", "Vật liệu")}</h4>
-                    <select className="country" value={g.material} onChange={(e) => g.setMaterial(e.target.value)}>{meta.surfaces[g.surface].map((m) => <option key={m} value={m}>{bi(m)}</option>)}</select></>
+                    <h4>{comparing ? t("Materials to compare", "Vật liệu cần so sánh") : t("Material", "Vật liệu")}</h4>
+                    {modeSwitch}
+                    {comparing ? pickGrid(meta.surfaces[g.surface]) : <select className="country" value={g.material} onChange={(e) => g.setMaterial(e.target.value)}>{meta.surfaces[g.surface].map((m) => <option key={m} value={m}>{bi(m)}</option>)}</select>}</>
                 )}
                 {cfg.floor && (
-                  <><h4>{t("Flooring material", "Vật liệu sàn")}</h4>
-                    <div className="segmented">{meta.surfaces.floor.map((m) => <button key={m} type="button" className={m === g.material ? "active" : ""} onClick={() => g.setMaterial(m)}>{bi(m)}</button>)}</div></>
+                  <><h4>{comparing ? t("Floors to compare", "Các loại sàn cần so sánh") : t("Flooring material", "Vật liệu sàn")}</h4>
+                    {modeSwitch}
+                    {comparing ? pickGrid(meta.surfaces.floor) : <div className="segmented">{meta.surfaces.floor.map((m) => <button key={m} type="button" className={m === g.material ? "active" : ""} onClick={() => g.setMaterial(m)}>{bi(m)}</button>)}</div>}</>
                 )}
                 {cfg.paint && (
                   <><h4>{t("Wall color", "Màu sơn tường")}</h4>
@@ -349,9 +376,14 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
               <div className="segmented">{[["1k", 1], ["2k", 2], ["4k", 3]].map(([k, c]) => <button key={k} type="button" className={k === g.res ? "active" : ""} onClick={() => g.setRes(k as string)}>{(k as string).toUpperCase()} · {c} credit</button>)}</div>
             </>}
             {g.err && <p className="helper" style={{ color: "#b3261e" }}>{bi(g.err)}</p>}
-            <button className="generate-btn" disabled={!g.ready || g.busy} onClick={g.run} style={!g.ready || g.busy ? { opacity: 0.5 } : undefined}>
+            {comparing ? <>
+              {cmp.err && <p className="helper" style={{ color: "#b3261e" }}>{bi(cmp.err)}</p>}
+              <button className="generate-btn" disabled={!g.file || g.preparing > 0 || picked.length < 2 || cmp.busy} onClick={runCompare} style={!g.file || picked.length < 2 || cmp.busy ? { opacity: 0.5 } : undefined}>
+                <Icon n="spark" />{cmp.busy ? t("Rendering the comparison…", "Đang render so sánh…") : !g.file ? t("Upload an image first", "Hãy tải ảnh lên trước") : picked.length < 2 ? t("Pick at least 2 materials", "Hãy chọn ít nhất 2 vật liệu") : t(`Compare ${picked.length} materials · ${picked.length * cost} credits`, `So sánh ${picked.length} vật liệu · ${picked.length * cost} credit`)}
+              </button>
+            </> : <button className="generate-btn" disabled={!g.ready || g.busy} onClick={g.run} style={!g.ready || g.busy ? { opacity: 0.5 } : undefined}>
               <Icon n="spark" />{g.busy ? t("Generating… (1–2 min)", "Đang tạo… (1–2 phút)") : g.preparing ? t("Optimizing image…", "Đang tối ưu ảnh…") : g.ready ? t("Generate New Designs", "Tạo thiết kế mới") : cfg.text ? t("Describe your space first", "Hãy mô tả không gian trước") : !g.file ? t("Upload an image first", "Hãy tải ảnh lên trước") : cfg.items && !g.items.length ? t("Add an item photo", "Hãy thêm ảnh đồ vật") : cfg.orient ? t("Pick the direction and the city", "Hãy chọn hướng và thành phố") : t("Add a style reference", "Hãy thêm ảnh tham khảo")}
-            </button>
+            </button>}
           </div>
         </div>
       </div>
