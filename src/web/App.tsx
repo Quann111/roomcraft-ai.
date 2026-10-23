@@ -5,6 +5,7 @@ import { bi, getLang, setLang, t } from "./i18n";
 import { api, useAuth } from "./auth";
 import { AdvisorChat, Transcript } from "./AdvisorChat";
 import { BizPlan } from "./BizPlan";
+import { ToolGuide } from "./ToolGuide";
 import { OrientView, DIRS, DIR_NAMES } from "./OrientView";
 import { BeforeAfter, CritiqueView, FinderView, isChat, isTextResult, isVideo, resultFile, MAX_ITEMS, PrepInfo, useGenerator, type Preset, type ToolId } from "./GeneratePanel";
 
@@ -507,6 +508,7 @@ export function App() {
                   <div className="module-actions"><span className="nav-user" style={{ alignSelf: "center" }}>{credits} credits</span><button className="outline-btn" onClick={logout}>{t("Log out", "Thoát")}</button></div>
                 </header>
                 <div className="module-banner"><span className="info"><Icon n="info" /></span><div><h2>{active.name}</h2><p>{active.desc}</p></div></div>
+                <ToolGuide key={active.name} name={active.name} />
                 <div>
                   {active.spaces?.[0] === "interior-bizplan" ? (
                     <div className="control-panel" style={{ margin: "20px 0" }}><BizPlan onCreditsChange={reload} /></div>
