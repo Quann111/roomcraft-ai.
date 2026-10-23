@@ -130,6 +130,33 @@ export const MAX_ITEMS = 3;
 export const CRITIQUE_TOOLS: readonly ToolId[] = ["interior-critique"];
 export const CRITIQUE_MODEL = "google/gemini-3.8-flash";
 
+/** Business 3D Floorplan: the LLM lists the rooms on a plan, then each room is rendered as its own generation. */
+export const BIZPLAN_TOOL = "interior-bizplan";
+export const MAX_PLAN_ROOMS = 8;
+export const PLAN_DETECT_PROMPT = [
+  "This image is a 2D floor plan of a home. List every space a buyer would want to see as a photo: living areas, kitchen, dining, bedrooms, bathrooms, study and large balconies. Skip closets, corridors, shafts and storage.",
+  `Return at most ${MAX_PLAN_ROOMS} spaces. For each give: "name" (as labelled on the plan, or a clear name such as "Bedroom 2"), and "view": one or two English sentences that let an artist render an eye-level photo of that space from the plan: where it sits on the plan, its shape, which walls have windows or doors, and built-in fixtures (kitchen units, bath, shower).`,
+  'Also give "home": a short English description of the whole home (for example "two-bedroom apartment with an open-plan living and kitchen area").',
+  'Reply with JSON only: {"home": string, "rooms": [{"name": string, "view": string}]}.',
+].join("\n");
+export type PlanRoom = { name: string; view: string };
+/** Bound the LLM's room list (or a client-edited one) to safe, short values. */
+export function cleanRooms(v: unknown): PlanRoom[] {
+  return (Array.isArray(v) ? v : []).slice(0, MAX_PLAN_ROOMS)
+    .map((r: any) => ({ name: String(r?.name ?? "").trim().slice(0, 40), view: String(r?.view ?? "").trim().slice(0, 400) }))
+    .filter((r) => r.name);
+}
+export function planRoomPrompt(styleSlug: unknown, room: PlanRoom, home: string) {
+  const s = styleFor(styleSlug, "interior");
+  return [
+    `This image is the floor plan of a home${home ? ` (${home})` : ""}. Render a photorealistic eye-level interior photograph of one space from it: the ${room.name}.`,
+    room.view && `About this space: ${room.view}`,
+    "Keep its shape, proportions, windows and doors as the plan shows them, and furnish it for its purpose at realistic scale.",
+    `The whole home shares one consistent ${s.name} interior design: the same flooring, wall color, wood tone, metal finish and lighting style in every room.`,
+    "Wide-angle professional interior photography, natural daylight, no people, no text, no plan lines.",
+  ].filter(Boolean).join(" ");
+}
+
 /** Design Advisor is a chat, not a generation: it has its own endpoint and transcript. */
 export const ADVISOR_TOOL = "interior-advisor";
 export const ADVISOR_MODEL = "google/gemini-3.8-flash";

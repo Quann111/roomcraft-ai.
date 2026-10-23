@@ -4,6 +4,7 @@ import { navigate, useLocation, Link } from "./router";
 import { bi, getLang, setLang, t } from "./i18n";
 import { api, useAuth } from "./auth";
 import { AdvisorChat, Transcript } from "./AdvisorChat";
+import { BizPlan } from "./BizPlan";
 import { BeforeAfter, CritiqueView, isChat, isCritique, isTextResult, MAX_ITEMS, PrepInfo, useGenerator, type Preset, type ToolId } from "./GeneratePanel";
 
 /* ---------- icons ---------- */
@@ -77,7 +78,7 @@ const TOOLS: ToolDef[] = [
   { name: "Room Composer", desc: "Upload your room and elements, and our AI will compose it into a stylish, cohesive space.", cat: "furnish", photo: "photo-1674058924341-a79eed7e9a89", icon: "sofa", spaces: ["interior-compose"] },
   { name: "Design Transfer", desc: "Recreate the style of inspiration images by applying their design style to a new space.", cat: "redesign", photo: "photo-1615529182904-14819c35db37", icon: "image", spaces: ["interior-transfer"] },
   { name: "Text to Design", desc: "Generate complete designs from text descriptions, turning words into beautifully crafted spaces.", cat: "redesign", photo: "photo-1757344454333-cc666252e596", icon: "file", spaces: ["interior-text", "exterior-text", "garden-text"] },
-  { name: "Business 3D Floorplan", desc: "Upload one 2D plan. AI detects every room and generates consistent, photoreal renders for each space.", cat: "business", photo: "photo-1721244654210-a505a99661e9", icon: "house", premium: true },
+  { name: "Business 3D Floorplan", desc: "Upload one 2D plan. AI detects every room and generates consistent, photoreal renders for each space.", cat: "business", photo: "photo-1721244654210-a505a99661e9", icon: "house", premium: true, spaces: ["interior-bizplan"] },
   { name: "3D Floorplan", desc: "Generate realistic 3D renderings from 2D floorplans. Bring blueprints to life with complete accuracy.", cat: "3d", photo: "photo-1786550860329-f813516e9705", icon: "house", premium: true, spaces: ["interior-floorplan"] },
   { name: "Video Generation", desc: "Turn design ideas into stunning AI-powered videos and realistic visual presentations.", cat: "business", photo: "photo-1743463685519-469d9ebe1b7f", icon: "spark", premium: true },
   { name: "Design Critique", desc: "Receive detailed AI-driven feedback on an uploaded room design and expert suggestions to refine it.", cat: "business", photo: "photo-1781888679143-01d758aedbe6", icon: "info", premium: true, spaces: ["interior-critique"] },
@@ -460,7 +461,9 @@ export function App() {
                 </header>
                 <div className="module-banner"><span className="info"><Icon n="info" /></span><div><h2>{active.name}</h2><p>{active.desc}</p></div></div>
                 <div>
-                  {active.spaces?.[0] === "interior-advisor" ? (
+                  {active.spaces?.[0] === "interior-bizplan" ? (
+                    <div className="control-panel" style={{ margin: "20px 0" }}><BizPlan onCreditsChange={reload} /></div>
+                  ) : active.spaces?.[0] === "interior-advisor" ? (
                     <div className="control-panel" style={{ margin: "20px 0" }}><AdvisorChat onCreditsChange={reload} /></div>
                   ) : active.spaces ? (
                     <Workspace key={active.name + (toolParam ?? "")} tool={active} initialTool={toolParam ?? undefined} preset={preset} onCredits={reload} />
