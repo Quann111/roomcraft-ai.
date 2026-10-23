@@ -108,10 +108,16 @@ export const PAINT_FINISHES = ["matte", "eggshell", "satin", "gloss"] as const;
 export const WEATHER = ["Golden hour", "Clear blue sky", "Sunset glow", "Overcast", "Twilight", "Fresh snow", "Misty morning", "Dramatic storm clouds"];
 export const REMOVE = ["furniture", "clutter", "people", "everything (empty room)"];
 export const ANGLES = ["front", "side", "back"];
+/** Camera views for turning a 2D floor plan into a 3D render. */
+export const PLAN_VIEWS = ["isometric", "top-down"] as const;
+const PLAN_VIEW_TEXT: Record<(typeof PLAN_VIEWS)[number], string> = {
+  isometric: "Show it like a photograph of a roofless architectural scale model taken diagonally from outside one corner, with the camera only about 30 degrees above the ground, in true 3D perspective. The outer and inner wall faces (cut at about 1.2 m height) and the height of the furniture are clearly visible.",
+  "top-down": "Show it like a photograph taken from a drone directly above a roofless home, with the walls extruded with realistic thickness and soft shadows, so the layout reads exactly like the plan.",
+};
 
 export const TOOL_IDS = [
   "interior-redesign", "interior-staging", "interior-declutter", "interior-sketch", "interior-material",
-  "interior-paint", "interior-floor", "interior-transfer", "interior-text",
+  "interior-paint", "interior-floor", "interior-transfer", "interior-text", "interior-floorplan",
   "exterior-redesign", "exterior-sky", "exterior-sketch", "exterior-paint", "exterior-text", "garden-redesign", "garden-text",
 ] as const;
 export type ToolId = (typeof TOOL_IDS)[number];
@@ -213,6 +219,17 @@ export function buildPrompt(tool: string, p: any): string {
       return join(
         `A photorealistic interior design photograph of ${description(p)}.`, room(p), optionalStyle(p, "interior"), custom(p),
         "Professional interior photography, natural daylight, realistic materials and proportions, eye-level wide-angle shot, no people, no text.");
+    case "interior-floorplan": {
+      const s = styleFor(p.styleSlug, "interior");
+      return join(
+        `This image is a 2D architectural floor plan. Turn it into a photorealistic 3D rendering of the same floor plan, furnished in a ${s.name} interior style.`,
+        "The result is a picture of a real furnished home, not a drawing. Words on the plan only tell you what each room is for and are never drawn: every floor shows only real flooring, rugs and furniture, with no writing, numbers, dimension lines or symbols.",
+        PLAN_VIEW_TEXT[oneOf(PLAN_VIEWS, p.view) ?? "isometric"],
+        "Follow the plan exactly: the same outline, the same rooms in the same positions and proportions, and every wall, door opening and window where the plan shows it. Do not add, remove, merge or resize rooms.",
+        "Furnish each room for its purpose as shown by its label or fixtures (beds in bedrooms, sofa and coffee table in the living room, kitchen units, bathroom fixtures) at realistic scale, with matching floor materials per room.",
+        "Soft natural daylight, realistic materials, plain light background around the building, high quality architectural visualization.", custom(p),
+        "Final check: the image contains no text of any kind.");
+    }
     case "exterior-text":
       return join(
         `A photorealistic architectural photograph of a house exterior: ${description(p)}.`, optionalStyle(p, "exterior"), custom(p),

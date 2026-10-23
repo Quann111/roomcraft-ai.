@@ -18,7 +18,7 @@ export const FEATURES: Feature[] = [
   { slug: "room-composer", name: ["Room Composer", "Sắp xếp phòng"], desc: ["Arrange your own furniture inside the room.", "Sắp xếp đồ của bạn vào phòng."], group: "staging", icon: "🧩" },
   { slug: "text-to-design", name: ["Text to Design", "Văn bản → thiết kế"], desc: ["Describe the space and get design ideas.", "Mô tả không gian để nhận ý tưởng thiết kế."], group: "advice", icon: "💬" },
   { slug: "design-critique", name: ["Design Critique", "Nhận xét thiết kế"], desc: ["Get feedback and improvement tips.", "Nhận phản hồi và gợi ý cải thiện."], group: "advice", icon: "📝" },
-  { slug: "ai-floor-plan-generator", name: ["2D to 3D Floor Plan", "Mặt bằng 2D → 3D"], desc: ["Turn a floor plan into a furnished 3D view.", "Biến mặt bằng thành mô hình 3D có nội thất."], group: "advice", icon: "📐" },
+  { slug: "ai-floor-plan-generator", name: ["2D to 3D Floor Plan", "Mặt bằng 2D → 3D"], desc: ["Turn a floor plan into a furnished 3D view.", "Biến mặt bằng thành mô hình 3D có nội thất."], group: "advice", tool: "interior-floorplan", icon: "📐" },
   { slug: "video-walkthrough", name: ["Video Walkthrough", "Video tham quan"], desc: ["Animate a design into a short walkthrough clip.", "Biến thiết kế thành clip tham quan ngắn."], group: "advice", icon: "🎬" },
 ];
 
