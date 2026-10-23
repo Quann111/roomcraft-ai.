@@ -77,7 +77,7 @@ const TOOLS: ToolDef[] = [
   { name: "Design Transfer", desc: "Recreate the style of inspiration images by applying their design style to a new space.", cat: "redesign", photo: "photo-1615529182904-14819c35db37", icon: "image" },
   { name: "Text to Design", desc: "Generate complete designs from text descriptions, turning words into beautifully crafted spaces.", cat: "redesign", photo: "photo-1757344454333-cc666252e596", icon: "file" },
   { name: "Business 3D Floorplan", desc: "Upload one 2D plan. AI detects every room and generates consistent, photoreal renders for each space.", cat: "business", photo: "photo-1721244654210-a505a99661e9", icon: "house", premium: true },
-  { name: "3D Floorplan", desc: "Generate realistic 3D renderings from 2D floorplans. Bring blueprints to life with complete accuracy.", cat: "3d", photo: "photo-1786550860329-f813516e9705", icon: "house", premium: true },
+  { name: "3D Floorplan", desc: "Generate realistic 3D renderings from 2D floorplans. Bring blueprints to life with complete accuracy.", cat: "3d", photo: "photo-1786550860329-f813516e9705", icon: "house", premium: true, spaces: ["interior-floorplan"] },
   { name: "Video Generation", desc: "Turn design ideas into stunning AI-powered videos and realistic visual presentations.", cat: "business", photo: "photo-1743463685519-469d9ebe1b7f", icon: "spark", premium: true },
   { name: "Design Critique", desc: "Receive detailed AI-driven feedback on an uploaded room design and expert suggestions to refine it.", cat: "business", photo: "photo-1781888679143-01d758aedbe6", icon: "info", premium: true },
   { name: "Design Advisor", desc: "Chat with our AI trained by top designers to get advice tailored to your project and budget.", cat: "business", photo: "photo-1664638413302-d1ca29ac885b", icon: "headset", premium: true },
@@ -206,6 +206,10 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                 {cfg.angle && (
                   <><h4>{t("View angle", "Góc nhìn")}</h4>
                     <div className="segmented">{meta.angles.map((a) => <button key={a} type="button" className={a === g.angle ? "active" : ""} onClick={() => g.setAngle(a)}>{bi(a)}</button>)}</div></>
+                )}
+                {cfg.planView && (
+                  <><h4>{t("3D view", "Góc nhìn 3D")}</h4>
+                    <div className="segmented">{meta.planViews.map((v) => <button key={v} type="button" className={v === g.view ? "active" : ""} onClick={() => g.setView(v)}>{bi(v)}</button>)}</div></>
                 )}
                 {cfg.weather && (
                   <><h4>{t("Change Sky Colors to:", "Đổi bầu trời thành:")}</h4>

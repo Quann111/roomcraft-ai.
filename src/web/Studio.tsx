@@ -13,7 +13,7 @@ type Cat = keyof typeof TOOLS;
 
 export const TOOL_ID: Record<string, ToolId> = {
   "Interiors/Redesign": "interior-redesign", "Interiors/Virtual Staging": "interior-staging", "Interiors/Declutter": "interior-declutter",
-  "Interiors/Sketch to Render": "interior-sketch", "Interiors/Material Swap": "interior-material",
+  "Interiors/Sketch to Render": "interior-sketch", "Interiors/Material Swap": "interior-material", "Interiors/2D to 3D Floor Plan": "interior-floorplan",
   "Exteriors/Redesign": "exterior-redesign", "Exteriors/Sky & Weather Swap": "exterior-sky", "Exteriors/Sketch to Render": "exterior-sketch",
   "Gardens/Redesign": "garden-redesign",
 };
