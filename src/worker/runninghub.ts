@@ -48,3 +48,22 @@ export async function submitTextToImage(apiKey: string, o: { prompt: string; asp
 }
 
 export const queryTask = (apiKey: string, taskId: string, base = DEFAULT_BASE) => rh(apiKey, `${base}/query`, { taskId });
+
+const LLM_BASE = "https://llm.runninghub.ai/v1";
+
+/** One vision chat call that must answer with a JSON object; returns the parsed object. */
+export async function chatJson(apiKey: string, o: { model: string; prompt: string; image: InputImage }, base = LLM_BASE): Promise<any> {
+  const r = await fetch(`${base}/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: o.model,
+      response_format: { type: "json_object" },
+      messages: [{ role: "user", content: [{ type: "text", text: o.prompt }, { type: "image_url", image_url: { url: toDataUri(o.image.bytes, o.image.mime) } }] }],
+    }),
+  });
+  const data: any = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error?.message || data.message || `RunningHub LLM ${r.status}`);
+  const text = String(data.choices?.[0]?.message?.content ?? "").replace(/^```(?:json)?\s*|\s*```$/g, "");
+  try { return JSON.parse(text); } catch { throw new Error("The AI returned an unreadable answer · AI trả về kết quả không đọc được"); }
+}

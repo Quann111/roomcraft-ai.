@@ -105,7 +105,7 @@ const PLAN_VIEW_TEXT: Record<(typeof PLAN_VIEWS)[number], string> = {
 
 export const TOOL_IDS = [
   "interior-redesign", "interior-staging", "interior-declutter", "interior-sketch", "interior-material",
-  "interior-paint", "interior-floor", "interior-transfer", "interior-text", "interior-floorplan", "interior-compose",
+  "interior-paint", "interior-floor", "interior-transfer", "interior-text", "interior-floorplan", "interior-compose", "interior-critique",
   "exterior-redesign", "exterior-sky", "exterior-sketch", "exterior-paint", "exterior-text", "garden-redesign", "garden-text",
 ] as const;
 export type ToolId = (typeof TOOL_IDS)[number];
@@ -114,6 +114,31 @@ export const REFERENCE_TOOLS: readonly ToolId[] = ["interior-transfer"];
 /** Tools that take 1–MAX_ITEMS item photos (furniture, decor) after the main photo. */
 export const ITEM_TOOLS: readonly ToolId[] = ["interior-compose"];
 export const MAX_ITEMS = 3;
+/** Tools answered by the LLM with a written critique instead of an image. */
+export const CRITIQUE_TOOLS: readonly ToolId[] = ["interior-critique"];
+export const CRITIQUE_MODEL = "google/gemini-3.8-flash";
+export type Critique = {
+  room: string; style: string; score: number; summary: string; strengths: string[];
+  improvements: { area: string; issue: string; suggestion: string; priority: "high" | "medium" | "low" }[]; quickWins: string[];
+};
+/** Coerce the LLM's JSON into a safe, bounded Critique (it may skip or mistype fields). */
+export function cleanCritique(r: any): Critique {
+  const str = (v: unknown, n: number) => String(v ?? "").trim().slice(0, n);
+  const list = (v: unknown, max: number): any[] => (Array.isArray(v) ? v.slice(0, max) : []);
+  const score = Number(r?.score);
+  const c: Critique = {
+    room: str(r?.room, 60), style: str(r?.style, 60),
+    score: Number.isFinite(score) ? Math.min(10, Math.max(1, Math.round(score * 10) / 10)) : 0,
+    summary: str(r?.summary, 800),
+    strengths: list(r?.strengths, 4).map((x) => str(x, 300)).filter(Boolean),
+    improvements: list(r?.improvements, 5)
+      .map((x) => ({ area: str(x?.area, 60), issue: str(x?.issue, 300), suggestion: str(x?.suggestion, 400), priority: (["high", "medium", "low"].includes(x?.priority) ? x.priority : "medium") as Critique["improvements"][number]["priority"] }))
+      .filter((x) => x.suggestion),
+    quickWins: list(r?.quickWins, 3).map((x) => str(x, 300)).filter(Boolean),
+  };
+  if (!c.summary || !c.improvements.length) throw new Error("The AI returned an incomplete critique · AI trả về nhận xét chưa đầy đủ");
+  return c;
+}
 /** Tools that generate from a text description alone (no input photo). */
 export const TEXT_TOOLS: readonly ToolId[] = ["interior-text", "exterior-text", "garden-text"];
 
@@ -210,6 +235,18 @@ export function buildPrompt(tool: string, p: any): string {
         `Place ${n === 1 ? "the item" : "every item"} into the room at a natural position for its function, at realistic scale, with the room's perspective, lighting and soft contact shadows.`,
         "Keep each item's exact design: shape, proportions, color, material and details. Ignore the backgrounds of the item photos.",
         "Move or remove existing furniture only where needed to make space, and keep the room looking styled and cohesive.", room(p), custom(p), STRUCTURE_LOCK);
+    }
+    case "interior-critique": {
+      const vi = p.lang === "vi";
+      return join(
+        "You are a senior interior designer reviewing a client's photo of their room. Give an honest, specific critique of the design you can see.",
+        room(p) && `The client says: ${room(p)}`,
+        "Judge layout and flow, lighting, color palette, materials and textures, furniture scale and proportion, styling and decor, and how well the room works for daily life.",
+        "Only comment on what is visible in the photo; refer to concrete objects (\"the leather sofa\", \"the gallery wall\"), never generic advice. Do not invent things that are not there.",
+        custom(p) && `Client's goals or constraints to take into account: ${String(p.custom).trim().slice(0, 500)}`,
+        `Write every text value in ${vi ? "Vietnamese" : "English"}.`,
+        'Reply with JSON only, in exactly this shape: {"room": string, "style": string (the style the room currently reads as), "score": number from 1 to 10 with one decimal, "summary": string (2–3 sentences), "strengths": string[] (2–4 items), "improvements": [{"area": string, "issue": string, "suggestion": string, "priority": "high" | "medium" | "low"}] (3–5 items, most important first), "quickWins": string[] (2–3 low-cost changes the client can make this week)}.',
+      );
     }
     case "interior-floorplan": {
       const s = styleFor(p.styleSlug, "interior");

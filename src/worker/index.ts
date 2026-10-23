@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
-import { submitImageToImage, submitTextToImage, queryTask } from "./runninghub";
-import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, TEXT_TOOLS, buildPrompt } from "./prompts";
+import { submitImageToImage, submitTextToImage, queryTask, chatJson } from "./runninghub";
+import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanCritique, TEXT_TOOLS, buildPrompt } from "./prompts";
 
 type Env = { DB: D1Database; IMAGES: R2Bucket; DAILY_CREDITS: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
 type User = { id: string; email: string; credits: number; credits_refilled_at: number };
@@ -144,7 +144,8 @@ app.post("/api/generate", requireAuth, async (c) => {
   if (!isAdmin(u) && !(await allow(c.env, `gen:${u.id}`, 3_600_000, 20))) return c.json({ error: "Limit is 20 generations per hour · Tối đa 20 lượt tạo mỗi giờ" }, 429);
   const busy = await c.env.DB.prepare("SELECT COUNT(*) n FROM generations WHERE user_id=? AND status IN ('QUEUED','RUNNING') AND created_at>?").bind(u.id, Date.now() - 600_000).first<{ n: number }>();
   if ((busy?.n ?? 0) >= 3) return c.json({ error: "3 images are already processing, wait for them to finish · Đang có 3 ảnh xử lý, hãy chờ xong rồi tạo tiếp" }, 429);
-  const resolution = RES.includes(b.resolution) ? b.resolution : "1k";
+  const critique = CRITIQUE_TOOLS.includes(b.tool); // answered by the LLM as text: always 1 credit
+  const resolution = !critique && RES.includes(b.resolution) ? b.resolution : "1k";
   const aspectRatio = ASPECTS.includes(b.aspectRatio) ? b.aspectRatio : undefined;
   let prompt: string;
   if (!(TOOL_IDS as readonly string[]).includes(b.tool)) return c.json({ error: "Invalid tool · Tool không hợp lệ" }, 400);
@@ -171,6 +172,14 @@ app.post("/api/generate", requireAuth, async (c) => {
   ]);
   await c.env.DB.prepare("INSERT INTO credit_ledger (user_id,delta,reason,generation_id,created_at) VALUES (?,?,?,?,?)").bind(u.id, -cost, "generate", id, now).run();
   try {
+    if (critique) {
+      const result = cleanCritique(await chatJson(c.env.RUNNINGHUB_API_KEY, { model: CRITIQUE_MODEL, prompt, image: { bytes: await obj!.arrayBuffer(), mime: obj!.httpMetadata?.contentType ?? "image/jpeg" } }));
+      const outKey = `out/${u.id}/${id}.json`;
+      await c.env.IMAGES.put(outKey, JSON.stringify(result), { httpMetadata: { contentType: "application/json" } });
+      await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,input_key,output_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
+        .bind(id, u.id, b.tool, JSON.stringify({ roomType: b.roomType, lang: b.lang === "vi" ? "vi" : "en", resolution }), prompt, "SUCCESS", b.inputKey, outKey, cost, now).run();
+      return c.json({ id, status: "SUCCESS" });
+    }
     const images = obj ? [obj, ...(ref ? [ref] : []), ...items.map((o) => o!)] : [];
     const taskId = textOnly
       ? await submitTextToImage(c.env.RUNNINGHUB_API_KEY, { prompt, aspectRatio: aspectRatio ?? "16:9", resolution }, c.env.RUNNINGHUB_BASE)
@@ -221,7 +230,9 @@ app.get("/api/generations/:id", requireAuth, async (c) => {
       await fail(pollError || "Timed out (15 minutes) · Hết thời gian chờ (15 phút)");
     }
   }
-  return c.json({ id: g.id, status: g.status, error: g.error, public: !!g.is_public, inputUrl: g.input_key ? `/api/images/${g.input_key}` : null, outputUrl: g.output_key ? `/api/images/${g.output_key}` : null });
+  // Written critiques are stored as JSON in place of an output image.
+  const critique = g.status === "SUCCESS" && String(g.output_key).endsWith(".json") ? await c.env.IMAGES.get(g.output_key).then((o) => o?.json()).catch(() => null) : undefined;
+  return c.json({ id: g.id, status: g.status, error: g.error, public: !!g.is_public, critique, inputUrl: g.input_key ? `/api/images/${g.input_key}` : null, outputUrl: g.output_key ? `/api/images/${g.output_key}` : null });
 });
 
 app.get("/api/generations", requireAuth, async (c) => {
@@ -240,7 +251,7 @@ app.get("/api/images/:kind/:uid/:file", requireAuth, async (c) => {
 // ---------- Phase 4: gallery, deletion, rate limiting ----------
 app.post("/api/generations/:id/publish", requireAuth, async (c) => {
   const { public: pub } = await c.req.json<{ public?: boolean }>().catch(() => ({} as any));
-  const r = await c.env.DB.prepare("UPDATE generations SET is_public=? WHERE id=? AND user_id=? AND status='SUCCESS'")
+  const r = await c.env.DB.prepare("UPDATE generations SET is_public=? WHERE id=? AND user_id=? AND status='SUCCESS' AND output_key NOT LIKE '%.json'")
     .bind(pub ? 1 : 0, c.req.param("id"), c.get("user").id).run();
   return r.meta.changes ? c.json({ ok: true, public: !!pub }) : c.json({ error: "not found" }, 404);
 });

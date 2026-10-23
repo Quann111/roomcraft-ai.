@@ -3,7 +3,7 @@ import "./sxapp.css";
 import { navigate, useLocation, Link } from "./router";
 import { bi, getLang, setLang, t } from "./i18n";
 import { api, useAuth } from "./auth";
-import { BeforeAfter, MAX_ITEMS, PrepInfo, useGenerator, type Preset, type ToolId } from "./GeneratePanel";
+import { BeforeAfter, CritiqueView, isCritique, MAX_ITEMS, PrepInfo, useGenerator, type Preset, type ToolId } from "./GeneratePanel";
 
 /* ---------- icons ---------- */
 const ICONS: Record<string, string> = {
@@ -79,7 +79,7 @@ const TOOLS: ToolDef[] = [
   { name: "Business 3D Floorplan", desc: "Upload one 2D plan. AI detects every room and generates consistent, photoreal renders for each space.", cat: "business", photo: "photo-1721244654210-a505a99661e9", icon: "house", premium: true },
   { name: "3D Floorplan", desc: "Generate realistic 3D renderings from 2D floorplans. Bring blueprints to life with complete accuracy.", cat: "3d", photo: "photo-1786550860329-f813516e9705", icon: "house", premium: true, spaces: ["interior-floorplan"] },
   { name: "Video Generation", desc: "Turn design ideas into stunning AI-powered videos and realistic visual presentations.", cat: "business", photo: "photo-1743463685519-469d9ebe1b7f", icon: "spark", premium: true },
-  { name: "Design Critique", desc: "Receive detailed AI-driven feedback on an uploaded room design and expert suggestions to refine it.", cat: "business", photo: "photo-1781888679143-01d758aedbe6", icon: "info", premium: true },
+  { name: "Design Critique", desc: "Receive detailed AI-driven feedback on an uploaded room design and expert suggestions to refine it.", cat: "business", photo: "photo-1781888679143-01d758aedbe6", icon: "info", premium: true, spaces: ["interior-critique"] },
   { name: "Design Advisor", desc: "Chat with our AI trained by top designers to get advice tailored to your project and budget.", cat: "business", photo: "photo-1664638413302-d1ca29ac885b", icon: "headset", premium: true },
 ];
 const SPACE_META: Record<string, { label: [string, string]; icon: string }> = {
@@ -104,6 +104,10 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
   const [open, setOpen] = useState<any>(null);
   const [toast, setToast] = useState("");
   const say = (m: string) => { setToast(m); setTimeout(() => setToast(""), 2200); };
+  const copyCritique = (c: NonNullable<typeof g.gen>["critique"] & {}) => {
+    const text = [`${c.score}/10 · ${c.room} · ${c.style}`, c.summary, ...c.strengths.map((x) => `+ ${x}`), ...c.improvements.map((x) => `- ${x.area}: ${x.issue} → ${x.suggestion}`), ...c.quickWins.map((x) => `* ${x}`)].join("\n");
+    navigator.clipboard.writeText(text).then(() => say("Copied · Đã sao chép"), () => say("Copy failed · Không sao chép được"));
+  };
   const done = useMemo(() => g.history.filter((h) => h.outputUrl), [g.history]);
 
   const del = async (id: string) => {
@@ -142,7 +146,15 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
           {!cfg.text && <PrepInfo p={g.prep} />}
           <div className="or">{t("RESULT", "KẾT QUẢ")}</div>
           <section className="gallery-panel">
-            {g.gen?.status === "SUCCESS" && g.gen.outputUrl ? (
+            {g.gen?.status === "SUCCESS" && g.gen.critique ? (
+              <>
+                <CritiqueView photo={g.gen.inputUrl} c={g.gen.critique} />
+                <div className="row-between" style={{ marginTop: 14, flexWrap: "wrap", gap: 8 }}>
+                  <button className="outline-btn" onClick={() => copyCritique(g.gen!.critique!)}><Icon n="file" /> {t("Copy text", "Sao chép")}</button>
+                  <button className="outline-btn" onClick={g.remove_}><Icon n="trash" /> {t("Delete", "Xoá")}</button>
+                </div>
+              </>
+            ) : g.gen?.status === "SUCCESS" && g.gen.outputUrl ? (
               <>
                 <BeforeAfter before={g.gen.inputUrl} after={g.gen.outputUrl} />
                 <div className="row-between" style={{ marginTop: 14, flexWrap: "wrap", gap: 8 }}>
@@ -152,7 +164,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                 </div>
               </>
             ) : (
-              <p className="helper" style={{ textAlign: "center", padding: "40px 10px" }}>{g.busy ? t("Processing… this takes 1–2 minutes.", "Đang xử lý… mất khoảng 1–2 phút.") : t("Your generated design appears here.", "Thiết kế được tạo sẽ hiện ở đây.")}</p>
+              <p className="helper" style={{ textAlign: "center", padding: "40px 10px" }}>{g.busy ? (cfg.critique ? t("Reviewing your room… about 20–30 seconds.", "Đang nhận xét căn phòng… khoảng 20–30 giây.") : t("Processing… this takes 1–2 minutes.", "Đang xử lý… mất khoảng 1–2 phút.")) : t("Your generated design appears here.", "Thiết kế được tạo sẽ hiện ở đây.")}</p>
             )}
           </section>
         </div>
@@ -213,7 +225,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                 {cfg.room && (
                   <>
                     <h4>{t("1. Select Room Type", "1. Chọn loại phòng")} <button type="button" className="view-all" onClick={() => setShowAll({ ...showAll, room: !showAll.room })}>{showAll.room ? t("Less", "Thu gọn") : t("View All", "Xem tất cả")}</button></h4>
-                    <div className="preset-grid">{list(meta.roomTypes, "room").map((r, i) => choice(bi(r), i, r === g.room, () => g.setRoom(cfg.text && r === g.room ? "" : r), thumbOf(ROOM_PHOTOS, r)))}</div>
+                    <div className="preset-grid">{list(meta.roomTypes, "room").map((r, i) => choice(bi(r), i, r === g.room, () => g.setRoom((cfg.text || cfg.critique) && r === g.room ? "" : r), thumbOf(ROOM_PHOTOS, r)))}</div>
                   </>
                 )}
                 {cfg.scope && (
@@ -286,8 +298,10 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
               <><h4>{t("Image shape", "Khung ảnh")}</h4>
                 <div className="segmented">{[["16:9", "Wide", "Ngang rộng"], ["4:3", "Landscape", "Ngang"], ["1:1", "Square", "Vuông"], ["3:4", "Portrait", "Dọc"]].map(([r, en, vi]) => <button key={r} type="button" className={r === g.aspect ? "active" : ""} onClick={() => g.setAspect(r)}>{t(en, vi)} · {r}</button>)}</div></>
             )}
-            <h4>{t("Resolution", "Độ phân giải")}</h4>
-            <div className="segmented">{[["1k", 1], ["2k", 2], ["4k", 3]].map(([k, c]) => <button key={k} type="button" className={k === g.res ? "active" : ""} onClick={() => g.setRes(k as string)}>{(k as string).toUpperCase()} · {c} credit</button>)}</div>
+            {cfg.critique ? <p className="helper">{t("Each review costs 1 credit.", "Mỗi lần nhận xét tốn 1 credit.")}</p> : <>
+              <h4>{t("Resolution", "Độ phân giải")}</h4>
+              <div className="segmented">{[["1k", 1], ["2k", 2], ["4k", 3]].map(([k, c]) => <button key={k} type="button" className={k === g.res ? "active" : ""} onClick={() => g.setRes(k as string)}>{(k as string).toUpperCase()} · {c} credit</button>)}</div>
+            </>}
             {g.err && <p className="helper" style={{ color: "#b3261e" }}>{bi(g.err)}</p>}
             <button className="generate-btn" disabled={!g.ready || g.busy} onClick={g.run} style={!g.ready || g.busy ? { opacity: 0.5 } : undefined}>
               <Icon n="spark" />{g.busy ? t("Generating… (1–2 min)", "Đang tạo… (1–2 phút)") : g.preparing ? t("Optimizing image…", "Đang tối ưu ảnh…") : g.ready ? t("Generate New Designs", "Tạo thiết kế mới") : cfg.text ? t("Describe your space first", "Hãy mô tả không gian trước") : !g.file ? t("Upload an image first", "Hãy tải ảnh lên trước") : t("Add a style reference", "Hãy thêm ảnh tham khảo")}
@@ -302,7 +316,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
           <div className="latest-grid">
             {done.slice(0, 12).map((h, i) => (
               <article className="latest-card" key={h.id} style={{ ["--card-index" as any]: i }}>
-                <div className="latest-image" style={{ backgroundImage: `url('${h.outputUrl}')` }} />
+                <div className="latest-image" style={{ backgroundImage: `url('${isCritique(h) ? h.inputUrl : h.outputUrl}')` }} />
                 <div className="latest-body">
                   <div className="latest-meta">
                     <span><strong>Tool:</strong> {String(h.tool).replace("-", " · ")}</span>
@@ -310,10 +324,10 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                     {h.params?.roomType && <span><strong>Room:</strong> {h.params.roomType}</span>}
                   </div>
                   <div className="latest-actions">
-                    <a className="latest-action" title="Download" href={h.outputUrl} download={`design-${h.id}.png`}><Icon n="download" /></a>
-                    <button className="latest-action" title="Preview" onClick={() => setOpen(h)}><Icon n="eye" /></button>
+                    {!isCritique(h) && <a className="latest-action" title="Download" href={h.outputUrl} download={`design-${h.id}.png`}><Icon n="download" /></a>}
+                    <button className="latest-action" title="Preview" onClick={() => (isCritique(h) ? api(`/api/generations/${h.id}`).then((d: any) => setOpen({ ...h, critique: d.critique })).catch((e: any) => say(e.message)) : setOpen(h))}><Icon n="eye" /></button>
                     <button className="latest-action" title="Reuse settings" onClick={() => navigate(`/app?tool=${h.tool}&p=${encodeURIComponent(JSON.stringify(h.params ?? {}))}`)}><Icon n="edit" /></button>
-                    <button className="latest-action" title={h.public ? "Unpublish" : "Publish"} onClick={() => publish(h)}><Icon n="globe" /></button>
+                    {!isCritique(h) && <button className="latest-action" title={h.public ? "Unpublish" : "Publish"} onClick={() => publish(h)}><Icon n="globe" /></button>}
                     <button className="latest-action" title="Delete" onClick={() => del(h.id)}><Icon n="trash" /></button>
                   </div>
                 </div>
@@ -327,7 +341,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
         <div className="modal-backdrop show" onClick={(e) => e.target === e.currentTarget && setOpen(null)}>
           <div className="modal" style={{ maxWidth: 560, maxHeight: "92vh", overflowY: "auto" }}>
             <button className="close" onClick={() => setOpen(null)} aria-label="Close">×</button>
-            <BeforeAfter before={open.inputUrl} after={open.outputUrl} />
+            {open.critique ? <CritiqueView photo={open.inputUrl} c={open.critique} /> : <BeforeAfter before={open.inputUrl} after={open.outputUrl} />}
           </div>
         </div>
       )}

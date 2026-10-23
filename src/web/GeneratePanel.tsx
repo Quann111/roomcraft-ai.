@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { bi } from "./i18n";
+import { bi, getLang, t } from "./i18n";
 import { prepareImage, formatBytes, type PreparedImage } from "./imagePrep";
 
 type Meta = {
@@ -7,15 +7,19 @@ type Meta = {
   roomTypes: string[]; intervention: string[];
   surfaces: Record<string, string[]>; paints: { name: string; hex: string }[]; finishes: string[]; weather: string[]; remove: string[]; angles: string[]; planViews: string[];
 };
-type Gen = { id: string; status: string; error?: string; public?: boolean; inputUrl: string | null; outputUrl: string | null };
+export type Critique = {
+  room: string; style: string; score: number; summary: string; strengths: string[];
+  improvements: { area: string; issue: string; suggestion: string; priority: "high" | "medium" | "low" }[]; quickWins: string[];
+};
+type Gen = { id: string; status: string; error?: string; public?: boolean; inputUrl: string | null; outputUrl: string | null; critique?: Critique };
 export type Preset = Partial<{ styleSlug: string; roomType: string; intervention: string; surface: string; material: string; weather: string; remove: string[]; angle: string; view: string; color: string; finish: string; description: string }>;
 
 export type ToolId =
   | "interior-redesign" | "interior-staging" | "interior-declutter" | "interior-sketch" | "interior-material"
-  | "interior-paint" | "interior-floor" | "interior-transfer" | "interior-text" | "interior-floorplan" | "interior-compose"
+  | "interior-paint" | "interior-floor" | "interior-transfer" | "interior-text" | "interior-floorplan" | "interior-compose" | "interior-critique"
   | "exterior-redesign" | "exterior-sky" | "exterior-sketch" | "exterior-paint" | "exterior-text" | "garden-redesign" | "garden-text";
 
-type Cfg = { scope?: "interior" | "exterior" | "garden"; room?: boolean; intervention?: boolean; remove?: boolean; surface?: boolean; weather?: boolean; angle?: boolean; planView?: boolean; paint?: boolean; floor?: boolean; reference?: boolean; items?: boolean; text?: boolean; hint: string };
+type Cfg = { scope?: "interior" | "exterior" | "garden"; room?: boolean; intervention?: boolean; remove?: boolean; surface?: boolean; weather?: boolean; angle?: boolean; planView?: boolean; paint?: boolean; floor?: boolean; reference?: boolean; items?: boolean; critique?: boolean; text?: boolean; hint: string };
 const CFG: Record<ToolId, Cfg> = {
   "interior-redesign": { scope: "interior", room: true, intervention: true, hint: "Room photo to redesign · Ảnh phòng cần thiết kế lại" },
   "interior-staging": { scope: "interior", room: true, hint: "Empty room photo to stage · Ảnh phòng trống cần bài trí" },
@@ -26,6 +30,7 @@ const CFG: Record<ToolId, Cfg> = {
   "interior-floor": { floor: true, hint: "Room photo with a visible floor · Ảnh phòng thấy rõ sàn" },
   "interior-transfer": { reference: true, room: true, intervention: true, hint: "Your room photo · Ảnh phòng của bạn" },
   "interior-text": { text: true, scope: "interior", room: true, hint: "e.g. a bright Scandinavian living room with a big window, oak floor and a green sofa · VD: phòng khách Bắc Âu sáng sủa, cửa sổ lớn, sàn gỗ sồi, sofa xanh lá" },
+  "interior-critique": { critique: true, room: true, hint: "Photo of the room to review · Ảnh căn phòng cần nhận xét" },
   "interior-compose": { items: true, room: true, hint: "Photo of your room · Ảnh căn phòng của bạn" },
   "interior-floorplan": { scope: "interior", planView: true, hint: "2D floor plan image or drawing · Ảnh hoặc bản vẽ mặt bằng 2D" },
   "exterior-redesign": { scope: "exterior", angle: true, hint: "House exterior photo · Ảnh mặt ngoài ngôi nhà" },
@@ -58,6 +63,50 @@ export function BeforeAfter({ before, after }: { before: string | null; after: s
       <img src={before} alt="before" className="absolute inset-0 h-full w-full object-cover" style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }} />
       <div className="absolute inset-y-0 w-0.5 bg-white shadow" style={{ left: `${pos}%` }} />
       <input type="range" min={0} max={100} value={pos} onChange={(e) => setPos(+e.target.value)} className="absolute inset-x-0 bottom-2 w-full" aria-label={bi("Compare before/after · So sánh trước/sau")} />
+    </div>
+  );
+}
+
+/** History items whose result is a written critique (stored as JSON) rather than an image. */
+export const isCritique = (h: { outputUrl?: string | null }) => !!h.outputUrl?.endsWith(".json");
+
+const PRIORITY: Record<Critique["improvements"][number]["priority"], { label: [string, string]; color: string; bg: string }> = {
+  high: { label: ["High priority", "Ưu tiên cao"], color: "#9b1c1c", bg: "#fde8e7" },
+  medium: { label: ["Medium", "Vừa"], color: "#8a5300", bg: "#fbf0dc" },
+  low: { label: ["Nice to have", "Nên có"], color: "#24613f", bg: "#e3f2ea" },
+};
+
+/** A written design critique: score, summary, strengths, prioritised improvements and quick wins. */
+export function CritiqueView({ photo, c }: { photo: string | null; c: Critique }) {
+  const h = { margin: "0 0 6px", fontSize: 15, fontWeight: 600 } as const;
+  const ul = { margin: 0, paddingLeft: 18, display: "grid", gap: 4 } as const;
+  return (
+    <div style={{ display: "grid", gap: 16, textAlign: "left" }}>
+      <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
+        {photo && <img src={photo} alt="" style={{ width: 150, maxWidth: "40%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 10 }} />}
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 36, fontWeight: 700, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{c.score ? c.score.toFixed(1) : "–"}<span style={{ fontSize: 15, fontWeight: 400, opacity: 0.6 }}> / 10</span></div>
+          <div style={{ marginTop: 6, opacity: 0.7, fontSize: 13 }}>{[c.room, c.style].filter(Boolean).join(" · ")}</div>
+        </div>
+      </div>
+      <p style={{ margin: 0, lineHeight: 1.55 }}>{c.summary}</p>
+      {c.strengths.length > 0 && <div><h4 style={h}>{t("What works", "Điểm mạnh")}</h4><ul style={ul}>{c.strengths.map((s) => <li key={s}>{s}</li>)}</ul></div>}
+      <div>
+        <h4 style={h}>{t("What to improve", "Nên cải thiện")}</h4>
+        <ol style={{ ...ul, paddingLeft: 0, listStyle: "none", gap: 10 }}>
+          {c.improvements.map((x, i) => (
+            <li key={i} style={{ border: "1px solid rgba(0,0,0,0.1)", borderRadius: 10, padding: "10px 12px" }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <b>{x.area}</b>
+                <span style={{ fontSize: 11, fontWeight: 600, padding: "1px 8px", borderRadius: 999, color: PRIORITY[x.priority].color, background: PRIORITY[x.priority].bg }}>{t(...PRIORITY[x.priority].label)}</span>
+              </div>
+              {x.issue && <p style={{ margin: "6px 0 0", opacity: 0.75 }}>{x.issue}</p>}
+              <p style={{ margin: "6px 0 0" }}>→ {x.suggestion}</p>
+            </li>
+          ))}
+        </ol>
+      </div>
+      {c.quickWins.length > 0 && <div><h4 style={h}>{t("Quick wins this week", "Thay đổi nhanh trong tuần")}</h4><ul style={ul}>{c.quickWins.map((s) => <li key={s}>{s}</li>)}</ul></div>}
     </div>
   );
 }
@@ -121,7 +170,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     setGen(null); setErr(""); setBusy(false);
     setStyle(preset?.styleSlug && styles.some((s) => s.slug === preset.styleSlug) ? preset.styleSlug : cfg.text ? "" : styles[0]?.slug ?? "");
     if (preset?.roomType) setRoom(preset.roomType);
-    else if (cfg.text) setRoom(""); // optional for text-to-design; the description usually names the room
+    else if (cfg.text || cfg.critique) setRoom(""); // optional: the description or the photo usually shows the room
     if (preset?.intervention && meta) setLvl(Math.max(0, meta.intervention.indexOf(preset.intervention)));
     if (preset?.remove?.length) setRemove(preset.remove);
     if (preset?.weather) setWeather(preset.weather);
@@ -207,6 +256,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
           ...(cfg.paint ? { color, finish: paintFinish } : {}),
           ...(refKey ? { refKey } : {}),
           ...(itemKeys ? { itemKeys } : {}),
+          ...(cfg.critique ? { lang: getLang() } : {}),
           ...(cfg.weather ? { weather } : {}),
           ...(cfg.angle ? { angle } : {}),
           ...(cfg.planView ? { view } : {}),
@@ -257,7 +307,7 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
             )}
           </div>
         )}
-        {cfg.room && <select className={field} value={room} onChange={(e) => setRoom(e.target.value)}>{cfg.text && <option value="">{bi("Any room type · Loại phòng bất kỳ")}</option>}{meta.roomTypes.map((r) => <option key={r} value={r}>{bi(r)}</option>)}</select>}
+        {cfg.room && <select className={field} value={room} onChange={(e) => setRoom(e.target.value)}>{(cfg.text || cfg.critique) && <option value="">{bi("Any room type · Loại phòng bất kỳ")}</option>}{meta.roomTypes.map((r) => <option key={r} value={r}>{bi(r)}</option>)}</select>}
         {cfg.scope && <select className={field} value={style} onChange={(e) => setStyle(e.target.value)}>{cfg.text && <option value="">{bi("Any style · Phong cách bất kỳ")}</option>}{styles.map((s) => <option key={s.slug} value={s.slug}>{bi(s.name)}</option>)}</select>}
         {cfg.angle && <select className={field} value={angle} onChange={(e) => setAngle(e.target.value)}>{meta.angles.map((a) => <option key={a} value={a}>{bi("View · Góc nhìn")}: {bi(a)}</option>)}</select>}
         {cfg.planView && <select className={field} value={view} onChange={(e) => setView(e.target.value)}>{meta.planViews.map((v) => <option key={v} value={v}>{bi("View · Góc nhìn")}: {bi(v)}</option>)}</select>}
@@ -296,14 +346,21 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
           </label>
         )}
         <textarea className={field} rows={2} maxLength={500} placeholder={bi("Extra instructions (optional) · Yêu cầu thêm (tuỳ chọn)")} value={custom} onChange={(e) => setCustom(e.target.value)} />
-        <select className={field} value={res} onChange={(e) => setRes(e.target.value)}>
+        {!cfg.critique && <select className={field} value={res} onChange={(e) => setRes(e.target.value)}>
           {Object.entries(RES_COST).map(([k, c]) => <option key={k} value={k}>{k.toUpperCase()} · {c} credit{c > 1 ? "s" : ""}</option>)}
-        </select>
+        </select>}
         {err && <p className="text-sm text-red-600">{bi(err)}</p>}
         <button disabled={!ready || busy} onClick={run} className="rounded bg-black py-3 text-white disabled:opacity-40">{busy ? bi("Generating… (1–2 min) · Đang tạo…") : preparing ? bi("Optimizing image… · Đang tối ưu ảnh…") : bi("Generate · Tạo thiết kế")}</button>
       </div>
       <div>
-        {gen?.status === "SUCCESS" && gen.outputUrl ? (
+        {gen?.status === "SUCCESS" && gen.critique ? (
+          <>
+            <CritiqueView photo={gen.inputUrl} c={gen.critique} />
+            <div className="mt-3 flex flex-wrap gap-2 text-sm">
+              <button onClick={remove_} className="rounded border px-4 py-2 text-red-600">{bi("Delete · Xoá")}</button>
+            </div>
+          </>
+        ) : gen?.status === "SUCCESS" && gen.outputUrl ? (
           <>
             <BeforeAfter before={gen.inputUrl} after={gen.outputUrl} />
             <div className="mt-3 flex flex-wrap gap-2 text-sm">
@@ -319,8 +376,8 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
           <h3 className="mb-2 font-semibold">{bi("History · Lịch sử")}</h3>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {history.filter((h) => h.outputUrl).map((h) => (
-              <button key={h.id} onClick={() => setGen({ id: h.id, status: "SUCCESS", public: h.public, inputUrl: h.inputUrl, outputUrl: h.outputUrl })} className="overflow-hidden rounded-lg border">
-                <img src={h.outputUrl} loading="lazy" className="aspect-square w-full object-cover" alt={h.tool} />
+              <button key={h.id} onClick={() => (isCritique(h) ? j<Gen>(`/api/generations/${h.id}`).then(setGen).catch(() => {}) : setGen({ id: h.id, status: "SUCCESS", public: h.public, inputUrl: h.inputUrl, outputUrl: h.outputUrl }))} className="overflow-hidden rounded-lg border">
+                <img src={isCritique(h) ? h.inputUrl : h.outputUrl} loading="lazy" className="aspect-square w-full object-cover" alt={h.tool} />
               </button>
             ))}
           </div>
