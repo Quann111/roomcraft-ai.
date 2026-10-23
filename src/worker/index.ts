@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { submitImageToImage, submitTextToImage, queryTask, chatJson, chatText, imagePart, type ChatMessage } from "./runninghub";
-import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanCritique, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, TEXT_TOOLS, buildPrompt } from "./prompts";
+import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanCritique, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, PLAN_DETECT_PROMPT, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt } from "./prompts";
 
 type Env = { DB: D1Database; IMAGES: R2Bucket; DAILY_CREDITS: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
 type User = { id: string; email: string; credits: number; credits_refilled_at: number };
@@ -194,6 +194,68 @@ app.post("/api/generate", requireAuth, async (c) => {
     await refund("refund_submit_failed");
     return c.json({ error: `Could not submit request: ${e.message} · Không gửi được yêu cầu: ${e.message}` }, 502);
   }
+});
+
+// ---------- Business 3D Floorplan: detect rooms, then one render per room ----------
+const ownImage = async (c: any, key: unknown) =>
+  typeof key === "string" && key.startsWith(`in/${c.get("user").id}/`) ? await c.env.IMAGES.get(key) : null;
+
+app.post("/api/bizplan/detect", requireAuth, async (c) => {
+  const u = c.get("user");
+  const b = await c.req.json<any>().catch(() => ({}));
+  if (!c.env.RUNNINGHUB_API_KEY) return c.json({ error: "Server is missing RUNNINGHUB_API_KEY · Server chưa cấu hình RUNNINGHUB_API_KEY" }, 500);
+  if (!isAdmin(u) && !(await allow(c.env, `plan:${u.id}`, 3_600_000, 30))) return c.json({ error: "Limit is 30 plan scans per hour · Tối đa 30 lần đọc mặt bằng mỗi giờ" }, 429);
+  const plan = await ownImage(c, b.inputKey);
+  if (!plan) return c.json({ error: "Upload a floor plan first · Hãy tải mặt bằng lên trước" }, 400);
+  try {
+    const r = await chatJson(c.env.RUNNINGHUB_API_KEY, { model: CRITIQUE_MODEL, prompt: PLAN_DETECT_PROMPT, image: { bytes: await plan.arrayBuffer(), mime: plan.httpMetadata?.contentType ?? "image/jpeg" } });
+    const rooms = cleanRooms(r?.rooms);
+    if (!rooms.length) return c.json({ error: "No rooms found — is this a floor plan? · Không tìm thấy phòng nào — ảnh này có phải mặt bằng không?" }, 422);
+    return c.json({ home: String(r?.home ?? "").trim().slice(0, 200), rooms });
+  } catch (e: any) {
+    return c.json({ error: `Could not read the plan: ${e.message} · Không đọc được mặt bằng: ${e.message}` }, 502);
+  }
+});
+
+// Charges 1 credit per room up front; each room is a normal generation, so polling, refunds and history work as usual.
+app.post("/api/bizplan/render", requireAuth, async (c) => {
+  const u = c.get("user");
+  const b = await c.req.json<any>().catch(() => ({}));
+  if (!c.env.RUNNINGHUB_API_KEY) return c.json({ error: "Server is missing RUNNINGHUB_API_KEY · Server chưa cấu hình RUNNINGHUB_API_KEY" }, 500);
+  const rooms = cleanRooms(b.rooms);
+  if (!rooms.length || (Array.isArray(b.rooms) && b.rooms.length > MAX_PLAN_ROOMS)) return c.json({ error: `Pick 1–${MAX_PLAN_ROOMS} rooms · Chọn 1–${MAX_PLAN_ROOMS} phòng` }, 400);
+  const home = String(b.home ?? "").trim().slice(0, 200);
+  let prompts: string[];
+  try { prompts = rooms.map((r) => planRoomPrompt(b.styleSlug, r, home)); } catch (e: any) { return c.json({ error: e.message }, 400); }
+  const plan = await ownImage(c, b.inputKey);
+  if (!plan) return c.json({ error: "Upload a floor plan first · Hãy tải mặt bằng lên trước" }, 400);
+  if (!isAdmin(u)) for (const _ of rooms) if (!(await allow(c.env, `gen:${u.id}`, 3_600_000, 20))) return c.json({ error: "Limit is 20 generations per hour · Tối đa 20 lượt tạo mỗi giờ" }, 429);
+
+  const each = isAdmin(u) ? 0 : 1;
+  const total = each * rooms.length;
+  const paid = await c.env.DB.prepare("UPDATE users SET credits=credits-? WHERE id=? AND credits>=?").bind(total, u.id, total).run();
+  if (!paid.meta.changes) return c.json({ error: `This needs ${total} credits · Cần ${total} credit` }, 402);
+  const batchId = crypto.randomUUID();
+  const planImg = { bytes: await plan.arrayBuffer(), mime: plan.httpMetadata?.contentType ?? "image/jpeg" };
+  const aspectRatio = ASPECTS.includes(b.aspectRatio) ? b.aspectRatio : "4:3";
+  const results = await Promise.all(rooms.map(async (room, i) => {
+    const id = crypto.randomUUID();
+    const now = Date.now();
+    await c.env.DB.prepare("INSERT INTO credit_ledger (user_id,delta,reason,generation_id,created_at) VALUES (?,?,?,?,?)").bind(u.id, -each, "generate", id, now).run();
+    try {
+      const taskId = await submitImageToImage(c.env.RUNNINGHUB_API_KEY!, { images: [planImg], prompt: prompts[i], aspectRatio, resolution: "1k" }, c.env.RUNNINGHUB_BASE);
+      await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,rh_task_id,input_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
+        .bind(id, u.id, BIZPLAN_TOOL, JSON.stringify({ styleSlug: b.styleSlug, roomType: room.name, batchId, resolution: "1k", aspectRatio }), prompts[i], "RUNNING", taskId, b.inputKey, each, now).run();
+      return { id, room: room.name };
+    } catch (e: any) {
+      await c.env.DB.batch([
+        c.env.DB.prepare("UPDATE users SET credits=credits+? WHERE id=?").bind(each, u.id),
+        c.env.DB.prepare("INSERT INTO credit_ledger (user_id,delta,reason,generation_id,created_at) VALUES (?,?,?,?,?)").bind(u.id, each, "refund_submit_failed", id, Date.now()),
+      ]);
+      return { room: room.name, error: e.message };
+    }
+  }));
+  return c.json({ batchId, items: results });
 });
 
 // ---------- Design Advisor: a chat whose transcript lives in R2 ----------
