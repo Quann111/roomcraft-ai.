@@ -138,6 +138,22 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
   const { cfg, meta } = g;
   const [showAll, setShowAll] = useState({ room: false, style: false });
   const [zoom, setZoom] = useState<{ src: string; label: string } | null>(null);
+  // VICOSTONE tile swatches for Floor Editor; the tile's name is its material value.
+  const tileGrid = (active: (name: string) => boolean, pick: (name: string) => void) => !!meta?.floorTiles?.length && (
+    <><h4>{t("VICOSTONE tiles · 120 × 120 cm, polished", "Gạch VICOSTONE · 120 × 120 cm, bóng kiếng")}</h4>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))", gap: 8 }}>
+        {meta.floorTiles.map((x) => (
+          <div key={x.name} style={{ minWidth: 0 }}>
+            <button type="button" title={x.name} aria-pressed={active(x.name)} onClick={() => pick(x.name)}
+              style={{ display: "block", width: "100%", padding: 0, borderRadius: 8, overflow: "hidden", background: "#fff", cursor: "pointer", textAlign: "left", border: "1px solid #e2ded6", outline: active(x.name) ? "2px solid #1c1b19" : "none", outlineOffset: -1 }}>
+              <img src={x.thumb} alt="" loading="lazy" style={{ display: "block", width: "100%", aspectRatio: "1", objectFit: "cover" }} />
+              <span style={{ display: "block", padding: "4px 6px", fontSize: 11, lineHeight: 1.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.code}</span>
+            </button>
+            {x.room && <button type="button" className="link-btn" style={{ fontSize: 11, padding: "2px 0", background: "none", border: 0, color: "#6b665d", textDecoration: "underline", cursor: "pointer" }} onClick={() => setZoom({ src: x.room!, label: x.name })}>{t("See installed", "Xem ảnh mẫu")}</button>}
+          </div>
+        ))}
+      </div></>
+  );
   const [tab, setTab] = useState<"preset" | "extra">("preset");
   const touch = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
   const [open, setOpen] = useState<any>(null);
@@ -355,7 +371,8 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                 {cfg.floor && (
                   <><h4>{comparing ? t("Floors to compare", "Các loại sàn cần so sánh") : t("Flooring material", "Vật liệu sàn")}</h4>
                     {modeSwitch}
-                    {comparing ? pickGrid(meta.surfaces.floor) : <div className="segmented">{meta.surfaces.floor.map((m) => <button key={m} type="button" className={m === g.material ? "active" : ""} onClick={() => g.setMaterial(m)}>{bi(m)}</button>)}</div>}</>
+                    {comparing ? pickGrid(meta.surfaces.floor) : <div className="segmented">{meta.surfaces.floor.map((m) => <button key={m} type="button" className={m === g.material ? "active" : ""} onClick={() => g.setMaterial(m)}>{bi(m)}</button>)}</div>}
+                    {comparing ? tileGrid((n) => picked.includes(n), togglePick) : tileGrid((n) => n === g.material, g.setMaterial)}</>
                 )}
                 {cfg.paint && (
                   <><h4>{t("Wall color", "Màu sơn tường")}</h4>

@@ -1,10 +1,11 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
-import { submitImageToImage, submitTextToImage, submitImageToVideo, queryTask, chatJson, chatText, imagePart, type ChatMessage } from "./runninghub";
+import { PRO_EDIT, submitImageToImage, submitTextToImage, submitImageToVideo, queryTask, chatJson, chatText, imagePart, type ChatMessage } from "./runninghub";
 import { CITIES, DIRECTIONS } from "./solar";
+import { FLOOR_TILES, floorTile } from "./floorTiles";
 import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, LOCKED_PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, COMPARE_TOOLS, MAX_COMPARE, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt } from "./prompts";
 
-type Env = { DB: D1Database; IMAGES: R2Bucket; DAILY_CREDITS: string; OPEN_ACCESS?: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
+type Env = { DB: D1Database; IMAGES: R2Bucket; ASSETS: Fetcher; DAILY_CREDITS: string; OPEN_ACCESS?: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
 type User = { id: string; email: string; credits: number; credits_refilled_at: number };
 type Vars = { user: User };
 
@@ -13,6 +14,16 @@ const isAdmin = (u: User) => ADMIN_EMAILS.includes(u.email.toLowerCase());
 const DAY = 86_400_000;
 const SESSION_TTL = 30 * DAY;
 const app = new Hono<{ Bindings: Env; Variables: Vars }>();
+
+/** A VICOSTONE tile swatch from the static assets, when the floor material is one of the tiles. Tile jobs run on
+ * Nano Banana Pro: flash lays the 120 × 120 cm slabs noticeably too small. */
+async function tileSwatch(c: any, material: unknown) {
+  const tile = floorTile(material);
+  if (!tile) return null;
+  const r = await c.env.ASSETS.fetch(new URL(tile.swatch, c.req.url));
+  if (!r.ok) throw new Error(`Tile swatch missing: ${tile.code}`);
+  return { bytes: await r.arrayBuffer(), mime: "image/jpeg" };
+}
 
 const b64 = (buf: ArrayBuffer | Uint8Array) => btoa(String.fromCharCode(...new Uint8Array(buf as ArrayBuffer)));
 
@@ -140,7 +151,7 @@ const ASPECTS = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "5:4", "4:5"
 const RES = ["1k", "2k", "4k"] as const;
 const RES_COST: Record<string, number> = { "1k": 1, "2k": 2, "4k": 3 };
 
-app.get("/api/styles", (c) => c.json({ styles: STYLES.map(({ slug, name, scope, img, photo }) => ({ slug, name, scope, thumb: img ? `https://drive.google.com/thumbnail?id=${img}&sz=w600` : photo ? `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=600&q=80` : undefined })), roomTypes: ROOM_TYPES, intervention: INTERVENTION, surfaces: SURFACES, paints: PAINT_COLORS, finishes: PAINT_FINISHES, weather: WEATHER, remove: REMOVE, angles: ANGLES, planViews: PLAN_VIEWS, lockedPlanViews: LOCKED_PLAN_VIEWS, budgets: BUDGETS, motions: MOTIONS, lighting: LIGHTING, cities: CITIES.map((c) => c.name), directions: DIRECTIONS }));
+app.get("/api/styles", (c) => c.json({ styles: STYLES.map(({ slug, name, scope, img, photo }) => ({ slug, name, scope, thumb: img ? `https://drive.google.com/thumbnail?id=${img}&sz=w600` : photo ? `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=600&q=80` : undefined })), roomTypes: ROOM_TYPES, intervention: INTERVENTION, surfaces: SURFACES, paints: PAINT_COLORS, finishes: PAINT_FINISHES, weather: WEATHER, remove: REMOVE, angles: ANGLES, planViews: PLAN_VIEWS, lockedPlanViews: LOCKED_PLAN_VIEWS, floorTiles: FLOOR_TILES.map(({ code, name, swatch, room }) => ({ code, name, thumb: swatch.replace(".jpg", "-thumb.jpg"), room: room ? swatch.replace(".jpg", "-room.jpg") : undefined })), budgets: BUDGETS, motions: MOTIONS, lighting: LIGHTING, cities: CITIES.map((c) => c.name), directions: DIRECTIONS }));
 app.get("/api/prompts", requireAuth, (c) => c.json({ prompts: STYLES.map(({ slug, name, scope, prompt }) => ({ slug, name, scope, prompt })) }));
 
 app.post("/api/upload", requireAuth, async (c) => {
@@ -209,13 +220,14 @@ app.post("/api/generate", requireAuth, async (c) => {
       return c.json({ id, status: "SUCCESS" });
     }
     const images = obj ? [obj, ...(ref ? [ref] : []), ...items.map((o) => o!)] : [];
+    const swatch = b.tool === "interior-floor" ? await tileSwatch(c, b.material) : null;
     const taskId = video
       ? await submitImageToVideo(c.env.RUNNINGHUB_API_KEY, { image: { bytes: await obj!.arrayBuffer(), mime: obj!.httpMetadata?.contentType ?? "image/jpeg" }, prompt, aspectRatio: ["9:16", "2:3", "3:4", "4:5"].includes(aspectRatio ?? "") ? "9:16" : "16:9" }, c.env.RUNNINGHUB_BASE)
       : textOnly
       ? await submitTextToImage(c.env.RUNNINGHUB_API_KEY, { prompt, aspectRatio: aspectRatio ?? "16:9", resolution }, c.env.RUNNINGHUB_BASE)
       : await submitImageToImage(c.env.RUNNINGHUB_API_KEY, {
-        images: await Promise.all(images.map(async (o) => ({ bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" }))),
-        prompt, aspectRatio, resolution,
+        images: [...await Promise.all(images.map(async (o) => ({ bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" }))), ...(swatch ? [swatch] : [])],
+        prompt, aspectRatio: swatch ? aspectRatio ?? "4:3" : aspectRatio, resolution, model: swatch ? PRO_EDIT : undefined,
       }, c.env.RUNNINGHUB_BASE);
     await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,rh_task_id,input_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
       .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: b.surface, material: b.material, weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, lighting: b.tool === "interior-lighting" ? b.lighting : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
@@ -247,7 +259,7 @@ app.post("/api/bizplan/detect", requireAuth, async (c) => {
   }
 });
 
-type Job = { prompt: string; params: Record<string, unknown>; label: string };
+type Job = { prompt: string; params: Record<string, unknown>; label: string; extra?: { bytes: ArrayBuffer; mime: string }[]; model?: string };
 /**
  * Several generations from one uploaded image in a single request (Business 3D Floorplan, material comparison).
  * Credits for every job are charged up front; a job whose submission fails is refunded at once. Each job becomes a
@@ -265,7 +277,7 @@ async function runBatch(c: any, o: { tool: string; inputKey: string; image: { by
     const now = Date.now();
     await c.env.DB.prepare("INSERT INTO credit_ledger (user_id,delta,reason,generation_id,created_at) VALUES (?,?,?,?,?)").bind(u.id, -o.each, "generate", id, now).run();
     try {
-      const taskId = await submitImageToImage(c.env.RUNNINGHUB_API_KEY!, { images: [o.image], prompt: job.prompt, aspectRatio: o.aspectRatio, resolution: o.resolution }, c.env.RUNNINGHUB_BASE);
+      const taskId = await submitImageToImage(c.env.RUNNINGHUB_API_KEY!, { images: [o.image, ...(job.extra ?? [])], prompt: job.prompt, aspectRatio: job.model ? o.aspectRatio ?? "4:3" : o.aspectRatio, model: job.model, resolution: o.resolution }, c.env.RUNNINGHUB_BASE);
       await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,rh_task_id,input_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
         .bind(id, u.id, o.tool, JSON.stringify({ ...job.params, batchId, resolution: o.resolution, aspectRatio: o.aspectRatio }), job.prompt, "RUNNING", taskId, o.inputKey, o.each, now).run();
       return { id, label: job.label };
@@ -313,6 +325,7 @@ app.post("/api/compare", requireAuth, async (c) => {
   try { jobs = materials.map((m) => ({ prompt: buildPrompt(b.tool, { surface, material: m, custom: b.custom }), params: { surface, material: m }, label: m })); } catch (e: any) { return c.json({ error: e.message }, 400); }
   const photo = await ownImage(c, b.inputKey);
   if (!photo) return c.json({ error: "Invalid input image · Ảnh đầu vào không hợp lệ" }, 400);
+  if (b.tool === "interior-floor") for (const job of jobs) { const s = await tileSwatch(c, job.label); if (s) { job.extra = [s]; job.model = PRO_EDIT; } }
   const resolution = RES.includes(b.resolution) ? b.resolution : "1k";
   const r = await runBatch(c, {
     tool: b.tool, inputKey: b.inputKey, image: { bytes: await photo.arrayBuffer(), mime: photo.httpMetadata?.contentType ?? "image/jpeg" },

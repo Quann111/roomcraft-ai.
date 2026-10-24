@@ -67,8 +67,8 @@ export const GUIDES: Record<string, Guide> = {
   },
   "Floor Editor": {
     what: ["Replace the flooring in your photo to see how a new floor would look.", "Thay sàn trong ảnh để xem sàn mới trông thế nào."],
-    steps: [["Upload a photo where the floor is visible.", "Tải ảnh thấy rõ mặt sàn lên."], ["Pick a flooring material.", "Chọn vật liệu sàn."], ["Press Generate; furniture and rugs stay.", "Bấm Tạo thiết kế; nội thất và thảm giữ nguyên."]],
-    tips: [["Try oak, herringbone and stone on the same photo to compare.", "Thử gỗ sồi, xương cá và đá trên cùng một ảnh để so sánh."]], credits: ONE_CREDIT, example: "floor",
+    steps: [["Upload a photo where the floor is visible.", "Tải ảnh thấy rõ mặt sàn lên."], ["Pick a flooring material or a VICOSTONE tile.", "Chọn vật liệu sàn hoặc một mẫu gạch VICOSTONE."], ["Press Generate; furniture and rugs stay.", "Bấm Tạo thiết kế; nội thất và thảm giữ nguyên."]],
+    tips: [["Try oak, herringbone and stone on the same photo to compare.", "Thử gỗ sồi, xương cá và đá trên cùng một ảnh để so sánh."], ["VICOSTONE tiles are laid as 120 × 120 cm polished slabs from the real swatch.", "Gạch VICOSTONE được lát khổ 120 × 120 cm, bóng kiếng, theo đúng ảnh mẫu gạch."]], credits: ONE_CREDIT, example: "floor",
   },
   "Furniture Removal": {
     what: ["Remove furniture, clutter or people, or empty the whole room.", "Xoá đồ đạc, đồ lộn xộn, người trong ảnh, hoặc dọn trống cả phòng."],
