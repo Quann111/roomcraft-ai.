@@ -111,6 +111,8 @@ export const REMOVE = ["furniture", "clutter", "people", "everything (empty room
 export const ANGLES = ["front", "side", "back"];
 /** Camera views for turning a 2D floor plan into a 3D render. */
 export const PLAN_VIEWS = ["isometric", "top-down"] as const;
+/** Views shown but not offered yet: top-down sometimes copies the plan's labels into the render. */
+export const LOCKED_PLAN_VIEWS: readonly string[] = ["top-down"];
 const PLAN_VIEW_TEXT: Record<(typeof PLAN_VIEWS)[number], string> = {
   isometric: "Show it like a photograph of a roofless architectural scale model taken diagonally from outside one corner, with the camera only about 30 degrees above the ground, in true 3D perspective. The outer and inner wall faces (cut at about 1.2 m height) and the height of the furniture are clearly visible.",
   "top-down": "Show it like a photograph taken from a drone directly above a roofless home, with the walls extruded with realistic thickness and soft shadows, so the layout reads exactly like the plan.",
@@ -445,6 +447,7 @@ export function buildPrompt(tool: string, p: any): string {
       );
     }
     case "interior-floorplan": {
+      if (LOCKED_PLAN_VIEWS.includes(p.view)) throw new Error("This view is coming soon · Góc nhìn này sắp ra mắt");
       const s = styleFor(p.styleSlug, "interior");
       return join(
         `This image is a 2D architectural floor plan. Turn it into a photorealistic 3D rendering of the same floor plan, furnished in a ${s.name} interior style.`,

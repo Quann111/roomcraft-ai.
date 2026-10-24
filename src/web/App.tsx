@@ -69,15 +69,15 @@ const thumbOf = (map: Record<string, string>, key: string) => (map[key] ? U(map[
 type ToolDef = { name: string; desc: string; cat: string; photo: string; premium?: boolean; icon: string; spaces?: ToolId[]; popular?: boolean };
 const REDESIGN: ToolId[] = ["interior-redesign", "exterior-redesign", "garden-redesign"];
 const TOOLS: ToolDef[] = [
-  { name: "Magic Redesign", desc: "Type your request and instantly transform any detail from your space with our conversational AI.", cat: "redesign", photo: "photo-1600210492486-724fe5c67fb0", icon: "spark", spaces: REDESIGN },
+  { name: "Magic Redesign", desc: "Type your request and instantly transform any detail from your space with our conversational AI.", cat: "redesign", photo: "photo-1600210492486-724fe5c67fb0", icon: "spark" },
   { name: "Perfect Redesign", desc: "Complete redesign of your home spaces with enhanced results, while preserving structural elements.", cat: "redesign", photo: "photo-1618221195710-dd6b41faaea6", icon: "spark", spaces: REDESIGN, popular: true },
   { name: "Beautiful Redesign", desc: "Change your room style and refresh your design using our AI model.", cat: "redesign", photo: "photo-1616486338812-3dadae4b4ace", icon: "image", spaces: REDESIGN },
-  { name: "Virtual Staging", desc: "Instantly stage spaces with realistic furniture and decor to visualize their potential.", cat: "staging", photo: "photo-1600607687939-ce8a6c25118c", icon: "sofa", spaces: ["interior-staging"] },
-  { name: "Creative Redesign", desc: "Allow AI to rearrange furniture and adjust structures for an innovative new look.", cat: "redesign", photo: "photo-1783961859503-2f6cd85f6e87", icon: "spark", spaces: REDESIGN },
+  { name: "Virtual Staging", desc: "Instantly stage spaces with realistic furniture and decor to visualize their potential.", cat: "staging", photo: "photo-1600607687939-ce8a6c25118c", icon: "sofa", spaces: ["interior-staging"], popular: true },
+  { name: "Creative Redesign", desc: "Allow AI to rearrange furniture and adjust structures for an innovative new look.", cat: "redesign", photo: "photo-1783961859503-2f6cd85f6e87", icon: "spark" },
   { name: "Sketch to Render", desc: "Transform rough sketches into photorealistic renders for clear visualizations.", cat: "redesign", photo: "photo-1643569941917-95185f728355", icon: "image", spaces: ["interior-sketch", "exterior-sketch"] },
-  { name: "Fill Spaces", desc: "Furnish and decorate empty rooms with AI, tailored to your chosen style and room type.", cat: "furnish", photo: "photo-1757742690834-aa581b9f53b2", icon: "sofa", spaces: ["interior-staging"] },
-  { name: "Decor Staging", desc: "Virtually stage furniture and decor in realistic settings for enhanced visual appeal.", cat: "staging", photo: "photo-1628152371231-936cf45eb8f3", icon: "sofa", spaces: ["interior-staging"], popular: true },
-  { name: "Colors & Textures", desc: "Customize colors and textures on design elements using presets or your own choices.", cat: "furnish", photo: "photo-1770970831074-6e88b6cc260b", icon: "layers", spaces: ["interior-material"] },
+  { name: "Fill Spaces", desc: "Furnish and decorate empty rooms with AI, tailored to your chosen style and room type.", cat: "furnish", photo: "photo-1757742690834-aa581b9f53b2", icon: "sofa" },
+  { name: "Decor Staging", desc: "Virtually stage furniture and decor in realistic settings for enhanced visual appeal.", cat: "staging", photo: "photo-1628152371231-936cf45eb8f3", icon: "sofa" },
+  { name: "Colors & Textures", desc: "Customize colors and textures on design elements using presets or your own choices.", cat: "furnish", photo: "photo-1770970831074-6e88b6cc260b", icon: "layers" },
   { name: "Furniture Removal", desc: "Effortlessly remove furniture to create a clean slate for new design ideas.", cat: "furnish", photo: "photo-1779119507174-377fd3d44785", icon: "layers", spaces: ["interior-declutter"] },
   { name: "Sky Colors", desc: "Adjust the sky's color and weather in your images for the perfect atmosphere.", cat: "redesign", photo: "photo-1544984243-ec57ea16fe25", icon: "weather", spaces: ["exterior-sky"] },
   { name: "Material Swap", desc: "Replace materials on surfaces to explore different textures and finishes.", cat: "furnish", photo: "photo-1749212387838-c4c4e6e58348", icon: "layers", spaces: ["interior-material"] },
@@ -331,7 +331,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                 )}
                 {cfg.planView && (
                   <><h4>{t("3D view", "Góc nhìn 3D")}</h4>
-                    <div className="segmented">{meta.planViews.map((v) => <button key={v} type="button" className={v === g.view ? "active" : ""} onClick={() => g.setView(v)}>{bi(v)}</button>)}</div></>
+                    <div className="segmented">{meta.planViews.map((v) => { const off = meta.lockedPlanViews?.includes(v); return <button key={v} type="button" disabled={off} title={off ? t("Coming soon", "Sắp ra mắt") : undefined} style={off ? { opacity: 0.45, cursor: "not-allowed" } : undefined} className={v === g.view ? "active" : ""} onClick={() => g.setView(v)}>{bi(v)}{off ? ` · ${t("soon", "sắp có")}` : ""}</button>; })}</div></>
                 )}
                 {cfg.weather && (
                   <><h4>{t("Change Sky Colors to:", "Đổi bầu trời thành:")}</h4>
