@@ -8,7 +8,7 @@ import { OrientView, DIRS, DIR_NAMES, type Orient } from "./OrientView";
 type Meta = {
   styles: { slug: string; name: string; scope: string; thumb?: string }[];
   roomTypes: string[]; intervention: string[];
-  surfaces: Record<string, string[]>; paints: { name: string; hex: string }[]; finishes: string[]; weather: string[]; remove: string[]; angles: string[]; planViews: string[]; motions: string[]; lighting: string[]; cities: string[];
+  surfaces: Record<string, string[]>; paints: { name: string; hex: string }[]; finishes: string[]; weather: string[]; remove: string[]; angles: string[]; planViews: string[]; floorTiles?: { code: string; name: string; thumb: string; room?: string }[]; motions: string[]; lighting: string[]; cities: string[];
 };
 export type Critique = {
   room: string; style: string; score: number; summary: string; strengths: string[];
@@ -483,7 +483,7 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
             <select className={field} value={material} onChange={(e) => setMaterial(e.target.value)}>{meta.surfaces[surface].map((m) => <option key={m} value={m}>{bi(m)}</option>)}</select>
           </>
         )}
-        {cfg.floor && <select className={field} value={material} onChange={(e) => setMaterial(e.target.value)}>{meta.surfaces.floor.map((m) => <option key={m} value={m}>{bi(m)}</option>)}</select>}
+        {cfg.floor && <select className={field} value={material} onChange={(e) => setMaterial(e.target.value)}>{meta.surfaces.floor.map((m) => <option key={m} value={m}>{bi(m)}</option>)}{!!meta.floorTiles?.length && <optgroup label="VICOSTONE">{meta.floorTiles.map((x) => <option key={x.name} value={x.name}>{x.name}</option>)}</optgroup>}</select>}
         {cfg.paint && (
           <div className="flex flex-wrap items-center gap-2">
             {meta.paints.map((c) => (

@@ -1,5 +1,6 @@
 import excelStyles from "../../seed/styles.json" with { type: "json" };
 import { CITIES, DIRECTIONS, WINDS, exposureText, type Direction } from "./solar.ts";
+import { floorTile, TILE_BRAND, TILE_SIZE } from "./floorTiles.ts";
 
 export type Style = { slug: string; name: string; scope: "interior" | "exterior" | "garden"; prompt: string; img?: string; photo?: string };
 
@@ -352,6 +353,13 @@ export function buildPrompt(tool: string, p: any): string {
         `Repaint only the walls of this room in ${paintColor(p.color)}. Paint finish: ${finish(p)}.`,
         "Keep the ceiling, trim, doors, floor, furniture, artwork and every object unchanged. Preserve the original lighting, shadows and wall texture so the new color looks naturally lit.", custom(p), STRUCTURE_LOCK);
     case "interior-floor": {
+      const tile = floorTile(p.material);
+      if (tile) return join(
+        `The second image is a flat swatch of one ${TILE_BRAND} ${tile.code} porcelain floor tile, ${TILE_SIZE}, polished high-gloss finish (${tile.look}).`,
+        `Replace only the flooring in the first image with this exact tile: same color, pattern and veining as the swatch, laid across the whole visible floor in a straight grid of large ${TILE_SIZE} square tiles with thin, barely visible grout joints, following the room's perspective so tiles shrink correctly toward the back.`,
+        "Neighboring tiles vary slightly as natural stone-look slabs do; do not repeat one identical tile or add veining the swatch does not have.",
+        "Give the floor a polished mirror-like gloss that softly reflects windows, lights and furniture, matching the original lighting.",
+        "Keep all furniture, rugs, walls, skirting and objects unchanged, and keep furniture legs resting realistically on the new floor.", custom(p), STRUCTURE_LOCK);
       if (!SURFACES.floor.includes(p.material)) throw new Error("Invalid material · Vật liệu không hợp lệ");
       return join(
         `Replace only the flooring in this room with ${p.material}, laid naturally across the whole visible floor with correct perspective, scale and seams.`,
