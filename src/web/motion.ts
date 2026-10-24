@@ -7,7 +7,7 @@ const LEAF = [
   "[class*='label']", "[class*='tag']", "[class*='number']", "[class*='icon']", "[class*='avatar']", ".hero-slides", ".hl-figure", ".iso-box",
   "[class*='visual-choice']", "[class*='image']", "[class*='art']", "[class*='upload']", "[class*='before']", "[class*='compare'] img",
 ].join(",");
-const SKIP = ".marquee *, .iso-box *, [data-hairline] *, canvas, [data-no-motion], [data-no-motion] *, .scroll-progress, .zoom-modal, .zoom-modal *, option";
+const SKIP = ".marquee *, .iso-box *, [data-hairline] *, canvas, [data-no-motion], [data-no-motion] *, .scroll-progress, .zoom-modal, .zoom-modal *, .ba-range, option";
 const INTERACTIVE = "[class*='card'], [class*='tile'], .workflow-step, .story-step, .tool-mini, .module-tool, .module-tool-link, .nav-item, .hl-figure, .visual-choice, .space-choice, .chip";
 const ATOMIC = "button, a, .chip, .hl-figure, [class*='visual-choice'], [class*='image'], [class*='art']";
 
