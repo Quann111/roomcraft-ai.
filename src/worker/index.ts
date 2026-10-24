@@ -613,9 +613,16 @@ app.post("/api/admin/costs/import", async (c) => {
     from: Math.min(...tasks.map((t) => t.at)), to: Math.max(...tasks.map((t) => t.at)) });
 });
 
+// History, newest first. ?limit= (1–500, default 50), ?tool= (one tool id), ?before= (createdAt cursor from `next`).
+// Under OPEN_ACCESS every visitor shares one account, so a fixed 50 pushed older runs out of view within hours.
 app.get("/api/generations", requireAuth, async (c) => {
-  const { results } = await c.env.DB.prepare("SELECT id,tool,params,status,input_key,output_key,is_public,created_at FROM generations WHERE user_id=? ORDER BY created_at DESC LIMIT 50").bind(c.get("user").id).all<any>();
-  return c.json({ items: results.map((g) => ({ id: g.id, tool: g.tool, params: JSON.parse(g.params), status: g.status, public: !!g.is_public, createdAt: g.created_at, inputUrl: g.input_key ? `/api/images/${g.input_key}` : null, outputUrl: g.output_key ? `/api/images/${g.output_key}` : null })) });
+  const limit = Math.min(500, Math.max(1, Number(c.req.query("limit")) || 50));
+  const tool = c.req.query("tool"), before = Number(c.req.query("before"));
+  const where = ["user_id=?"], args: unknown[] = [c.get("user").id];
+  if (tool && /^[a-z-]{3,40}$/.test(tool)) { where.push("tool=?"); args.push(tool); } // bound parameter; bizplan and advisor are not in TOOL_IDS
+  if (Number.isFinite(before) && before > 0) { where.push("created_at<?"); args.push(before); }
+  const { results } = await c.env.DB.prepare(`SELECT id,tool,params,status,input_key,output_key,is_public,created_at FROM generations WHERE ${where.join(" AND ")} ORDER BY created_at DESC LIMIT ?`).bind(...args, limit).all<any>();
+  return c.json({ next: results.length === limit ? results[results.length - 1].created_at : null, items: results.map((g) => ({ id: g.id, tool: g.tool, params: JSON.parse(g.params), status: g.status, public: !!g.is_public, createdAt: g.created_at, inputUrl: g.input_key ? `/api/images/${g.input_key}` : null, outputUrl: g.output_key ? `/api/images/${g.output_key}` : null })) });
 });
 
 app.get("/api/images/:kind/:uid/:file", requireAuth, async (c) => {
