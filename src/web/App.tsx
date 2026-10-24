@@ -150,8 +150,11 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
           <div key={x.name} style={{ minWidth: 0 }}>
             <button type="button" title={x.name} aria-pressed={active(x.name)} onClick={() => pick(x.name)}
               style={{ display: "block", width: "100%", padding: 0, borderRadius: 8, overflow: "hidden", background: "#fff", cursor: "pointer", textAlign: "left", border: "1px solid #e2ded6", outline: active(x.name) ? "2px solid #1c1b19" : "none", outlineOffset: -1 }}>
-              <img src={x.thumb} alt="" loading="lazy" style={{ display: "block", width: "100%", aspectRatio: "1", objectFit: "cover" }} />
-              <span style={{ display: "block", padding: "4px 6px", fontSize: 11, lineHeight: 1.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.code}</span>
+              <span style={{ display: "block", position: "relative" }}>
+                <img src={x.thumb} alt="" loading="lazy" style={{ display: "block", width: "100%", aspectRatio: "1", objectFit: "cover" }} />
+                <span aria-hidden="true" style={{ position: "absolute", top: 4, left: 4, padding: "2px 5px", borderRadius: "var(--radius)", color: "var(--ink)", background: "var(--gold)", fontSize: 8, fontWeight: 700, letterSpacing: ".4px", lineHeight: 1.2 }}>VICOSTONE</span>
+              </span>
+              <span style={{ display: "block", padding: "4px 4px", fontSize: 10, letterSpacing: "-.1px", lineHeight: 1.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.code}</span>
             </button>
             {x.room && <button type="button" className="link-btn" style={{ fontSize: 11, padding: "2px 0", background: "none", border: 0, color: "#6b665d", textDecoration: "underline", cursor: "pointer" }} onClick={() => setZoom({ src: x.room!, label: x.name })}>{t("See installed", "Xem ảnh mẫu")}</button>}
           </div>
