@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { AiThinking } from "./AiThinking";
 import { bi, t } from "./i18n";
 import { prepareImage, type PreparedImage } from "./imagePrep";
 
@@ -128,7 +129,7 @@ export function BizPlan({ onCreditsChange }: { onCreditsChange?: () => void }) {
               <figure key={x.id ?? i} style={{ margin: 0, border: `1px solid ${line}`, borderRadius: 12, overflow: "hidden", background: "#fff" }}>
                 <div style={{ aspectRatio: "4 / 3", display: "grid", placeItems: "center", background: "#f4f1ea" }}>
                   {x.status === "SUCCESS" && x.outputUrl ? <a href={x.outputUrl} target="_blank" rel="noreferrer" style={{ display: "block", width: "100%", height: "100%" }}><img src={x.outputUrl} alt={x.room} style={{ width: "100%", height: "100%", objectFit: "cover" }} /></a>
-                    : <span style={{ fontSize: 13, opacity: 0.7, padding: 10, textAlign: "center" }}>{x.status === "FAILED" ? `${t("Failed (credit refunded)", "Lỗi (đã hoàn credit)")}${x.error ? ` · ${bi(x.error)}` : ""}` : t("Rendering…", "Đang render…")}</span>}
+                    : x.status === "FAILED" ? <span style={{ fontSize: 13, opacity: 0.7, padding: 10, textAlign: "center" }}>{`${t("Failed (credit refunded)", "Lỗi (đã hoàn credit)")}${x.error ? ` · ${bi(x.error)}` : ""}`}</span> : <AiThinking tile />}
                 </div>
                 <figcaption style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 10px", fontSize: 14 }}>
                   <b style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.room}</b>

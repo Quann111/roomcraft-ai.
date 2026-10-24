@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { AiThinking } from "./AiThinking";
 import { bi, getLang, t } from "./i18n";
 import { prepareImage, formatBytes, type PreparedImage } from "./imagePrep";
 import { AdvisorChat } from "./AdvisorChat";
@@ -541,7 +542,7 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
               <button onClick={remove_} className="rounded border px-4 py-2 text-red-600">{bi("Delete · Xoá")}</button>
             </div>
           </>
-        ) : <div className="flex h-full min-h-48 items-center justify-center rounded-xl border text-neutral-400">{busy ? bi("Processing… · Đang xử lý…") : bi("Result appears here · Kết quả sẽ hiện ở đây")}</div>}
+        ) : <div className="flex h-full min-h-48 items-center justify-center rounded-xl border text-neutral-400">{busy ? <AiThinking kind={cfg.video ? "video" : cfg.llm ? "analysis" : "image"} compact /> : bi("Result appears here · Kết quả sẽ hiện ở đây")}</div>}
       </div>
       {history.length > 0 && (
         <div className="md:col-span-2">

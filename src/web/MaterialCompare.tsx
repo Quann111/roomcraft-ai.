@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { AiThinking } from "./AiThinking";
 import { bi, t } from "./i18n";
 
 export const MAX_COMPARE = 4; // matches MAX_COMPARE in the worker
@@ -64,7 +65,7 @@ export function CompareResults({ original, items, Compare }: { original: string;
             <button key={x.id ?? i} type="button" disabled={!ok} onClick={() => setSel(k)} style={{ ...tile, outline: ok && current === x ? "2px solid #1c1b19" : "none", cursor: ok ? "pointer" : "default" }} aria-label={bi(x.material)}>
               <div style={{ aspectRatio: "4 / 3", display: "grid", placeItems: "center", background: "#f4f1ea" }}>
                 {ok ? <img src={x.outputUrl!} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                  : <span style={{ fontSize: 12, opacity: 0.7, padding: 6, textAlign: "center" }}>{x.status === "FAILED" ? t("Failed (credit refunded)", "Lỗi (đã hoàn credit)") : t("Rendering…", "Đang render…")}</span>}
+                  : x.status === "FAILED" ? <span style={{ fontSize: 12, opacity: 0.7, padding: 6, textAlign: "center" }}>{t("Failed (credit refunded)", "Lỗi (đã hoàn credit)")}</span> : <AiThinking tile />}
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 6, padding: "6px 8px", fontSize: 13 }}>
                 <b style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{bi(x.material)}</b>
