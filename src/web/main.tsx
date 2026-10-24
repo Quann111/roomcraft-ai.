@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import "./solyc.css";
 import { installDemo } from "./demo";
+import { installMotion } from "./motion";
 import { getLang, subscribeLang } from "./i18n";
 import { AuthProvider } from "./auth";
 import { useLocation, navigate } from "./router";
@@ -66,5 +67,6 @@ function App() {
 }
 
 if (location.protocol === "file:") installDemo();
+installMotion();
 
 createRoot(document.getElementById("root")!).render(<App />);

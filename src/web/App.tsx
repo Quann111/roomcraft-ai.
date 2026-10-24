@@ -1,3 +1,6 @@
+import { Figure } from "./Figure";
+import { ARCH } from "./icons";
+import { scenefor } from "./iso";
 import React, { useEffect, useMemo, useState } from "react";
 import "./sxapp.css";
 import { navigate, useLocation, Link } from "./router";
@@ -34,8 +37,9 @@ const ICONS: Record<string, string> = {
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/>',
   lock: '<path d="M7 10V8a5 5 0 0 1 10 0v2M6 10h12v10H6z"/>',
 };
+const ALL_ICONS: Record<string, string> = { ...ICONS, ...ARCH };
 const Icon = ({ n, className = "icon-svg" }: { n: string; className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" aria-hidden="true" dangerouslySetInnerHTML={{ __html: ICONS[n] ?? ICONS.spark }} />
+  <svg className={className} viewBox="0 0 24 24" aria-hidden="true" dangerouslySetInnerHTML={{ __html: ALL_ICONS[n] ?? ICONS.spark }} />
 );
 
 /* ---------- catalog ---------- */
@@ -69,31 +73,31 @@ const thumbOf = (map: Record<string, string>, key: string) => (map[key] ? U(map[
 type ToolDef = { name: string; desc: string; cat: string; photo: string; premium?: boolean; icon: string; spaces?: ToolId[]; popular?: boolean };
 const REDESIGN: ToolId[] = ["interior-redesign", "exterior-redesign", "garden-redesign"];
 const TOOLS: ToolDef[] = [
-  { name: "Magic Redesign", desc: "Type your request and instantly transform any detail from your space with our conversational AI.", cat: "redesign", photo: "photo-1600210492486-724fe5c67fb0", icon: "spark", spaces: REDESIGN },
-  { name: "Perfect Redesign", desc: "Complete redesign of your home spaces with enhanced results, while preserving structural elements.", cat: "redesign", photo: "photo-1618221195710-dd6b41faaea6", icon: "spark", spaces: REDESIGN, popular: true },
-  { name: "Beautiful Redesign", desc: "Change your room style and refresh your design using our AI model.", cat: "redesign", photo: "photo-1616486338812-3dadae4b4ace", icon: "image", spaces: REDESIGN },
-  { name: "Virtual Staging", desc: "Instantly stage spaces with realistic furniture and decor to visualize their potential.", cat: "staging", photo: "photo-1600607687939-ce8a6c25118c", icon: "sofa", spaces: ["interior-staging"] },
-  { name: "Creative Redesign", desc: "Allow AI to rearrange furniture and adjust structures for an innovative new look.", cat: "redesign", photo: "photo-1783961859503-2f6cd85f6e87", icon: "spark", spaces: REDESIGN },
-  { name: "Sketch to Render", desc: "Transform rough sketches into photorealistic renders for clear visualizations.", cat: "redesign", photo: "photo-1643569941917-95185f728355", icon: "image", spaces: ["interior-sketch", "exterior-sketch"] },
-  { name: "Fill Spaces", desc: "Furnish and decorate empty rooms with AI, tailored to your chosen style and room type.", cat: "furnish", photo: "photo-1757742690834-aa581b9f53b2", icon: "sofa", spaces: ["interior-staging"] },
-  { name: "Decor Staging", desc: "Virtually stage furniture and decor in realistic settings for enhanced visual appeal.", cat: "staging", photo: "photo-1628152371231-936cf45eb8f3", icon: "sofa", spaces: ["interior-staging"], popular: true },
-  { name: "Colors & Textures", desc: "Customize colors and textures on design elements using presets or your own choices.", cat: "furnish", photo: "photo-1770970831074-6e88b6cc260b", icon: "layers", spaces: ["interior-material"] },
-  { name: "Furniture Removal", desc: "Effortlessly remove furniture to create a clean slate for new design ideas.", cat: "furnish", photo: "photo-1779119507174-377fd3d44785", icon: "layers", spaces: ["interior-declutter"] },
-  { name: "Sky Colors", desc: "Adjust the sky's color and weather in your images for the perfect atmosphere.", cat: "redesign", photo: "photo-1544984243-ec57ea16fe25", icon: "weather", spaces: ["exterior-sky"] },
-  { name: "Material Swap", desc: "Replace materials on surfaces to explore different textures and finishes.", cat: "furnish", photo: "photo-1749212387838-c4c4e6e58348", icon: "layers", spaces: ["interior-material"] },
-  { name: "Paint Visualizer", desc: "Change wall colors using presets or custom colors for interiors and exteriors.", cat: "furnish", photo: "photo-1562259949-e8e7689d7828", icon: "spark", spaces: ["interior-paint", "exterior-paint"] },
-  { name: "Floor Editor", desc: "Replace the flooring in any image with custom materials to see how the new floor would look.", cat: "3d", photo: "photo-1761053130711-2515ef532bb5", icon: "layers", spaces: ["interior-floor"] },
-  { name: "Furniture Finder", desc: "Identify and get purchase links for furniture in images and generated designs.", cat: "furnish", photo: "photo-1580480055273-228ff5388ef8", icon: "search", spaces: ["interior-finder"] },
-  { name: "Room Composer", desc: "Upload your room and elements, and our AI will compose it into a stylish, cohesive space.", cat: "furnish", photo: "photo-1674058924341-a79eed7e9a89", icon: "sofa", spaces: ["interior-compose"] },
-  { name: "Design Transfer", desc: "Recreate the style of inspiration images by applying their design style to a new space.", cat: "redesign", photo: "photo-1615529182904-14819c35db37", icon: "image", spaces: ["interior-transfer"] },
-  { name: "Text to Design", desc: "Generate complete designs from text descriptions, turning words into beautifully crafted spaces.", cat: "redesign", photo: "photo-1757344454333-cc666252e596", icon: "file", spaces: ["interior-text", "exterior-text", "garden-text"] },
-  { name: "Day & Night Lighting", desc: "See your room in morning sun, golden hour, at dusk or at night with the lights on.", cat: "redesign", photo: "photo-1618221195710-dd6b41faaea6", icon: "weather", spaces: ["interior-lighting"] },
-  { name: "Sun & Wind Analysis", desc: "Tell us which way your home faces: AI reads the sun and wind on every side and suggests climate-smart design changes.", cat: "3d", photo: "photo-1568605115459-4b731184f961", icon: "weather", spaces: ["exterior-orient"] },
-  { name: "Business 3D Floorplan", desc: "Upload one 2D plan. AI detects every room and generates consistent, photoreal renders for each space.", cat: "business", photo: "photo-1721244654210-a505a99661e9", icon: "house", premium: true, spaces: ["interior-bizplan"] },
-  { name: "3D Floorplan", desc: "Generate realistic 3D renderings from 2D floorplans. Bring blueprints to life with complete accuracy.", cat: "3d", photo: "photo-1786550860329-f813516e9705", icon: "house", premium: true, spaces: ["interior-floorplan"] },
-  { name: "Video Generation", desc: "Turn design ideas into stunning AI-powered videos and realistic visual presentations.", cat: "business", photo: "photo-1743463685519-469d9ebe1b7f", icon: "spark", premium: true, spaces: ["interior-video"] },
-  { name: "Design Critique", desc: "Receive detailed AI-driven feedback on an uploaded room design and expert suggestions to refine it.", cat: "business", photo: "photo-1781888679143-01d758aedbe6", icon: "info", premium: true, spaces: ["interior-critique"] },
-  { name: "Design Advisor", desc: "Chat with our AI trained by top designers to get advice tailored to your project and budget.", cat: "business", photo: "photo-1664638413302-d1ca29ac885b", icon: "headset", premium: true, spaces: ["interior-advisor"] },
+  { name: "Magic Redesign", desc: "Type your request and instantly transform any detail from your space with our conversational AI.", cat: "redesign", photo: "photo-1600210492486-724fe5c67fb0", icon: "magic" },
+  { name: "Perfect Redesign", desc: "Complete redesign of your home spaces with enhanced results, while preserving structural elements.", cat: "redesign", photo: "photo-1618221195710-dd6b41faaea6", icon: "redesign", spaces: REDESIGN, popular: true },
+  { name: "Beautiful Redesign", desc: "Change your room style and refresh your design using our AI model.", cat: "redesign", photo: "photo-1616486338812-3dadae4b4ace", icon: "frame", spaces: REDESIGN },
+  { name: "Virtual Staging", desc: "Instantly stage spaces with realistic furniture and decor to visualize their potential.", cat: "staging", photo: "photo-1600607687939-ce8a6c25118c", icon: "sofa", spaces: ["interior-staging"], popular: true },
+  { name: "Creative Redesign", desc: "Allow AI to rearrange furniture and adjust structures for an innovative new look.", cat: "redesign", photo: "photo-1783961859503-2f6cd85f6e87", icon: "palette" },
+  { name: "Sketch to Render", desc: "Transform rough sketches into photorealistic renders for clear visualizations.", cat: "redesign", photo: "photo-1643569941917-95185f728355", icon: "sketch", spaces: ["interior-sketch", "exterior-sketch"] },
+  { name: "Fill Spaces", desc: "Furnish and decorate empty rooms with AI, tailored to your chosen style and room type.", cat: "furnish", photo: "photo-1757742690834-aa581b9f53b2", icon: "fill" },
+  { name: "Decor Staging", desc: "Virtually stage furniture and decor in realistic settings for enhanced visual appeal.", cat: "staging", photo: "photo-1628152371231-936cf45eb8f3", icon: "decor" },
+  { name: "Colors & Textures", desc: "Customize colors and textures on design elements using presets or your own choices.", cat: "furnish", photo: "photo-1770970831074-6e88b6cc260b", icon: "swatch" },
+  { name: "Furniture Removal", desc: "Effortlessly remove furniture to create a clean slate for new design ideas.", cat: "furnish", photo: "photo-1779119507174-377fd3d44785", icon: "remove", spaces: ["interior-declutter"] },
+  { name: "Sky Colors", desc: "Adjust the sky's color and weather in your images for the perfect atmosphere.", cat: "redesign", photo: "photo-1544984243-ec57ea16fe25", icon: "sky", spaces: ["exterior-sky"] },
+  { name: "Material Swap", desc: "Replace materials on surfaces to explore different textures and finishes.", cat: "furnish", photo: "photo-1749212387838-c4c4e6e58348", icon: "material", spaces: ["interior-material"] },
+  { name: "Paint Visualizer", desc: "Change wall colors using presets or custom colors for interiors and exteriors.", cat: "furnish", photo: "photo-1562259949-e8e7689d7828", icon: "roller", spaces: ["interior-paint", "exterior-paint"] },
+  { name: "Floor Editor", desc: "Replace the flooring in any image with custom materials to see how the new floor would look.", cat: "3d", photo: "photo-1761053130711-2515ef532bb5", icon: "floor", spaces: ["interior-floor"] },
+  { name: "Furniture Finder", desc: "Identify and get purchase links for furniture in images and generated designs.", cat: "furnish", photo: "photo-1580480055273-228ff5388ef8", icon: "finder", spaces: ["interior-finder"] },
+  { name: "Room Composer", desc: "Upload your room and elements, and our AI will compose it into a stylish, cohesive space.", cat: "furnish", photo: "photo-1674058924341-a79eed7e9a89", icon: "composer", spaces: ["interior-compose"] },
+  { name: "Design Transfer", desc: "Recreate the style of inspiration images by applying their design style to a new space.", cat: "redesign", photo: "photo-1615529182904-14819c35db37", icon: "transfer", spaces: ["interior-transfer"] },
+  { name: "Text to Design", desc: "Generate complete designs from text descriptions, turning words into beautifully crafted spaces.", cat: "redesign", photo: "photo-1757344454333-cc666252e596", icon: "textdesign", spaces: ["interior-text", "exterior-text", "garden-text"] },
+  { name: "Day & Night Lighting", desc: "See your room in morning sun, golden hour, at dusk or at night with the lights on.", cat: "redesign", photo: "photo-1618221195710-dd6b41faaea6", icon: "daynight", spaces: ["interior-lighting"] },
+  { name: "Sun & Wind Analysis", desc: "Tell us which way your home faces: AI reads the sun and wind on every side and suggests climate-smart design changes.", cat: "3d", photo: "photo-1568605115459-4b731184f961", icon: "compass", spaces: ["exterior-orient"] },
+  { name: "Business 3D Floorplan", desc: "Upload one 2D plan. AI detects every room and generates consistent, photoreal renders for each space.", cat: "business", photo: "photo-1721244654210-a505a99661e9", icon: "bizplan", premium: true, spaces: ["interior-bizplan"] },
+  { name: "3D Floorplan", desc: "Generate realistic 3D renderings from 2D floorplans. Bring blueprints to life with complete accuracy.", cat: "3d", photo: "photo-1786550860329-f813516e9705", icon: "plan3d", premium: true, spaces: ["interior-floorplan"] },
+  { name: "Video Generation", desc: "Turn design ideas into stunning AI-powered videos and realistic visual presentations.", cat: "business", photo: "photo-1743463685519-469d9ebe1b7f", icon: "video", premium: true, spaces: ["interior-video"] },
+  { name: "Design Critique", desc: "Receive detailed AI-driven feedback on an uploaded room design and expert suggestions to refine it.", cat: "business", photo: "photo-1781888679143-01d758aedbe6", icon: "critique", premium: true, spaces: ["interior-critique"] },
+  { name: "Design Advisor", desc: "Chat with our AI trained by top designers to get advice tailored to your project and budget.", cat: "business", photo: "photo-1664638413302-d1ca29ac885b", icon: "advisor", premium: true, spaces: ["interior-advisor"] },
 ];
 const SPACE_META: Record<string, { label: [string, string]; icon: string }> = {
   interior: { label: ["Interior", "Nội thất"], icon: "sofa" },
@@ -356,7 +360,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                 )}
                 {cfg.planView && (
                   <><h4>{t("3D view", "Góc nhìn 3D")}</h4>
-                    <div className="segmented">{meta.planViews.map((v) => <button key={v} type="button" className={v === g.view ? "active" : ""} onClick={() => g.setView(v)}>{bi(v)}</button>)}</div></>
+                    <div className="segmented">{meta.planViews.map((v) => { const off = meta.lockedPlanViews?.includes(v); return <button key={v} type="button" disabled={off} title={off ? t("Coming soon", "Sắp ra mắt") : undefined} style={off ? { opacity: 0.45, cursor: "not-allowed" } : undefined} className={v === g.view ? "active" : ""} onClick={() => g.setView(v)}>{bi(v)}{off ? ` · ${t("soon", "sắp có")}` : ""}</button>; })}</div></>
                 )}
                 {cfg.weather && (
                   <><h4>{t("Change Sky Colors to:", "Đổi bầu trời thành:")}</h4>
@@ -536,8 +540,9 @@ export function App() {
               <button className="outline-btn" onClick={() => navigate("/")}>{t("Log out", "Thoát")}</button>
             </header>
 
-            <section className="hero">
-              <div><p className="eyebrow">SOLYC Gen Labs / {t("Material Intelligence", "Trí tuệ vật liệu")}</p><h1>{t("Design what’s", "Thiết kế những")} <span>{t("possible.", "khả thể mới.")}</span></h1><p>{t("Design new possibilities. Pick a group of tools below.", "Thiết kế những khả thể mới. Chọn một nhóm công cụ bên dưới.")}</p></div>
+            <section className="hero" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, flexWrap: "wrap" }}>
+              <Figure name="room" style={{ order: 2, width: 220, flex: "0 0 220px" }} />
+              <div style={{ flex: "1 1 300px" }}><p className="eyebrow">SOLYC Gen Labs / {t("Material Intelligence", "Trí tuệ vật liệu")}</p><h1>{t("Design what’s", "Thiết kế những")} <span>{t("possible.", "khả thể mới.")}</span></h1><p>{t("Design new possibilities. Pick a group of tools below.", "Thiết kế những khả thể mới. Chọn một nhóm công cụ bên dưới.")}</p></div>
             </section>
 
             <div className="chips" role="tablist">
@@ -588,7 +593,7 @@ export function App() {
                   <div className="module-title-row"><button className="module-back" onClick={home} aria-label={t("Back to dashboard", "Về bảng điều khiển")}><Icon n="back" /></button><h1>{bi(active.name)}</h1></div>
                   <div className="module-actions"><span className="nav-user" style={{ alignSelf: "center" }}>{credits} {t("credits", "credit")}</span><button className="outline-btn" onClick={() => navigate("/")}>{t("Log out", "Thoát")}</button></div>
                 </header>
-                <div className="module-banner"><span className="info"><Icon n="info" /></span><div><h2>{bi(active.name)}</h2><p>{bi(active.desc)}</p></div></div>
+                <div className="module-banner" style={{ alignItems: "center" }}><span className="info"><Icon n="info" /></span><div style={{ flex: 1 }}><h2>{bi(active.name)}</h2><p>{bi(active.desc)}</p></div><Figure key={active.name} name={scenefor(`${active.name} ${active.desc}`)} style={{ width: 150, flex: "0 0 150px" }} /></div>
                 <ToolGuide key={active.name} name={active.name} />
                 <div>
                   {active.spaces?.[0] === "interior-bizplan" ? (
