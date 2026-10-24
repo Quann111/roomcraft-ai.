@@ -25,9 +25,12 @@ async function rh(apiKey: string, url: string, body: unknown): Promise<RhResult>
 
 type InputImage = { bytes: ArrayBuffer; mime: string };
 
+/** Nano Banana Pro edit (~$0.06 vs $0.027): reads real-world scale better, used where scale must be exact. Without an aspect ratio it returns a square image. */
+export const PRO_EDIT = "rhart-image-n-pro/edit";
+
 /** `images[0]` is the photo being edited; any further images are references the prompt refers to. */
-export async function submitImageToImage(apiKey: string, o: { images: InputImage[]; prompt: string; aspectRatio?: string; resolution: "1k" | "2k" | "4k" }, base = DEFAULT_BASE) {
-  const res = await rh(apiKey, `${base}/rhart-image-n-g31-flash/image-to-image`, {
+export async function submitImageToImage(apiKey: string, o: { images: InputImage[]; prompt: string; aspectRatio?: string; resolution: "1k" | "2k" | "4k"; model?: string }, base = DEFAULT_BASE) {
+  const res = await rh(apiKey, `${base}/${o.model ?? "rhart-image-n-g31-flash/image-to-image"}`, {
     imageUrls: o.images.map((i) => toDataUri(i.bytes, i.mime)),
     prompt: o.prompt,
     resolution: o.resolution,

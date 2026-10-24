@@ -356,7 +356,8 @@ export function buildPrompt(tool: string, p: any): string {
       const tile = floorTile(p.material);
       if (tile) return join(
         `The second image is a flat swatch of one ${TILE_BRAND} ${tile.code} porcelain floor tile, ${TILE_SIZE}, polished high-gloss finish (${tile.look}).`,
-        `Replace only the flooring in the first image with this exact tile: same color, pattern and veining as the swatch, laid across the whole visible floor in a straight grid of large ${TILE_SIZE} square tiles with thin, barely visible grout joints, following the room's perspective so tiles shrink correctly toward the back.`,
+        `Replace only the flooring in the first image with this exact tile: same color, pattern and veining as the swatch, laid across the whole visible floor in a straight grid of large-format ${TILE_SIZE} square slabs with thin, barely visible grout joints, following the room's perspective so tiles shrink correctly toward the back.`,
+        "Scale matters: each tile is 1.2 m wide, about the length of an armchair plus side table, so a 2.2 m sofa spans fewer than two tiles and a 4 m wide room shows only three to four tiles across. Joints are far apart; do not use small 60 cm or 80 cm tiles.",
         "Neighboring tiles vary slightly as natural stone-look slabs do; do not repeat one identical tile or add veining the swatch does not have.",
         "Give the floor a polished mirror-like gloss that softly reflects windows, lights and furniture, matching the original lighting.",
         "Keep all furniture, rugs, walls, skirting and objects unchanged, and keep furniture legs resting realistically on the new floor.", custom(p), STRUCTURE_LOCK);
