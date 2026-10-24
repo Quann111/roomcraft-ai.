@@ -25,7 +25,7 @@ export function BizPlan({ onCreditsChange }: { onCreditsChange?: () => void }) {
   const timers = useRef<number[]>([]);
 
   // The page has no shared "Latest designs" list, so earlier runs are listed here from the saved generations.
-  const loadHistory = () => fetch("/api/generations").then((r) => r.json() as Promise<any>).then((d) => {
+  const loadHistory = () => fetch("/api/generations?tool=interior-bizplan&limit=300").then((r) => r.json() as Promise<any>).then((d) => {
     const groups = new Map<string, Batch>();
     for (const g of d.items ?? []) {
       if (g.tool !== "interior-bizplan" || g.status === "FAILED") continue;

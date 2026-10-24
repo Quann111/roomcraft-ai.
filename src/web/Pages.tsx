@@ -190,7 +190,16 @@ export function ProjectsPage() {
   const { me, loaded } = useAuth();
   const [items, setItems] = useState<Item[] | null>(null);
   const [open, setOpen] = useState<Item | null>(null);
-  const load = () => api<{ items: Item[] }>("/api/generations").then((d) => setItems(d.items)).catch(() => setItems([]));
+  const [next, setNext] = useState<number | null>(null); // createdAt cursor for the next page, null when all loaded
+  const [more, setMore] = useState(false);
+  const PAGE = 60;
+  const load = () => api<{ items: Item[]; next: number | null }>(`/api/generations?limit=${PAGE}`).then((d) => { setItems(d.items); setNext(d.next); }).catch(() => setItems([]));
+  const loadMore = () => {
+    if (next == null) return;
+    setMore(true);
+    api<{ items: Item[]; next: number | null }>(`/api/generations?limit=${PAGE}&before=${next}`)
+      .then((d) => { setItems((a) => [...(a ?? []), ...d.items]); setNext(d.next); }).catch(() => {}).finally(() => setMore(false));
+  };
   useEffect(() => { if (me) load(); }, [me]);
   if (!loaded) return null;
   if (!me) return <LoginGate />;
@@ -232,6 +241,11 @@ export function ProjectsPage() {
                 {g.public && <span className="absolute left-1 top-1 rounded bg-emerald-600 px-1.5 text-[10px] text-white">public</span>}
               </button>
             ))}
+          </div>
+        )}
+        {next != null && (
+          <div className="mt-6 text-center">
+            <button onClick={loadMore} disabled={more} className="rounded-full border px-6 py-2.5 text-sm disabled:opacity-50">{more ? "…" : t("Load more", "Tải thêm")}</button>
           </div>
         )}
       </div>
