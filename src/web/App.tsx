@@ -1,4 +1,5 @@
 import { Figure } from "./Figure";
+import { AiThinking } from "./AiThinking";
 import { ARCH } from "./icons";
 import { scenefor } from "./iso";
 import React, { useEffect, useMemo, useState } from "react";
@@ -264,7 +265,8 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                 </div>
               </>
             ) : (
-              <p className="helper" style={{ textAlign: "center", padding: "40px 10px" }}>{g.busy ? (cfg.video ? t("Rendering your video… about 1–3 minutes.", "Đang tạo video… khoảng 1–3 phút.") : cfg.llm ? t("Analyzing your photo… about 20–30 seconds.", "Đang phân tích ảnh… khoảng 20–30 giây.") : t("Processing… this takes 1–2 minutes.", "Đang xử lý… mất khoảng 1–2 phút.")) : t("Your generated design appears here.", "Thiết kế được tạo sẽ hiện ở đây.")}</p>
+              g.busy ? <AiThinking kind={cfg.video ? "video" : cfg.llm ? "analysis" : "image"} />
+                : <p className="helper" style={{ textAlign: "center", padding: "40px 10px" }}>{t("Your generated design appears here.", "Thiết kế được tạo sẽ hiện ở đây.")}</p>
             )}
           </section>
         </div>
