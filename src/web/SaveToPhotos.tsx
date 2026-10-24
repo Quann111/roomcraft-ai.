@@ -4,16 +4,14 @@ import { t } from "./i18n";
 
 // A web page cannot write to the phone's photo library; a download lands in Files / Downloads.
 // The share sheet can: iOS offers "Save Image", Android offers Google Photos or the gallery app.
-// Where sharing files is not possible (in-app browsers, older phones), the button shows the image
-// full screen instead, since long-pressing an image offers "Save to Photos" in every phone browser.
+// Where sharing files is not possible (in-app browsers, older phones), the image is shown full screen
+// instead, since long-pressing an image offers "Save to Photos" in every phone browser.
 const isPhone = () => { try { return matchMedia("(pointer: coarse)").matches; } catch { return false; } };
 const files = new Map<string, File>();
 
-/** `label: false` renders the icon only, for the small action buttons on history cards. */
-export function SaveToPhotos({ url, name, className, style, icon, label = true }: { url: string; name: string; className?: string; style?: React.CSSProperties; icon?: React.ReactNode; label?: boolean }) {
+function useSave(url: string, name: string) {
   const [state, setState] = useState<"" | "busy" | "again">("");
   const [hold, setHold] = useState(false);
-  if (url.endsWith(".mp4") || !isPhone()) return null;
   const save = async () => {
     if (typeof navigator.share !== "function") return setHold(true);
     try {
@@ -35,20 +33,30 @@ export function SaveToPhotos({ url, name, className, style, icon, label = true }
       if (e?.name !== "AbortError") setHold(true);
     }
   };
-  const text = state === "busy" ? "…" : state === "again" ? t("Tap again to save", "Chạm lần nữa để lưu") : t("Save to Photos", "Lưu vào Ảnh");
+  const overlay = hold && createPortal( // on body: a card's transform and overflow would clip a fixed overlay
+    <div className="zoom-modal" style={{ zIndex: 2000 }} onClick={() => setHold(false)}>
+      <div className="zoom-box" onClick={(e) => e.stopPropagation()}>
+        <img src={url} alt="" style={{ WebkitTouchCallout: "default", WebkitUserSelect: "auto" } as React.CSSProperties} />
+        <div className="zoom-cap"><b style={{ fontSize: 14 }}>{t("Press and hold the image, then tap “Save to Photos”.", "Nhấn giữ ảnh, rồi chọn “Lưu vào Ảnh”.")}</b><button type="button" onClick={() => setHold(false)} aria-label={t("Close", "Đóng")}>✕</button></div>
+      </div>
+    </div>, document.body
+  );
+  return { save, state, overlay };
+}
+
+type Props = { url: string; name: string; className?: string; style?: React.CSSProperties; title?: string; children: React.ReactNode; phone: React.ReactNode };
+
+/** Desktop: the Download link (`children`). Phones: a Save to Photos button (`phone`) instead, which opens the share sheet. */
+export function DownloadLink({ url, name, className, style, title, children, phone }: Props) {
+  const s = useSave(url, name);
+  if (url.endsWith(".mp4") || !isPhone()) return <a className={className} style={style} title={title} href={url} download={name}>{children}</a>;
+  const again = s.state === "again";
   return (
     <>
-      <button type="button" className={className} style={style} onClick={save} disabled={state === "busy"} title={t("Save to Photos", "Lưu vào Ảnh")} aria-label={label ? undefined : text}>
-        {icon}{label && text}
+      <button type="button" className={className} style={style} title={again ? t("Tap again to save", "Chạm lần nữa để lưu") : t("Save to Photos", "Lưu vào Ảnh")} onClick={s.save} disabled={s.state === "busy"}>
+        {again ? t("Tap again to save", "Chạm lần nữa để lưu") : phone}
       </button>
-      {hold && createPortal( // on body: a card's transform and overflow would clip a fixed overlay
-        <div className="zoom-modal" style={{ zIndex: 2000 }} onClick={() => setHold(false)}>
-          <div className="zoom-box" onClick={(e) => e.stopPropagation()}>
-            <img src={url} alt="" style={{ WebkitTouchCallout: "default", WebkitUserSelect: "auto" } as React.CSSProperties} />
-            <div className="zoom-cap"><b style={{ fontSize: 14 }}>{t("Press and hold the image, then tap “Save to Photos”.", "Nhấn giữ ảnh, rồi chọn “Lưu vào Ảnh”.")}</b><button type="button" onClick={() => setHold(false)} aria-label={t("Close", "Đóng")}>✕</button></div>
-          </div>
-        </div>, document.body
-      )}
+      {s.overlay}
     </>
   );
 }
