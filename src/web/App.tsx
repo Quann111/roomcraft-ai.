@@ -108,7 +108,7 @@ const SPACE_META: Record<string, { label: [string, string]; icon: string }> = {
 const spaceOf = (id: ToolId) => (id.startsWith("interior") ? "interior" : id.startsWith("exterior") ? "exterior" : "garden");
 const toolByName = (n: string) => TOOLS.find((x) => x.name === n);
 const KIND: Record<string, string> = { redesign: "Redesign", staging: "Virtual Staging", declutter: "Declutter", material: "Material Swap", sketch: "Sketch to Render", sky: "Sky & Weather Swap" };
-const toolLabel = (id: string) => { const [sp, k] = id.split("-"); return `${bi(sp === "interior" ? "Interiors" : sp === "exterior" ? "Exteriors" : "Gardens")} · ${bi(KIND[k] ?? k)}`; };
+const toolLabel = (id: string) => { const [sp, k] = id.split("-"); return `${bi(sp === "interior" ? "Interiors" : sp === "exterior" ? "Exteriors" : "Gardens")} · ${bi(KIND[k] ?? toolForId(id as ToolId)?.name ?? k)}`; };
 const styleName = (styles: { slug: string; name: string }[] | undefined, slug: string) => { const n = styles?.find((x) => x.slug === slug)?.name; return n ? bi(n) : slug; };
 const toolForId = (id: ToolId) => TOOLS.find((x) => x.spaces?.includes(id) && x.cat !== "xx");
 const FILTERS: [string, string, string][] = [["all", "All tools", "Tất cả"], ["redesign", "Redesign", "Thiết kế lại"], ["staging", "Staging", "Bài trí ảo"], ["furnish", "Furnish & decor", "Nội thất & trang trí"], ["business", "Business", "Doanh nghiệp"], ["3d", "3D & floorplan", "3D & mặt bằng"]];
@@ -164,22 +164,11 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
   );
   const [tab, setTab] = useState<"preset" | "extra">("preset");
   const touch = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
-  const [open, setOpen] = useState<any>(null);
   const [toast, setToast] = useState("");
   const say = (m: string) => { setToast(m); setTimeout(() => setToast(""), 2200); };
   const copyCritique = (c: NonNullable<typeof g.gen>["critique"] & {}) => {
     const text = [`${c.score}/10 · ${c.room} · ${c.style}`, c.summary, ...c.strengths.map((x) => `+ ${x}`), ...c.improvements.map((x) => `- ${x.area}: ${x.issue} → ${x.suggestion}`), ...c.quickWins.map((x) => `* ${x}`)].join("\n");
     navigator.clipboard.writeText(text).then(() => say("Copied · Đã sao chép"), () => say("Copy failed · Không sao chép được"));
-  };
-  const done = useMemo(() => g.history.filter((h) => h.outputUrl), [g.history]);
-
-  const del = async (id: string) => {
-    if (!confirm(bi("Delete this design permanently? · Xoá vĩnh viễn thiết kế này?"))) return;
-    try { await fetch(`/api/generations/${id}`, { method: "DELETE" }); if (g.gen?.id === id) g.setGen(null); setOpen(null); g.loadHistory(); } catch (e: any) { say(e.message); }
-  };
-  const publish = async (h: any) => {
-    if (!h.public && !confirm(bi("Publish to community gallery? · Đăng lên thư viện cộng đồng? Cả ảnh gốc và ảnh kết quả sẽ hiển thị công khai (không kèm email)."))) return;
-    try { await api(`/api/generations/${h.id}/publish`, { public: !h.public }); g.loadHistory(); say(h.public ? "Unpublished" : "Published"); } catch (e: any) { say(e.message); }
   };
 
   if (!meta) return <p className="helper" style={{ padding: 40 }}>{bi("Loading… · Đang tải…")}</p>;
@@ -449,38 +438,145 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
         </div>
       </div>
 
+      <LatestDesigns tool={tool} refresh={g.history} styles={g.meta?.styles} onDeleted={(ids) => g.gen && ids.includes(g.gen.id) && g.setGen(null)} />
+      {toast && <div className="module-toast show">{bi(toast)}</div>}
+    </>
+  );
+}
+
+/* ---------- Latest designs (shared by every tool page) ---------- */
+type Hist = { id: string; tool: string; params: any; status: string; public: boolean; createdAt: number; inputUrl: string | null; outputUrl: string | null };
+// One card per generation; a Business 3D Floorplan run is one card holding the plan and every room rendered from it.
+type Card = Hist & { rooms?: Hist[] };
+const LATEST_PAGE = 24;
+const BIZPLAN = "interior-bizplan";
+
+function toCards(items: Hist[]): Card[] {
+  const out: Card[] = [], runs = new Map<string, Card>();
+  for (const h of items) {
+    if (h.tool !== BIZPLAN) { if (h.outputUrl) out.push(h); continue; }
+    if (h.status === "FAILED") continue;
+    const key = h.params?.batchId ?? h.id;
+    const run = runs.get(key);
+    if (run) { run.rooms!.push(h); continue; }
+    const card: Card = { ...h, rooms: [h] };
+    runs.set(key, card); out.push(card);
+  }
+  // A run shows once at least one room is rendered; its picture is the first finished room.
+  return out.filter((c) => !c.rooms || c.rooms.some((r) => r.outputUrl)).map((c) => (c.rooms ? { ...c, outputUrl: c.rooms.find((r) => r.outputUrl)!.outputUrl } : c));
+}
+
+/** `tool`: the page's tool, for the "this tool" filter. `refresh`: any value that changes when the page made or removed a design. */
+function LatestDesigns({ tool, refresh, styles: given, onDeleted }: { tool: string; refresh?: unknown; styles?: { slug: string; name: string }[]; onDeleted?: (ids: string[]) => void }) {
+  const [scope, setScope] = useState<"tool" | "all">("tool");
+  const [items, setItems] = useState<Hist[] | null>(null);
+  const [next, setNext] = useState<number | null>(null);
+  const [more, setMore] = useState(false);
+  const [open, setOpen] = useState<any>(null);
+  const [toast, setToast] = useState("");
+  const [fetched, setFetched] = useState<{ slug: string; name: string }[]>();
+  const styles = given ?? fetched;
+  const say = (m: string) => { setToast(m); setTimeout(() => setToast(""), 2200); };
+  const url = (limit: number, before?: number) => `/api/generations?limit=${limit}${scope === "tool" ? `&tool=${encodeURIComponent(tool)}` : ""}${before ? `&before=${before}` : ""}`;
+  // A refresh keeps as many rows as are already loaded, so "load more" pages are not lost.
+  const loaded = React.useRef(0);
+  const reload = (keep = true) => {
+    const limit = Math.min(500, Math.max(LATEST_PAGE, keep ? loaded.current : 0));
+    return api<{ next: number | null; items: Hist[] }>(url(limit)).then((d) => { loaded.current = d.items.length; setItems(d.items); setNext(d.next); }).catch(() => setItems((x) => x ?? []));
+  };
+  useEffect(() => { if (!given) api<{ styles: { slug: string; name: string }[] }>("/api/styles").then((m) => setFetched(m.styles)).catch(() => {}); }, []);
+  useEffect(() => { setItems(null); reload(false); }, [scope, tool]);
+  const first = React.useRef(true);
+  useEffect(() => { if (first.current) { first.current = false; return; } reload(); }, [refresh]);
+  const loadMore = () => {
+    if (!next || !items) return;
+    setMore(true);
+    api<{ next: number | null; items: Hist[] }>(url(LATEST_PAGE, next)).then((d) => { const all = [...items, ...d.items]; loaded.current = all.length; setItems(all); setNext(d.next); }).catch((e: any) => say(e.message)).finally(() => setMore(false));
+  };
+  const cards = useMemo(() => toCards(items ?? []), [items]);
+
+  const del = async (c: Card) => {
+    const ids = c.rooms ? c.rooms.map((r) => r.id) : [c.id];
+    if (!confirm(c.rooms ? bi(`Delete this floor plan run (${ids.length} images) permanently? · Xoá vĩnh viễn lần render mặt bằng này (${ids.length} ảnh)?`) : bi("Delete this design permanently? · Xoá vĩnh viễn thiết kế này?"))) return;
+    try { await Promise.all(ids.map((id) => fetch(`/api/generations/${id}`, { method: "DELETE" }))); setOpen(null); onDeleted?.(ids); reload(); } catch (e: any) { say(e.message); }
+  };
+  const publish = async (h: Hist) => {
+    if (!h.public && !confirm(bi("Publish to community gallery? · Đăng lên thư viện cộng đồng? Cả ảnh gốc và ảnh kết quả sẽ hiển thị công khai (không kèm email)."))) return;
+    try { await api(`/api/generations/${h.id}/publish`, { public: !h.public }); reload(); say(h.public ? "Unpublished" : "Published"); } catch (e: any) { say(e.message); }
+  };
+  const preview = (c: Card) => (c.rooms ? setOpen(c) : isTextResult(c) ? api(`/api/generations/${c.id}`).then((d: any) => setOpen({ ...c, critique: d.critique, finder: d.finder, orient: d.orient, params: d.params, chat: d.chat })).catch((e: any) => say(e.message)) : setOpen(c));
+  const when = (ms: number) => { const d = new Date(ms), p = (n: number) => String(n).padStart(2, "0"); return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+  const text = open && (open.chat || open.orient || open.finder || open.critique);
+
+  return (
+    <>
       <section className="module-latest">
-        <div className="latest-head"><h2>{t("Latest Designs", "Thiết kế gần đây")}</h2><span className="latest-count">{done.length}</span></div>
-        {done.length === 0 ? <p className="helper">{t("No designs yet — generate your first one above.", "Chưa có thiết kế — hãy tạo thiết kế đầu tiên ở trên.")}</p> : (
-          <div className="latest-grid">
-            {done.slice(0, 12).map((h, i) => (
-              <article className="latest-card" key={h.id} style={{ ["--card-index" as any]: i }}>
-                <div className="latest-image" style={isChat(h) && !h.inputUrl ? { display: "grid", placeItems: "center", background: "#f4f1ea" } : { backgroundImage: `url('${isTextResult(h) || isVideo(h) ? h.inputUrl : h.outputUrl}')`, ...(isVideo(h) ? { display: "grid", placeItems: "center" } : {}) }}>{isChat(h) && !h.inputUrl && <Icon n="headset" />}{isVideo(h) && <span style={{ width: 44, height: 44, borderRadius: 999, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.55)", color: "#fff", fontSize: 18 }}>▶</span>}</div>
+        <div className="latest-head" style={{ flexWrap: "wrap" }}>
+          <h2 style={{ whiteSpace: "nowrap" }}>{t("Latest Designs", "Thiết kế gần đây")}</h2><span className="latest-count">{items ? `${cards.length}${next ? "+" : ""}` : "…"}</span>
+          <div className="segmented" style={{ marginLeft: "auto", flexWrap: "nowrap", whiteSpace: "nowrap" }}>
+            <button type="button" className={scope === "tool" ? "active" : ""} onClick={() => setScope("tool")}>{t("This tool", "Công cụ này")}</button>
+            <button type="button" className={scope === "all" ? "active" : ""} onClick={() => setScope("all")}>{t("All tools", "Tất cả công cụ")}</button>
+          </div>
+        </div>
+        {!items ? <p className="helper">{t("Loading…", "Đang tải…")}</p>
+          : cards.length === 0 ? <p className="helper">{scope === "tool" ? t("No designs with this tool yet — generate your first one above.", "Chưa có thiết kế nào với công cụ này — hãy tạo thiết kế đầu tiên ở trên.") : t("No designs yet — generate your first one above.", "Chưa có thiết kế — hãy tạo thiết kế đầu tiên ở trên.")}</p> : (
+          <div className="latest-grid" style={{ marginTop: 15 }}>
+            {cards.map((h, i) => (
+              <article className="latest-card" key={h.id} style={{ ["--card-index" as any]: Math.min(i, 12) }}>
+                <div className="latest-image" style={isChat(h) && !h.inputUrl ? { display: "grid", placeItems: "center", background: "#f4f1ea" } : { backgroundImage: `url('${isTextResult(h) || isVideo(h) ? h.inputUrl : h.outputUrl}')`, ...(isVideo(h) ? { display: "grid", placeItems: "center" } : {}) }}>
+                  {isChat(h) && !h.inputUrl && <Icon n="headset" />}
+                  {isVideo(h) && <span style={{ width: 44, height: 44, borderRadius: 999, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.55)", color: "#fff", fontSize: 18 }}>▶</span>}
+                  {h.rooms && <span style={{ position: "absolute", right: 6, bottom: 6, padding: "2px 7px", borderRadius: 99, color: "#fff", background: "rgba(0,0,0,0.6)", fontSize: 10, fontWeight: 700 }}>{t(`${h.rooms.length} rooms`, `${h.rooms.length} phòng`)}</span>}
+                </div>
                 <div className="latest-body">
                   <div className="latest-meta">
                     <span><strong>{t("Tool", "Công cụ")}:</strong> {toolLabel(String(h.tool))}</span>
-                    {h.params?.styleSlug && <span><strong>{t("Style", "Phong cách")}:</strong> {styleName(g.styles, h.params.styleSlug)}</span>}
-                    {h.params?.roomType && <span><strong>{t("Room", "Phòng")}:</strong> {bi(h.params.roomType)}</span>}
+                    {h.params?.styleSlug && <span><strong>{t("Style", "Phong cách")}:</strong> {styleName(styles, h.params.styleSlug)}</span>}
+                    {h.rooms ? <span><strong>{t("Rooms", "Phòng")}:</strong> {h.rooms.map((r) => r.params?.roomType).filter(Boolean).map((x) => bi(x)).join(", ")}</span>
+                      : h.params?.roomType && <span><strong>{t("Room", "Phòng")}:</strong> {bi(h.params.roomType)}</span>}
+                    <span><strong>{t("Made", "Tạo lúc")}:</strong> {when(h.createdAt)}</span>
                   </div>
                   <div className="latest-actions">
-                    {!isTextResult(h) && <a className="latest-action" title={t("Download", "Tải xuống")} href={h.outputUrl} download={resultFile(h.id, h.outputUrl)}><Icon n="download" /></a>}
-                    <button className="latest-action" title={t("Preview", "Xem trước")} onClick={() => (isTextResult(h) ? api(`/api/generations/${h.id}`).then((d: any) => setOpen({ ...h, critique: d.critique, finder: d.finder, orient: d.orient, params: d.params, chat: d.chat })).catch((e: any) => say(e.message)) : setOpen(h))}><Icon n="eye" /></button>
-                    <button className="latest-action" title={t("Reuse settings", "Dùng lại cài đặt")} onClick={() => navigate(`/app?tool=${h.tool}&p=${encodeURIComponent(JSON.stringify(h.params ?? {}))}`)}><Icon n="edit" /></button>
-                    {!isTextResult(h) && !isVideo(h) && <button className="latest-action" title={h.public ? t("Unpublish", "Gỡ đăng") : t("Publish", "Đăng công khai")} onClick={() => publish(h)}><Icon n="globe" /></button>}
-                    <button className="latest-action" title={t("Delete", "Xoá")} onClick={() => del(h.id)}><Icon n="trash" /></button>
+                    {!h.rooms && !isTextResult(h) && <a className="latest-action" title={t("Download", "Tải xuống")} href={h.outputUrl!} download={resultFile(h.id, h.outputUrl!)}><Icon n="download" /></a>}
+                    <button className="latest-action" title={t("Preview", "Xem trước")} onClick={() => preview(h)}><Icon n="eye" /></button>
+                    {!h.rooms && <button className="latest-action" title={t("Reuse settings", "Dùng lại cài đặt")} onClick={() => navigate(`/app?tool=${h.tool}&p=${encodeURIComponent(JSON.stringify(h.params ?? {}))}`)}><Icon n="edit" /></button>}
+                    {!h.rooms && !isTextResult(h) && !isVideo(h) && <button className="latest-action" title={h.public ? t("Unpublish", "Gỡ đăng") : t("Publish", "Đăng công khai")} onClick={() => publish(h)}><Icon n="globe" /></button>}
+                    <button className="latest-action" title={t("Delete", "Xoá")} onClick={() => del(h)}><Icon n="trash" /></button>
                   </div>
                 </div>
               </article>
             ))}
           </div>
         )}
+        {next && items && <div style={{ display: "flex", justifyContent: "center", marginTop: 16 }}><button type="button" className="outline-btn" onClick={loadMore} disabled={more}>{more ? "…" : t("Load more", "Tải thêm")}</button></div>}
       </section>
 
       {open && (
         <div className="modal-backdrop show" onClick={(e) => e.target === e.currentTarget && setOpen(null)}>
-          <div className={`modal${open.chat || open.orient || open.finder || open.critique ? "" : " modal-xl"}`} style={open.chat || open.orient || open.finder || open.critique ? { maxWidth: 560, maxHeight: "92vh", overflowY: "auto" } : undefined}>
+          <div className={`modal${text ? "" : " modal-xl"}`} style={text ? { maxWidth: 560, maxHeight: "92vh", overflowY: "auto" } : open.rooms ? { maxHeight: "92vh", overflowY: "auto" } : undefined}>
             <button className="close" onClick={() => setOpen(null)} aria-label={t("Close", "Đóng")}>×</button>
-            {open.chat ? <><h3 style={{ marginTop: 0 }}>{t("Design Advisor", "Tư vấn thiết kế")}</h3>{open.inputUrl && <img src={open.inputUrl} alt="" style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 10, marginBottom: 12 }} />}<Transcript turns={open.chat} /></>
+            {open.rooms ? <>
+              <h3 style={{ marginTop: 0 }}>{bi("Business 3D Floorplan")} · {when(open.createdAt)}{open.params?.styleSlug ? ` · ${styleName(styles, open.params.styleSlug)}` : ""}</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 220px), 1fr))", gap: 10 }}>
+                {open.inputUrl && <figure style={{ margin: 0, minWidth: 0, border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden" }}>
+                  <a href={open.inputUrl} target="_blank" rel="noreferrer"><img src={open.inputUrl} alt={t("Floor plan", "Mặt bằng")} style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "contain", background: "#f4f1ea" }} /></a>
+                  <figcaption style={{ padding: "6px 8px", fontSize: 12 }}><b>{t("Floor plan", "Mặt bằng")}</b></figcaption>
+                </figure>}
+                {open.rooms.map((r: Hist) => (
+                  <figure key={r.id} style={{ margin: 0, minWidth: 0, border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden" }}>
+                    <div style={{ aspectRatio: "4 / 3", display: "grid", placeItems: "center", background: "#f4f1ea" }}>
+                      {r.outputUrl ? <a href={r.outputUrl} target="_blank" rel="noreferrer" style={{ display: "block", width: "100%", height: "100%" }}><img src={r.outputUrl} alt={r.params?.roomType ?? ""} loading="lazy" style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }} /></a>
+                        : r.status === "FAILED" ? <span className="helper">{t("Failed", "Lỗi")}</span> : <AiThinking tile />}
+                    </div>
+                    <figcaption style={{ display: "flex", justifyContent: "space-between", gap: 6, padding: "6px 8px", fontSize: 12 }}>
+                      <b style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.params?.roomType && bi(r.params.roomType)}</b>
+                      {r.outputUrl && <a href={r.outputUrl} download={resultFile(r.id, r.outputUrl)}>{t("Download", "Tải xuống")}</a>}
+                    </figcaption>
+                  </figure>
+                ))}
+              </div>
+            </>
+              : open.chat ? <><h3 style={{ marginTop: 0 }}>{t("Design Advisor", "Tư vấn thiết kế")}</h3>{open.inputUrl && <img src={open.inputUrl} alt="" style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 10, marginBottom: 12 }} />}<Transcript turns={open.chat} /></>
               : open.orient ? <OrientView photo={open.inputUrl} o={open.orient} id={open.id} params={open.params ?? {}} Compare={BeforeAfter} />
               : open.finder ? <FinderView photo={open.inputUrl} f={open.finder} />
               : open.critique ? <CritiqueView photo={open.inputUrl} c={open.critique} /> : <BeforeAfter before={open.inputUrl} after={open.outputUrl} zoomable />}
@@ -499,6 +595,7 @@ export function App() {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all");
   const [lang, setL] = useState(getLang());
+  const [made, setMade] = useState(0);
 
   useEffect(() => { if (loaded && !me) navigate("/login"); }, [loaded, me]);
 
@@ -603,9 +700,9 @@ export function App() {
                 <ToolGuide key={active.name} name={active.name} />
                 <div>
                   {active.spaces?.[0] === "interior-bizplan" ? (
-                    <div className="control-panel" style={{ margin: "20px 0" }}><BizPlan onCreditsChange={reload} /></div>
+                    <><div className="control-panel" style={{ margin: "20px 0" }}><BizPlan onCreditsChange={() => { reload(); setMade((n) => n + 1); }} /></div><LatestDesigns tool="interior-bizplan" refresh={made} /></>
                   ) : active.spaces?.[0] === "interior-advisor" ? (
-                    <div className="control-panel" style={{ margin: "20px 0" }}><AdvisorChat onCreditsChange={reload} /></div>
+                    <><div className="control-panel" style={{ margin: "20px 0" }}><AdvisorChat onCreditsChange={() => { reload(); setMade((n) => n + 1); }} /></div><LatestDesigns tool="interior-advisor" refresh={made} /></>
                   ) : active.spaces ? (
                     <Workspace key={active.name + (toolParam ?? "")} tool={active} initialTool={toolParam ?? undefined} preset={preset} onCredits={reload} />
                   ) : (

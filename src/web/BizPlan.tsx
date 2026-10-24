@@ -5,8 +5,6 @@ import { prepareImage, type PreparedImage } from "./imagePrep";
 
 type Room = { name: string; view: string; on: boolean };
 type Item = { id?: string; room: string; status: string; outputUrl?: string | null; error?: string };
-/** One earlier render run: the plan and every room rendered from it, grouped by the batch id the worker stores. */
-type Batch = { id: string; at: number; plan: string | null; style: string; rooms: { id: string; room: string; outputUrl: string | null; status: string }[] };
 const MAX_ROOMS = 8; // matches MAX_PLAN_ROOMS in the worker
 const ink = "#1c1b19", line = "rgba(0,0,0,0.12)";
 
@@ -21,29 +19,13 @@ export function BizPlan({ onCreditsChange }: { onCreditsChange?: () => void }) {
   const [items, setItems] = useState<Item[]>([]);
   const [busy, setBusy] = useState<"" | "detect" | "render">("");
   const [err, setErr] = useState("");
-  const [history, setHistory] = useState<Batch[] | null>(null);
   const timers = useRef<number[]>([]);
-
-  // The page has no shared "Latest designs" list, so earlier runs are listed here from the saved generations.
-  const loadHistory = () => fetch("/api/generations?tool=interior-bizplan&limit=300").then((r) => r.json() as Promise<any>).then((d) => {
-    const groups = new Map<string, Batch>();
-    for (const g of d.items ?? []) {
-      if (g.tool !== "interior-bizplan" || g.status === "FAILED") continue;
-      const id = g.params?.batchId ?? g.id;
-      const b: Batch = groups.get(id) ?? { id, at: g.createdAt, plan: g.inputUrl, style: g.params?.styleSlug ?? "", rooms: [] };
-      b.at = Math.max(b.at, g.createdAt);
-      b.rooms.push({ id: g.id, room: g.params?.roomType ?? "", outputUrl: g.outputUrl, status: g.status });
-      groups.set(id, b);
-    }
-    setHistory([...groups.values()].sort((a, b) => b.at - a.at));
-  }).catch(() => setHistory([]));
 
   useEffect(() => {
     fetch("/api/styles").then((r) => r.json() as Promise<any>).then((m) => {
       const list = m.styles.filter((s: any) => s.scope === "interior");
       setStyles(list); setStyle(list[0]?.slug ?? "");
     }).catch(() => {});
-    loadHistory();
     return () => timers.current.forEach(clearTimeout);
   }, []);
 
@@ -97,10 +79,6 @@ export function BizPlan({ onCreditsChange }: { onCreditsChange?: () => void }) {
   };
 
   const running = items.some((x) => x.status === "RUNNING" || x.status === "QUEUED");
-  // Refresh the history when a run starts (rows exist as RUNNING) and again when it finishes.
-  useEffect(() => { if (items.length) loadHistory(); }, [running, items.length]);
-  const styleName = (slug: string) => bi(styles.find((x) => x.slug === slug)?.name ?? slug);
-  const when = (ms: number) => { const d = new Date(ms), p = (n: number) => String(n).padStart(2, "0"); return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`; };
   const field: React.CSSProperties = { padding: 8, borderRadius: 8, border: `1px solid ${line}`, font: "inherit", minWidth: 0 };
   const btn = (primary: boolean, disabled: boolean): React.CSSProperties => ({ padding: "10px 16px", borderRadius: 10, border: primary ? "none" : `1px solid ${line}`, background: primary ? ink : "transparent", color: primary ? "#fff" : ink, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.4 : 1, font: "inherit" });
 
@@ -162,33 +140,6 @@ export function BizPlan({ onCreditsChange }: { onCreditsChange?: () => void }) {
           </div>
         </section>
       )}
-
-      <section style={{ display: "grid", gap: 12, borderTop: `1px solid ${line}`, paddingTop: 18 }}>
-        <h4 style={{ margin: 0, fontSize: 15 }}>{t("Earlier renders", "Lịch sử render")}{history && history.length > 0 && <span style={{ fontWeight: 400, opacity: 0.7 }}> · {history.length}</span>}</h4>
-        {history === null ? <p style={{ margin: 0, fontSize: 13, opacity: 0.7 }}>{t("Loading…", "Đang tải…")}</p>
-          : !history.length ? <p style={{ margin: 0, fontSize: 13, opacity: 0.7 }}>{t("Your rendered floor plans will be kept here.", "Các mặt bằng đã render sẽ được lưu ở đây.")}</p>
-          : history.map((b) => (
-            <article key={b.id} style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-start", border: `1px solid ${line}`, borderRadius: 12, padding: 10, background: "#fff" }}>
-              <div style={{ display: "grid", gap: 6, minWidth: 0, flex: "0 1 150px" }}>
-                {b.plan ? <a href={b.plan} target="_blank" rel="noreferrer"><img src={b.plan} alt={t("Floor plan", "Mặt bằng")} loading="lazy" style={{ width: "100%", aspectRatio: "1", objectFit: "contain", background: "#f4f1ea", borderRadius: 8 }} /></a> : null}
-                <span style={{ fontSize: 12, opacity: 0.75 }}>{when(b.at)}{b.style ? ` · ${styleName(b.style)}` : ""}</span>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 150px), 1fr))", gap: 8, minWidth: 0, flex: "1 1 240px" }}>
-                {b.rooms.map((r) => (
-                  <figure key={r.id} style={{ margin: 0, minWidth: 0, border: `1px solid ${line}`, borderRadius: 8, overflow: "hidden" }}>
-                    <div style={{ aspectRatio: "4 / 3", display: "grid", placeItems: "center", background: "#f4f1ea" }}>
-                      {r.outputUrl ? <a href={r.outputUrl} target="_blank" rel="noreferrer" style={{ display: "block", width: "100%", height: "100%" }}><img src={r.outputUrl} alt={r.room} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></a> : <AiThinking tile />}
-                    </div>
-                    <figcaption style={{ display: "flex", justifyContent: "space-between", gap: 6, padding: "5px 7px", fontSize: 12 }}>
-                      <b style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.room}</b>
-                      {r.outputUrl && <a href={r.outputUrl} download={`${r.room}.png`}>{t("Download", "Tải xuống")}</a>}
-                    </figcaption>
-                  </figure>
-                ))}
-              </div>
-            </article>
-          ))}
-      </section>
     </div>
   );
 }
