@@ -131,6 +131,13 @@
     .card button { width: 100%; margin-top: auto; padding: 11px 10px; border: 1px solid var(--ink); border-radius: var(--radius); color: var(--ink); background: transparent; transition: .18s ease; }
     .card button:hover { color: var(--white); background: var(--ink); }
     .card button.locked::after { content: "  🔒"; font-size: 11px; }
+    /* Unfinished tools are locked where they are listed: no hover lift, faded photo, a badge and a disabled button. */
+    .card.is-locked:hover { transform: none; border-color: var(--line); box-shadow: none; }
+    .card.is-locked .card-image img { filter: grayscale(1); opacity: .55; }
+    .card.is-locked:hover .card-image img { transform: none; }
+    .soon-badge { position: absolute; z-index: 1; top: 10px; left: 10px; padding: 6px 9px; border-radius: var(--radius); color: var(--white); font-size: 10px; font-weight: 700; letter-spacing: .4px; background: var(--ink); }
+    .card button.locked { cursor: not-allowed; opacity: .55; }
+    .card button.locked:hover { color: var(--ink); background: transparent; }
     .empty { grid-column: 1 / -1; padding: 60px 20px; color: var(--stone); text-align: center; border: 1px dashed var(--line); border-radius: var(--radius); background: var(--white); }
 
     .enterprise { position: relative; display: flex; justify-content: space-between; align-items: center; gap: 24px; min-height: 200px; margin-top: 44px; padding: 38px; overflow: hidden; border-radius: var(--radius); color: var(--white); background: var(--ink); }
@@ -234,6 +241,9 @@
     .module-tool-link:hover .module-tool-icon { color: var(--white); }
     .module-tool-link.active .module-tool-icon { color: var(--gold); }
     .module-tool-label { display: block; }
+    .module-tool-link.locked { opacity: .38; cursor: not-allowed; }
+    .module-tool-link.locked:hover { color: #A9ACAF; background: transparent; }
+    .module-tool-link.locked .module-tool-label::after { content: " 🔒"; }
     .module-content { flex: 1; min-width: 0; padding: 12px 22px 50px; overflow: hidden; }
     .module-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 60px; }
     .module-title-row { display: flex; align-items: center; gap: 12px; }

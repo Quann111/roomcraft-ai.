@@ -562,11 +562,11 @@ export function App() {
               <div className="grid">
                 {visible.length === 0 && <div className="empty">{t("No tools matched your search.", "Không có công cụ phù hợp.")}</div>}
                 {visible.map((x, i) => (
-                  <article className="card" key={x.name} style={{ ["--card-index" as any]: i }}>
-                    <div className="card-image"><img loading="lazy" src={U(x.photo)} alt={bi(x.name)} onError={(e) => { e.currentTarget.src = U(IMGS[i % IMGS.length]); }} />{x.popular && <span className="badge">{t("Most Popular", "Phổ biến nhất")}</span>}</div>
+                  <article className={`card ${x.spaces ? "" : "is-locked"}`} key={x.name} style={{ ["--card-index" as any]: i }}>
+                    <div className="card-image"><img loading="lazy" src={U(x.photo)} alt={bi(x.name)} onError={(e) => { e.currentTarget.src = U(IMGS[i % IMGS.length]); }} />{x.popular && <span className="badge">{t("Most Popular", "Phổ biến nhất")}</span>}{!x.spaces && <span className="soon-badge">{t("Coming soon", "Sắp ra mắt")}</span>}</div>
                     <div className="card-body">
                       <h3>{bi(x.name)}</h3><p>{bi(x.desc)}</p>
-                      <button className={x.spaces ? "" : "locked"} onClick={() => open(x.name)}>{x.spaces ? (getLang() === "vi" ? "Dùng thử" : `Try ${x.name}`) : t("Coming soon", "Sắp ra mắt")}</button>
+                      <button className={x.spaces ? "" : "locked"} disabled={!x.spaces} onClick={() => x.spaces && open(x.name)}>{x.spaces ? (getLang() === "vi" ? "Dùng thử" : `Try ${x.name}`) : t("Coming soon", "Sắp ra mắt")}</button>
                     </div>
                   </article>
                 ))}
@@ -585,7 +585,7 @@ export function App() {
                 <div className="module-tool-list">
                   <h4>{t("Tools", "Công cụ")}</h4>
                   {TOOLS.map((x) => (
-                    <button key={x.name} className={`module-tool-link ${x.name === active.name ? "active" : ""}`} onClick={() => open(x.name)}>
+                    <button key={x.name} className={`module-tool-link ${x.name === active.name ? "active" : ""} ${x.spaces ? "" : "locked"}`} disabled={!x.spaces} title={x.spaces ? undefined : t("Coming soon", "Sắp ra mắt")} onClick={() => x.spaces && open(x.name)}>
                       <span className="module-tool-icon"><Icon n={x.icon} /></span><span className="module-tool-label">{bi(x.name)}</span>
                     </button>
                   ))}
