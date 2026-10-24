@@ -6,15 +6,19 @@ import { AuthForm, Studio, studioUrl } from "./Studio";
 import { BeforeAfter, type Preset, type ToolId } from "./GeneratePanel";
 import { api, useAuth } from "./auth";
 import { FaqList } from "./Home";
+import { Figure } from "./Figure";
+import { scenefor } from "./iso";
 
 const idx = () => (t("en", "vi") === "vi" ? 1 : 0);
 const pick = (x: L2) => x[idx()];
 
 function Hero({ title, sub, children }: { title: string; sub?: string; children?: React.ReactNode }) {
+  const name = scenefor(`${title} ${sub ?? ""}`);
   return (
     <section className="mx-auto max-w-4xl px-4 pt-14 pb-8 text-center">
       <h1 className="text-4xl font-bold leading-tight sm:text-5xl">{title}</h1>
       {sub && <p className="mx-auto mt-4 max-w-2xl text-neutral-600">{sub}</p>}
+      <Figure name={name} style={{ maxWidth: 340, margin: "28px auto 0" }} />
       {children}
     </section>
   );
@@ -297,6 +301,7 @@ export function DocPage({ slug }: { slug: string }) {
 export function NotFound() {
   return (
     <div className="px-4 py-24 text-center">
+      <Figure name="empty" style={{ maxWidth: 320, margin: "0 auto 24px" }} />
       <h1 className="text-5xl font-bold">404</h1>
       <p className="mt-3 text-neutral-600">{t("Page not found.", "Không tìm thấy trang.")}</p>
       <Link to="/" className="mt-6 inline-block underline">{t("Back to home", "Về trang chủ")}</Link>

@@ -7,6 +7,8 @@ import { PromptLibrary } from "./PromptLibrary";
 import { PricingTable } from "./Pricing";
 import { api, useAuth } from "./auth";
 import type { Preset, ToolId } from "./GeneratePanel";
+import { Figure } from "./Figure";
+import { ArchIcon } from "./icons";
 
 const HERO_IMGS = ["photo-1600210492486-724fe5c67fb0", "photo-1618221195710-dd6b41faaea6", "photo-1616486338812-3dadae4b4ace", "photo-1600607687939-ce8a6c25118c", "photo-1600585154340-be6161a56a0c"]
   .map((id) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=1400&q=80`);
@@ -91,16 +93,16 @@ export function Home() {
   const l = t("en", "vi") === "vi" ? 1 : 0;
   const pick = (en: string, vi: string) => (l ? vi : en);
   const features: [string, string, string, string, string][] = [
-    ["✦", "Structure-Lock", "Khoá cấu trúc", "Keeps your real room", "Giữ nguyên phòng thật"],
-    ["◇", "200+ styles", "200+ phong cách", "Rooms, gardens & exteriors", "Phòng, sân vườn & ngoại thất"],
-    ["◉", "1-click video", "Video 1 chạm", "Walkthroughs from your photo", "Video từ ảnh của bạn"],
-    ["▦", "2D to 3D", "2D sang 3D", "Floor plans, instantly", "Mặt bằng tức thì"],
-    ["⌂", "Shop the look", "Mua theo thiết kế", "Find the real furniture", "Tìm nội thất thật"],
-    ["⊘", "Empty a room", "Dọn trống phòng", "One-click virtual staging", "Bài trí ảo một chạm"],
-    ["☼", "Swap weather", "Đổi thời tiết", "Sky and light changes", "Đổi bầu trời & ánh sáng"],
-    ["▱", "Stage listings", "Staging tin đăng", "Empty spaces, furnished", "Không gian trống có nội thất"],
-    ["$", "Budget estimator", "Ước tính ngân sách", "Know before you spend", "Biết chi phí trước khi chi"],
-    ["✓", "No watermark", "Không watermark", "Commercial license included", "Kèm giấy phép thương mại"],
+    ["lock", "Structure-Lock", "Khoá cấu trúc", "Keeps your real room", "Giữ nguyên phòng thật"],
+    ["swatch", "200+ styles", "200+ phong cách", "Rooms, gardens & exteriors", "Phòng, sân vườn & ngoại thất"],
+    ["video", "1-click video", "Video 1 chạm", "Walkthroughs from your photo", "Video từ ảnh của bạn"],
+    ["plan3d", "2D to 3D", "2D sang 3D", "Floor plans, instantly", "Mặt bằng tức thì"],
+    ["shop", "Shop the look", "Mua theo thiết kế", "Find the real furniture", "Tìm nội thất thật"],
+    ["remove", "Empty a room", "Dọn trống phòng", "One-click virtual staging", "Bài trí ảo một chạm"],
+    ["sky", "Swap weather", "Đổi thời tiết", "Sky and light changes", "Đổi bầu trời & ánh sáng"],
+    ["listing", "Stage listings", "Staging tin đăng", "Empty spaces, furnished", "Không gian trống có nội thất"],
+    ["calc", "Budget estimator", "Ước tính ngân sách", "Know before you spend", "Biết chi phí trước khi chi"],
+    ["license", "No watermark", "Không watermark", "Commercial license included", "Kèm giấy phép thương mại"],
   ];
   const badList: [string, string][] = [
     ["Reinvents the room, ignoring your real walls", "Tạo phòng mới, bỏ qua tường thật"],
@@ -148,10 +150,10 @@ export function Home() {
               <div className="hero-image-wrap">
                 <HeroSlides />
               </div>
-              <div className="hero-image-caption"><span>✦ <b>{t("Real", "Thiết kế")}</b> {t("redesigns", "thật")}</span><span>♧ {t("Structure", "Cấu trúc")} <b>{t("locked", "được khóa")}</b></span><span>◇ <b>{t("Shop", "Mua")}</b> {t("the look", "theo thiết kế")}</span></div>
+              <div className="hero-image-caption"><span><ArchIcon n="redesign" size={15} /> <b>{t("Real", "Thiết kế")}</b> {t("redesigns", "thật")}</span><span><ArchIcon n="lock" size={15} /> {t("Structure", "Cấu trúc")} <b>{t("locked", "được khóa")}</b></span><span><ArchIcon n="shop" size={15} /> <b>{t("Shop", "Mua")}</b> {t("the look", "theo thiết kế")}</span></div>
               <div className="hero-tools">
-                {[["▣", "Interiors", "Nội thất"], ["⌂", "Exteriors", "Ngoại thất"], ["◒", "Gardens", "Sân vườn"], ["✦", "Virtual staging", "Staging ảo"], ["▣", "Video tours", "Video tour"], ["◇", "3D floor plans", "Mặt bằng 3D"]].map(([i, en, vi]) => (
-                  <div className="tool-mini" key={en}><span>{i}</span>{pick(en, vi)}</div>
+                {[["sofa", "Interiors", "Nội thất"], ["house", "Exteriors", "Ngoại thất"], ["garden", "Gardens", "Sân vườn"], ["fill", "Virtual staging", "Staging ảo"], ["video", "Video tours", "Video tour"], ["plan3d", "3D floor plans", "Mặt bằng 3D"]].map(([i, en, vi]) => (
+                  <div className="tool-mini" key={en}><span><ArchIcon n={i} size={20} /></span>{pick(en, vi)}</div>
                 ))}
               </div>
             </div>
@@ -162,9 +164,14 @@ export function Home() {
       <section className="workflow" id="how">
         <div className="container">
           <div className="workflow-card">
-            {[["▧", "Step 1", "Bước 1", "Upload your photo", "Tải ảnh của bạn lên"], ["☷", "Step 2", "Bước 2", "Set your preferences", "Chọn phong cách"], ["✧", "Step 3", "Bước 3", "Generate and use the result", "Tạo và dùng kết quả"]].map(([ic, a, b, c, d]) => (
-              <div className="workflow-step" key={a}><div className="step-icon">{ic}</div><div><strong>{pick(a, b)}</strong><small>{pick(c, d)}</small></div></div>
+            {[["upload", "Step 1", "Bước 1", "Upload your photo", "Tải ảnh của bạn lên"], ["swatch", "Step 2", "Bước 2", "Set your preferences", "Chọn phong cách"], ["generate", "Step 3", "Bước 3", "Generate and use the result", "Tạo và dùng kết quả"]].map(([ic, a, b, c, d]) => (
+              <div className="workflow-step" key={a}><div className="step-icon"><ArchIcon n={ic} size={24} /></div><div><strong>{pick(a, b)}</strong><small>{pick(c, d)}</small></div></div>
             ))}
+          </div>
+          <div className="hl-row">
+            <Figure name="upload" caption={t("01 · Upload", "01 · Tải ảnh")} />
+            <Figure name="style" caption={t("02 · Pick a style", "02 · Chọn phong cách")} />
+            <Figure name="generate" caption={t("03 · Generate", "03 · Tạo thiết kế")} />
           </div>
         </div>
       </section>
@@ -175,9 +182,14 @@ export function Home() {
             <div><p className="eyebrow">{t("One login. Every design tool.", "Một tài khoản. Mọi công cụ thiết kế.")}</p><h2 className="section-title">{t("Structure-Lock keeps your", "Khoá cấu trúc giữ nguyên")} <span>{t("real room", "căn phòng thật")}</span></h2></div>
             <p className="section-copy">{t("See the result before you spend. Explore 200+ styles and spaces, while the walls, windows and layout you started with stay exactly where they are.", "Xem kết quả trước khi chi tiền. Khám phá 200+ phong cách trong khi tường, cửa sổ và bố cục vẫn giữ nguyên.")}</p>
           </div>
+          <div className="hl-row" style={{ marginBottom: 28 }}>
+            <Figure name="lock" caption={t("Structure-Lock · layers held in place", "Khoá cấu trúc · giữ nguyên từng lớp")} />
+            <Figure name="walls" caption={t("Walls & windows locked", "Tường & cửa sổ được khoá")} />
+            <Figure name="styles" caption={t("200+ styles, one room", "200+ phong cách, một căn phòng")} />
+          </div>
           <div className="feature-grid">
             {features.map(([ic, en, vi, den, dvi]) => (
-              <div className="feature-tile" key={en}><div className="icon">{ic}</div><strong>{pick(en, vi)}</strong><span>{pick(den, dvi)}</span></div>
+              <div className="feature-tile" key={en}><div className="icon"><ArchIcon n={ic} size={24} /></div><strong>{pick(en, vi)}</strong><span>{pick(den, dvi)}</span></div>
             ))}
           </div>
           <div className="built-for">
@@ -207,10 +219,13 @@ export function Home() {
           <p className="eyebrow">{t("From photo to finished space", "Từ ảnh đến không gian hoàn chỉnh")}</p>
           <h2 className="section-title">{t("AI house design in", "Thiết kế nhà bằng AI chỉ với")} <span>{t("just 3 steps.", "3 bước.")}</span></h2>
           <p className="section-copy">{t("Upload a photo of your house, facade, interior room, or garden. The AI restyles it while keeping your real walls, windows and layout.", "Tải ảnh nhà, mặt tiền, phòng hoặc sân vườn. AI đổi phong cách nhưng giữ nguyên tường, cửa sổ và bố cục.")}</p>
-          <div className="story-list" style={{ marginTop: 40 }}>
-            {steps.map(([a, b, c, d], i) => (
-              <div className="story-step" key={a}><div className="story-number">{i + 1}</div><div><h3>{pick(a, b)}</h3><p>{pick(c, d)}</p></div></div>
-            ))}
+          <div className="deep-dive-layout">
+            <div className="story-list">
+              {steps.map(([a, b, c, d], i) => (
+                <div className="story-step" key={a}><div className="story-number">{i + 1}</div><div><h3>{pick(a, b)}</h3><p>{pick(c, d)}</p></div></div>
+              ))}
+            </div>
+            <Figure name="journey" dark intensity={0.7} caption={t("Photo → style → finished space", "Ảnh → phong cách → thành phẩm")} />
           </div>
         </div>
       </section>
@@ -249,6 +264,7 @@ export function Home() {
       <section className="faq" id="faq">
         <div className="container">
           <div className="section-center" style={{ marginBottom: 40 }}><p className="eyebrow">{t("Got questions?", "Có thắc mắc?")}</p><h2 className="section-title">{t("Frequently", "Câu hỏi")} <span>{t("asked questions", "thường gặp")}</span></h2></div>
+          <Figure name="Query" style={{ maxWidth: 300, margin: "0 auto 36px" }} />
           <FaqList />
         </div>
       </section>
@@ -258,6 +274,11 @@ export function Home() {
           <h2 className="section-title">{t("AI house design on your", "Thiết kế nhà bằng AI trên")} <span>{t("real space.", "không gian thật.")}</span><br />{t("In the next 30 seconds.", "Trong 30 giây tới.")}</h2>
           <p>{t("One photo in, a finished redesign out. Every tool under one login.", "Một ảnh vào, một thiết kế hoàn chỉnh ra. Mọi công cụ trong một tài khoản.")}</p>
           <Link to={"/app"} className="btn">{t("Start My Redesign", "Bắt đầu thiết kế")} <span>→</span></Link>
+          <div className="hl-row" style={{ maxWidth: 760, margin: "48px auto 0" }}>
+            <Figure name="room" dark caption={t("Interiors", "Nội thất")} />
+            <Figure name="house" dark caption={t("Exteriors", "Ngoại thất")} />
+            <Figure name="garden" dark caption={t("Gardens", "Sân vườn")} />
+          </div>
         </div>
       </section>
     </div>

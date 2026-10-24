@@ -1,3 +1,4 @@
+import { Figure } from "./Figure";
 import { useAuth } from "./auth";
 import React, { useState } from "react";
 import { Link } from "./router";
@@ -48,6 +49,7 @@ export function PricingPage() {
       <h1 className="mb-2 text-center text-4xl font-bold">{t("Simple, credit-based pricing", "Bảng giá theo credit đơn giản")}</h1>
       <p className="mb-8 text-center text-neutral-500">{t("1K image = 1 credit · 2K = 2 · 4K = 3. Failed generations are refunded.", "Ảnh 1K = 1 credit · 2K = 2 · 4K = 3. Tạo lỗi sẽ được hoàn credit.")}</p>
       <PricingTable />
+      <div className="hl-row"><Figure name="credits" caption="1K · 2K · 4K" /><Figure name="refund" caption={t("Refunds on failed renders", "Hoàn credit khi tạo lỗi")} /><Figure name="refill" caption={t("Credits refill every 24h", "Credit nạp lại mỗi 24h")} /></div>
     </section>
   );
 }
