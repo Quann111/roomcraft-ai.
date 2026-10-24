@@ -1,6 +1,6 @@
 import { Figure } from "./Figure";
 import { AiThinking } from "./AiThinking";
-import { SaveToPhotos } from "./SaveToPhotos";
+import { DownloadLink } from "./SaveToPhotos";
 import { ARCH } from "./icons";
 import { scenefor } from "./iso";
 import React, { useEffect, useMemo, useState } from "react";
@@ -250,8 +250,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                   return <p className="helper" style={{ marginTop: 8 }}>{msg}</p>;
                 })()}
                 <div className="row-between" style={{ marginTop: 14, flexWrap: "wrap", gap: 8 }}>
-                  <a className="outline-btn" href={g.gen.outputUrl} download={resultFile(g.gen.id, g.gen.outputUrl)}><Icon n="download" /> {t("Download", "Tải xuống")}</a>
-                  <SaveToPhotos className="outline-btn" url={g.gen.outputUrl} name={resultFile(g.gen.id, g.gen.outputUrl)} icon={<><Icon n="photo" /> </>} />
+                  <DownloadLink className="outline-btn" url={g.gen.outputUrl} name={resultFile(g.gen.id, g.gen.outputUrl)} phone={<><Icon n="photo" /> {t("Save to Photos", "Lưu vào Ảnh")}</>}><Icon n="download" /> {t("Download", "Tải xuống")}</DownloadLink>
                   {!g.gen.outputUrl.endsWith(".mp4") && <button className="outline-btn" onClick={g.togglePublic}><Icon n="globe" /> {g.gen.public ? t("Unpublish", "Gỡ khỏi thư viện") : t("Publish", "Đăng lên thư viện")}</button>}
                   <button className="outline-btn" onClick={g.remove_}><Icon n="trash" /> {t("Delete", "Xoá")}</button>
                 </div>
@@ -540,8 +539,7 @@ function LatestDesigns({ tool, refresh, styles: given, onDeleted }: { tool: stri
                     <span><strong>{t("Made", "Tạo lúc")}:</strong> {when(h.createdAt)}</span>
                   </div>
                   <div className="latest-actions">
-                    {!h.rooms && !isTextResult(h) && <a className="latest-action" title={t("Download", "Tải xuống")} href={h.outputUrl!} download={resultFile(h.id, h.outputUrl!)}><Icon n="download" /></a>}
-                    {!h.rooms && !isTextResult(h) && <SaveToPhotos className="latest-action" label={false} icon={<Icon n="photo" />} url={h.outputUrl!} name={resultFile(h.id, h.outputUrl!)} />}
+                    {!h.rooms && !isTextResult(h) && <DownloadLink className="latest-action" title={t("Download", "Tải xuống")} url={h.outputUrl!} name={resultFile(h.id, h.outputUrl!)} phone={<Icon n="photo" />}><Icon n="download" /></DownloadLink>}
                     <button className="latest-action" title={t("Preview", "Xem trước")} onClick={() => preview(h)}><Icon n="eye" /></button>
                     {!h.rooms && <button className="latest-action" title={t("Reuse settings", "Dùng lại cài đặt")} onClick={() => navigate(`/app?tool=${h.tool}&p=${encodeURIComponent(JSON.stringify(h.params ?? {}))}`)}><Icon n="edit" /></button>}
                     {!h.rooms && !isTextResult(h) && !isVideo(h) && <button className="latest-action" title={h.public ? t("Unpublish", "Gỡ đăng") : t("Publish", "Đăng công khai")} onClick={() => publish(h)}><Icon n="globe" /></button>}
@@ -574,7 +572,7 @@ function LatestDesigns({ tool, refresh, styles: given, onDeleted }: { tool: stri
                     </div>
                     <figcaption style={{ display: "flex", justifyContent: "space-between", gap: 6, padding: "6px 8px", fontSize: 12 }}>
                       <b style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.params?.roomType && bi(r.params.roomType)}</b>
-                      {r.outputUrl && <span style={{ display: "flex", gap: 8, flex: "0 0 auto" }}><SaveToPhotos url={r.outputUrl} name={resultFile(r.id, r.outputUrl)} style={{ padding: 0, border: 0, background: "none", color: "inherit", font: "inherit", textDecoration: "underline" }} /><a href={r.outputUrl} download={resultFile(r.id, r.outputUrl)}>{t("Download", "Tải xuống")}</a></span>}
+                      {r.outputUrl && <span style={{ display: "flex", gap: 8, flex: "0 0 auto" }}><DownloadLink url={r.outputUrl} name={resultFile(r.id, r.outputUrl)} style={{ padding: 0, border: 0, background: "none", color: "inherit", font: "inherit", textDecoration: "underline" }} phone={t("Save to Photos", "Lưu vào Ảnh")}>{t("Download", "Tải xuống")}</DownloadLink></span>}
                     </figcaption>
                   </figure>
                 ))}
@@ -583,7 +581,7 @@ function LatestDesigns({ tool, refresh, styles: given, onDeleted }: { tool: stri
               : open.chat ? <><h3 style={{ marginTop: 0 }}>{t("Design Advisor", "Tư vấn thiết kế")}</h3>{open.inputUrl && <img src={open.inputUrl} alt="" style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 10, marginBottom: 12 }} />}<Transcript turns={open.chat} /></>
               : open.orient ? <OrientView photo={open.inputUrl} o={open.orient} id={open.id} params={open.params ?? {}} Compare={BeforeAfter} />
               : open.finder ? <FinderView photo={open.inputUrl} f={open.finder} />
-              : open.critique ? <CritiqueView photo={open.inputUrl} c={open.critique} /> : <><BeforeAfter before={open.inputUrl} after={open.outputUrl} zoomable />{open.outputUrl && <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}><a className="outline-btn" href={open.outputUrl} download={resultFile(open.id, open.outputUrl)}><Icon n="download" /> {t("Download", "Tải xuống")}</a><SaveToPhotos className="outline-btn" url={open.outputUrl} name={resultFile(open.id, open.outputUrl)} icon={<><Icon n="photo" /> </>} /></div>}</>}
+              : open.critique ? <CritiqueView photo={open.inputUrl} c={open.critique} /> : <><BeforeAfter before={open.inputUrl} after={open.outputUrl} zoomable />{open.outputUrl && <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}><DownloadLink className="outline-btn" url={open.outputUrl} name={resultFile(open.id, open.outputUrl)} phone={<><Icon n="photo" /> {t("Save to Photos", "Lưu vào Ảnh")}</>}><Icon n="download" /> {t("Download", "Tải xuống")}</DownloadLink></div>}</>}
           </div>
         </div>
       )}

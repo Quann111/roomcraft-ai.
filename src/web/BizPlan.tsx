@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AiThinking } from "./AiThinking";
-import { SaveToPhotos } from "./SaveToPhotos";
+import { DownloadLink } from "./SaveToPhotos";
 import { bi, t } from "./i18n";
 import { prepareImage, type PreparedImage } from "./imagePrep";
 
@@ -134,7 +134,7 @@ export function BizPlan({ onCreditsChange }: { onCreditsChange?: () => void }) {
                 </div>
                 <figcaption style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 10px", fontSize: 14 }}>
                   <b style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.room}</b>
-                  {x.status === "SUCCESS" && x.outputUrl && <span style={{ display: "flex", gap: 10, flex: "0 0 auto", fontSize: 13 }}><SaveToPhotos url={x.outputUrl} name={`${x.room}.png`} style={{ padding: 0, border: 0, background: "none", color: "inherit", font: "inherit", textDecoration: "underline" }} /><a href={x.outputUrl} download={`${x.room}.png`}>{t("Download", "Tải xuống")}</a></span>}
+                  {x.status === "SUCCESS" && x.outputUrl && <span style={{ display: "flex", gap: 10, flex: "0 0 auto", fontSize: 13 }}><DownloadLink url={x.outputUrl} name={`${x.room}.png`} style={{ padding: 0, border: 0, background: "none", color: "inherit", font: "inherit", textDecoration: "underline" }} phone={t("Save to Photos", "Lưu vào Ảnh")}>{t("Download", "Tải xuống")}</DownloadLink></span>}
                 </figcaption>
               </figure>
             ))}
