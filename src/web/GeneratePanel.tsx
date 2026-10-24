@@ -68,13 +68,85 @@ export const isVideo = (h: { tool?: string; outputUrl?: string | null }) => h.to
 /** Download name for a result: videos are mp4, everything else png. */
 export const resultFile = (id: string, url: string) => `design-${id}.${url.endsWith(".mp4") ? "mp4" : "png"}`;
 
-export function BeforeAfter({ before, after }: { before: string | null; after: string }) {
+const ZMIN = 1, ZMAX = 8;
+
+/** Large before/after viewer: wheel or +/- to zoom, drag to pan (drag moves the divider at 1x), double-click toggles 2x. */
+function ZoomCompare({ before, after }: { before: string | null; after: string }) {
+  const [pos, setPos] = useState(50);
+  const [v, setV] = useState({ s: 1, x: 0, y: 0 });
+  const box = useRef<HTMLDivElement>(null);
+  const drag = useRef<null | { kind: "pan" | "split"; px: number; py: number; x: number; y: number }>(null);
+  const clamp = (s: number, x: number, y: number) => {
+    const r = box.current?.getBoundingClientRect();
+    const W = r?.width ?? 0, H = r?.height ?? 0;
+    return { s, x: Math.min(0, Math.max(W - W * s, x)), y: Math.min(0, Math.max(H - H * s, y)) };
+  };
+  const zoomAt = (factor: number, cx?: number, cy?: number) => setV((c) => {
+    const r = box.current?.getBoundingClientRect();
+    const ax = cx ?? (r ? r.width / 2 : 0), ay = cy ?? (r ? r.height / 2 : 0);
+    const s = Math.min(ZMAX, Math.max(ZMIN, c.s * factor));
+    return clamp(s, ax - (ax - c.x) * (s / c.s), ay - (ay - c.y) * (s / c.s));
+  });
+  useEffect(() => {
+    const el = box.current; if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      zoomAt(e.deltaY < 0 ? 1.2 : 1 / 1.2, e.clientX - r.left, e.clientY - r.top);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+  const toSplit = (clientX: number) => {
+    const r = box.current!.getBoundingClientRect();
+    setPos(Math.max(0, Math.min(100, ((clientX - r.left) / r.width) * 100)));
+  };
+  const layer: React.CSSProperties = { transform: `translate(${v.x}px, ${v.y}px) scale(${v.s})`, transformOrigin: "0 0" };
+  const imgCls = "absolute inset-0 h-full w-full select-none object-contain";
+  const ctl = "zc-btn";
+  return (
+    <div className="zc">
+      <div className="zc-bar">
+        <button className={ctl} onClick={() => zoomAt(1 / 1.4)} aria-label={t("Zoom out", "Thu nhỏ")}>−</button>
+        <span className="zc-pct">{Math.round(v.s * 100)}%</span>
+        <button className={ctl} onClick={() => zoomAt(1.4)} aria-label={t("Zoom in", "Phóng to")}>+</button>
+        <button className={ctl} onClick={() => setV({ s: 1, x: 0, y: 0 })}>{t("Fit", "Vừa khung")}</button>
+      </div>
+      <div ref={box} className="zc-stage" style={{ cursor: v.s > 1 ? (drag.current ? "grabbing" : "grab") : before ? "ew-resize" : "default" }}
+        onDoubleClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); v.s > 1 ? setV({ s: 1, x: 0, y: 0 }) : zoomAt(2.5, e.clientX - r.left, e.clientY - r.top); }}
+        onPointerDown={(e) => {
+          if ((e.target as HTMLElement).closest(".zc-bar")) return;
+          e.currentTarget.setPointerCapture(e.pointerId);
+          const onKnob = !!(e.target as HTMLElement).closest(".zc-knob");
+          const split = !!before && (v.s === 1 || onKnob);
+          drag.current = { kind: split ? "split" : "pan", px: e.clientX, py: e.clientY, x: v.x, y: v.y };
+          if (split) toSplit(e.clientX);
+        }}
+        onPointerMove={(e) => {
+          const d = drag.current; if (!d) return;
+          if (d.kind === "split") toSplit(e.clientX);
+          else setV((c) => clamp(c.s, d.x + e.clientX - d.px, d.y + e.clientY - d.py));
+        }}
+        onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }}>
+        <div className="absolute inset-0" style={layer}><img src={after} className={imgCls} alt="after" draggable={false} /></div>
+        {before && <div className="absolute inset-0" style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }}><div className="absolute inset-0" style={layer}><img src={before} className={imgCls} alt="before" draggable={false} /></div></div>}
+        {before && <>
+          <span className="ba-tag ba-tag-l">{bi("Before · Trước")}</span><span className="ba-tag ba-tag-r">{bi("After · Sau")}</span>
+          <div className="zc-knob" style={{ left: `${pos}%` }}><span className="ba-knob"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m8 7-5 5 5 5M16 7l5 5-5 5" /></svg></span></div>
+        </>}
+      </div>
+    </div>
+  );
+}
+
+export function BeforeAfter({ before, after, zoomable }: { before: string | null; after: string; zoomable?: boolean }) {
   const [pos, setPos] = useState(50);
   const move = (e: React.PointerEvent<HTMLDivElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     setPos(Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100)));
   };
   if (after.endsWith(".mp4")) return <video src={after} poster={before ?? undefined} controls autoPlay muted loop playsInline className="mx-auto block max-w-2xl rounded-xl" style={{ width: "100%" }} />;
+  if (zoomable) return <ZoomCompare before={before} after={after} />;
   // Text-to-design results have no input photo: show the output on its own.
   if (!before) return <img src={after} className="mx-auto block max-w-2xl rounded-xl" style={{ width: "100%" }} alt="" />;
   return (

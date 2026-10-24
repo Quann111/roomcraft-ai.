@@ -141,7 +141,7 @@ export function Home() {
                 {t("Get a real redesign in 30 seconds. Your walls, windows and layout stay exactly as they are.", "Nhận thiết kế thật trong 30 giây. Tường, cửa sổ và bố cục giữ nguyên.")}{" "}
                 <strong>{t("Only the design changes.", "Chỉ thiết kế thay đổi.")}</strong>
               </p>
-              <Link to={me ? "/app" : "/register"} className="btn hero-cta">{t("Start Now", "Bắt đầu ngay")} <span>→</span></Link>
+              <Link to={"/app"} className="btn hero-cta">{t("Start Now", "Bắt đầu ngay")} <span>→</span></Link>
               <div className="hero-meta"><p className="hero-copy" style={{ margin: 0, fontSize: 13 }}>{t("60+ interior · 25 exterior · 12 garden styles", "60+ phong cách nội thất · 25 ngoại thất · 12 sân vườn")}</p></div>
             </div>
             <div className="hero-visual">
@@ -197,7 +197,7 @@ export function Home() {
               <ul>{badList.map(([a, b]) => <li key={a}>{pick(a, b)}</li>)}</ul></article>
             <article className="compare-card good"><div className="compare-label">{t("Best choice · The smarter way", "Lựa chọn tốt nhất")}</div><h3>SOLYC Gen Labs</h3>
               <ul>{goodList.map(([a, b]) => <li key={a}>{pick(a, b)}</li>)}</ul>
-              <Link to={me ? "/app" : "/register"} className="btn small mt-6">{t("Get Started", "Bắt đầu")} <span>→</span></Link></article>
+              <Link to={"/app"} className="btn small mt-6">{t("Get Started", "Bắt đầu")} <span>→</span></Link></article>
           </div>
         </div>
       </section>
@@ -257,7 +257,7 @@ export function Home() {
         <div className="container">
           <h2 className="section-title">{t("AI house design on your", "Thiết kế nhà bằng AI trên")} <span>{t("real space.", "không gian thật.")}</span><br />{t("In the next 30 seconds.", "Trong 30 giây tới.")}</h2>
           <p>{t("One photo in, a finished redesign out. Every tool under one login.", "Một ảnh vào, một thiết kế hoàn chỉnh ra. Mọi công cụ trong một tài khoản.")}</p>
-          <Link to={me ? "/app" : "/register"} className="btn">{t("Start My Redesign", "Bắt đầu thiết kế")} <span>→</span></Link>
+          <Link to={"/app"} className="btn">{t("Start My Redesign", "Bắt đầu thiết kế")} <span>→</span></Link>
         </div>
       </section>
     </div>

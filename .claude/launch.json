@@ -1,1 +1,1 @@
-{"version":"0.0.1","configurations":[{"name":"roomcraft","runtimeExecutable":"npx.cmd","runtimeArgs":["wrangler","dev","--port","8787"],"port":8787}]}
+{"version":"0.0.1","configurations":[{"name":"roomcraft","runtimeExecutable":"npx.cmd","runtimeArgs":["wrangler","dev","--port","8787"],"port":8787},{"name":"roomcraft-web","runtimeExecutable":"npx.cmd","runtimeArgs":["vite","--port","5173"],"port":5173}]}

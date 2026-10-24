@@ -32,18 +32,8 @@ export function Header() {
         </nav>
         <div className="header-actions">
           <LangToggle />
-          {loaded && (me ? (
-            <>
-              <Link to="/projects" className="btn small ghost">{t("My projects", "Dự án")}</Link>
-              <span className="nav-user">{me.unlimited ? "∞" : me.credits} credits</span>
-              <button className="btn small" onClick={logout}>{t("Log out", "Thoát")}</button>
-            </>
-          ) : (
-            <>
-              <Link to="/login" className="btn small ghost">{t("Log in", "Đăng nhập")}</Link>
-              <Link to="/register" className="btn small">{t("Start free", "Dùng thử")}</Link>
-            </>
-          ))}
+          <Link to="/projects" className="btn small ghost">{t("My projects", "Dự án")}</Link>
+          <Link to="/app" className="btn small">{t("Start", "Bắt đầu")}</Link>
         </div>
         <button className="mobile-menu" onClick={() => setOpen(!open)} aria-label={t("Menu", "Menu")} aria-expanded={open}>☰</button>
       </div>

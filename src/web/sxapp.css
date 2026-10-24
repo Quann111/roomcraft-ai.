@@ -448,6 +448,16 @@
     .modal-xl .ba { max-width: none; border-radius: 4px; }
     .modal-xl .ba { width: fit-content; max-width: 100%; }
     .modal-xl .ba img.block { width: auto; height: auto; max-width: 100%; max-height: 90vh; object-fit: contain; }
+    .modal-xl:has(.zc) { width: min(96vw, 1600px); max-width: none; padding: 14px; }
+    .zc { position: relative; }
+    .zc-stage { position: relative; height: min(82vh, 1000px); overflow: hidden; border-radius: 4px; background: #f1efeb; touch-action: none; user-select: none; }
+    .zc-bar { position: absolute; z-index: 6; left: 12px; bottom: 12px; display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 8px; background: rgba(23,25,27,.78); color: #fff; font-size: 13px; }
+    .zc-btn { min-width: 32px; height: 30px; padding: 0 10px; border: 0; border-radius: 6px; background: rgba(255,255,255,.14); color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; }
+    .zc-btn:hover { background: rgba(255,255,255,.28); }
+    .zc-pct { min-width: 46px; text-align: center; font-variant-numeric: tabular-nums; }
+    .zc-knob { position: absolute; top: 0; bottom: 0; width: 28px; margin-left: -14px; z-index: 4; cursor: ew-resize; }
+    .zc-knob::before { content: ""; position: absolute; top: 0; bottom: 0; left: 13px; width: 2px; background: #fff; box-shadow: 0 0 4px rgba(0,0,0,.5); }
+    @media (max-width: 640px) { .modal-xl:has(.zc) { width: 98vw; padding: 6px; } .zc-stage { height: 72vh; } }
     .ba-tag { position: absolute; z-index: 2; top: 12px; padding: 4px 10px; border-radius: 3px; background: rgba(23,25,27,.75); color: #fff; font-size: 12px; font-weight: 600; pointer-events: none; }
     .ba-tag-l { left: 12px; } .ba-tag-r { right: 12px; top: 56px; }
     .ba-knob { display: grid; place-items: center; color: var(--ink); position: absolute; top: 50%; left: 50%; width: 36px; height: 36px; margin: -18px 0 0 -18px; border-radius: 50%; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.4); }

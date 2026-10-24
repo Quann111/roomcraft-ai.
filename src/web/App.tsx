@@ -439,7 +439,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
             {open.chat ? <><h3 style={{ marginTop: 0 }}>{t("Design Advisor", "Tư vấn thiết kế")}</h3>{open.inputUrl && <img src={open.inputUrl} alt="" style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 10, marginBottom: 12 }} />}<Transcript turns={open.chat} /></>
               : open.orient ? <OrientView photo={open.inputUrl} o={open.orient} id={open.id} params={open.params ?? {}} Compare={BeforeAfter} />
               : open.finder ? <FinderView photo={open.inputUrl} f={open.finder} />
-              : open.critique ? <CritiqueView photo={open.inputUrl} c={open.critique} /> : <BeforeAfter before={open.inputUrl} after={open.outputUrl} />}
+              : open.critique ? <CritiqueView photo={open.inputUrl} c={open.critique} /> : <BeforeAfter before={open.inputUrl} after={open.outputUrl} zoomable />}
           </div>
         </div>
       )}
@@ -499,7 +499,7 @@ export function App() {
               <label className="search" aria-label={t("Search tools", "Tìm công cụ")}><Icon n="search" /><input type="search" placeholder={t("Search AI tools", "Tìm công cụ AI")} value={q} onChange={(e) => setQ(e.target.value)} /></label>
               <button className="bell" aria-label={t("Language", "Ngôn ngữ")} onClick={() => { const n = lang === "vi" ? "en" : "vi"; setLang(n); setL(n); }} style={{ width: "auto", padding: "0 12px", fontSize: 12 }}>{lang === "vi" ? "VI · EN" : "EN · VI"}</button>
               <div className="profile"><div className="avatar">{initials}</div><div><strong>{me.email}</strong><small>{credits} {t("credits", "credit")}</small></div></div>
-              <button className="outline-btn" onClick={logout}>{t("Log out", "Thoát")}</button>
+              <button className="outline-btn" onClick={() => navigate("/")}>{t("Log out", "Thoát")}</button>
             </header>
 
             <section className="hero">
@@ -552,7 +552,7 @@ export function App() {
               <section className="module-content">
                 <header className="module-head">
                   <div className="module-title-row"><button className="module-back" onClick={home} aria-label={t("Back to dashboard", "Về bảng điều khiển")}><Icon n="back" /></button><h1>{bi(active.name)}</h1></div>
-                  <div className="module-actions"><span className="nav-user" style={{ alignSelf: "center" }}>{credits} {t("credits", "credit")}</span><button className="outline-btn" onClick={logout}>{t("Log out", "Thoát")}</button></div>
+                  <div className="module-actions"><span className="nav-user" style={{ alignSelf: "center" }}>{credits} {t("credits", "credit")}</span><button className="outline-btn" onClick={() => navigate("/")}>{t("Log out", "Thoát")}</button></div>
                 </header>
                 <div className="module-banner"><span className="info"><Icon n="info" /></span><div><h2>{bi(active.name)}</h2><p>{bi(active.desc)}</p></div></div>
                 <ToolGuide key={active.name} name={active.name} />

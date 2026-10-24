@@ -22,7 +22,7 @@ export function PricingTable() {
             <h3>{p.name.toUpperCase()}</h3>
             <div className="price">${yearly ? p.yearly : p.monthly}<small>/{t("mo", "tháng")}</small></div>
             <p>{p.credits.toLocaleString()} {t("credits / month", "credit / tháng")}</p>
-            <Link to={me ? "/app" : "/register"} className="btn small">{me ? t("Open dashboard", "Mở dashboard") : t("Start free", "Dùng thử miễn phí")}</Link>
+            <Link to={"/app"} className="btn small">{me ? t("Open dashboard", "Mở dashboard") : t("Start free", "Dùng thử miễn phí")}</Link>
             <div className="included">
               <strong>{t("What's included", "Bao gồm")}</strong>
               <ul>

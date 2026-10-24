@@ -245,9 +245,8 @@ export function LoginGate() {
 }
 
 export function AuthPage({ mode }: { mode: "login" | "signup" }) {
-  const { me, reload } = useAuth();
-  useEffect(() => { if (me) navigate("/app"); }, [me]);
-  return <div className="px-4 py-16"><AuthForm mode={mode} onDone={() => reload().then(() => navigate("/app"))} /></div>;
+  useEffect(() => { navigate("/app"); }, [mode]);
+  return null;
 }
 
 const DOCS: Record<string, { title: L2; body: L2[] }> = {

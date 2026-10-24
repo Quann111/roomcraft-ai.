@@ -4,7 +4,7 @@ import { submitImageToImage, submitTextToImage, submitImageToVideo, queryTask, c
 import { CITIES, DIRECTIONS } from "./solar";
 import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, COMPARE_TOOLS, MAX_COMPARE, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt } from "./prompts";
 
-type Env = { DB: D1Database; IMAGES: R2Bucket; DAILY_CREDITS: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
+type Env = { DB: D1Database; IMAGES: R2Bucket; DAILY_CREDITS: string; OPEN_ACCESS?: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
 type User = { id: string; email: string; credits: number; credits_refilled_at: number };
 type Vars = { user: User };
 
@@ -64,13 +64,31 @@ async function refillCredits(env: Env, u: User): Promise<User> {
   return { ...u, credits, credits_refilled_at: now };
 }
 
+// Temporary open access: visitors without a session act as the shared admin account. Set OPEN_ACCESS="0" to restore login.
+async function sharedAdmin(env: Env): Promise<User> {
+  const email = "admin@gmail.com";
+  const sel = "SELECT id,email,credits,credits_refilled_at FROM users WHERE email=?";
+  let row = await env.DB.prepare(sel).bind(email).first();
+  if (!row) {
+    const now = Date.now();
+    const salt = b64(crypto.getRandomValues(new Uint8Array(16)));
+    await env.DB.prepare("INSERT OR IGNORE INTO users (id,email,pw_hash,pw_salt,credits,credits_refilled_at,created_at) VALUES (?,?,?,?,?,?,?)")
+      .bind(crypto.randomUUID(), email, await hashPw(crypto.randomUUID(), salt), salt, Number(env.DAILY_CREDITS) || 3, now, now).run();
+    row = await env.DB.prepare(sel).bind(email).first();
+  }
+  return row as User;
+}
+
 const requireAuth = async (c: any, next: () => Promise<void>) => {
   const sid = getCookie(c, "sid");
-  if (!sid) return c.json({ error: "unauthorized" }, 401);
-  const row = await c.env.DB.prepare(
+  const row = sid ? await c.env.DB.prepare(
     "SELECT u.id,u.email,u.credits,u.credits_refilled_at FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.id=? AND s.expires_at>?",
-  ).bind(sid, Date.now()).first();
-  if (!row) return c.json({ error: "unauthorized" }, 401);
+  ).bind(sid, Date.now()).first() : null;
+  if (!row) {
+    if (c.env.OPEN_ACCESS !== "1") return c.json({ error: "unauthorized" }, 401);
+    c.set("user", await sharedAdmin(c.env));
+    return next();
+  }
   c.set("user", await refillCredits(c.env, row as User));
   await next();
 };
