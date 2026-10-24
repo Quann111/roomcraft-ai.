@@ -1,7 +1,11 @@
 const DEFAULT_BASE = "https://www.runninghub.ai/openapi/v2";
 
 export type RhStatus = "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED";
-export type RhResult = { taskId?: string; status: RhStatus; errorMessage?: string; results?: { url: string; outputType: string }[] | null };
+/** `usage.thirdPartyConsumeMoney` is what the task was billed in USD (a string such as "0.05"), when RunningHub reports it. */
+export type RhResult = { taskId?: string; status: RhStatus; errorMessage?: string; results?: { url: string; outputType: string }[] | null; usage?: { thirdPartyConsumeMoney?: string | null } | null };
+/** Token counts of one LLM call, for cost tracking. */
+export type LlmUsage = { input: number; output: number };
+const usageOf = (data: any): LlmUsage => ({ input: Number(data?.usage?.prompt_tokens) || 0, output: Number(data?.usage?.completion_tokens) || 0 });
 
 function toDataUri(bytes: ArrayBuffer, mime: string) {
   const u8 = new Uint8Array(bytes);
@@ -72,7 +76,7 @@ export type ChatMessage = { role: "system" | "user" | "assistant"; content: stri
 export const imagePart = (img: InputImage) => ({ type: "image_url" as const, image_url: { url: toDataUri(img.bytes, img.mime) } });
 
 /** One chat completion; returns the assistant's text. */
-export async function chatText(apiKey: string, o: { model: string; messages: ChatMessage[] }, base = LLM_BASE): Promise<string> {
+export async function chatText(apiKey: string, o: { model: string; messages: ChatMessage[]; onUsage?: (u: LlmUsage) => void }, base = LLM_BASE): Promise<string> {
   const r = await fetch(`${base}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
@@ -80,13 +84,14 @@ export async function chatText(apiKey: string, o: { model: string; messages: Cha
   });
   const data: any = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(data.error?.message || data.message || `RunningHub LLM ${r.status}`);
+  o.onUsage?.(usageOf(data));
   const text = String(data.choices?.[0]?.message?.content ?? "").trim();
   if (!text) throw new Error("The AI returned an empty answer · AI không trả lời");
   return text;
 }
 
 /** One vision chat call that must answer with a JSON object; returns the parsed object. `images` sends several in order. */
-export async function chatJson(apiKey: string, o: { model: string; prompt: string; image?: InputImage; images?: InputImage[] }, base = LLM_BASE): Promise<any> {
+export async function chatJson(apiKey: string, o: { model: string; prompt: string; image?: InputImage; images?: InputImage[]; onUsage?: (u: LlmUsage) => void }, base = LLM_BASE): Promise<any> {
   const r = await fetch(`${base}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
@@ -98,6 +103,7 @@ export async function chatJson(apiKey: string, o: { model: string; prompt: strin
   });
   const data: any = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(data.error?.message || data.message || `RunningHub LLM ${r.status}`);
+  o.onUsage?.(usageOf(data));
   const text = String(data.choices?.[0]?.message?.content ?? "").replace(/^```(?:json)?\s*|\s*```$/g, "");
   try { return JSON.parse(text); } catch { throw new Error("The AI returned an unreadable answer · AI trả về kết quả không đọc được"); }
 }

@@ -11,6 +11,7 @@ import { Header, Footer } from "./Layout";
 import { Home } from "./Home";
 import { App as SolycApp } from "./App";
 import { PricingPage } from "./Pricing";
+import { AdminCostsPage } from "./AdminCosts";
 import { FEATURES, PERSONAS, USE_CASES } from "./data";
 import {
   AuthPage, DOC_SLUGS, DocPage, FeaturePage, FeaturesHub, NotFound, PersonaPage, ProjectsPage, RedesignPage, StylePage, StylesHub, UseCaseHandler,
@@ -30,6 +31,7 @@ function Routes() {
   if (seg.length === 1) {
     if (slug === "redesign") return <ToApp />;
     if (slug === "pricing") return <PricingPage />;
+    if (slug === "admin") return <AdminCostsPage />;
     if (slug === "login") return <AuthPage mode="login" />;
     if (slug === "register") return <AuthPage mode="signup" />;
     if (slug === "projects") return <ProjectsPage />;

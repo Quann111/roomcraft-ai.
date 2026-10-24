@@ -3,6 +3,7 @@ import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { TILE_EDIT, submitImageToImage, submitTextToImage, submitImageToVideo, queryTask, chatJson, chatText, imagePart, type ChatMessage } from "./runninghub";
 import { CITIES, DIRECTIONS } from "./solar";
 import { FLOOR_TILES, floorTile } from "./floorTiles";
+import { recordCost, llmUsd, modelOf, kindOf, estimateUsd, parseCsv, rhTime } from "./costs";
 import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, LOCKED_PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, COMPARE_TOOLS, MAX_COMPARE, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, FLOOR_SCOUT_PROMPT, cleanFloorScout, type FloorScout, FLOOR_QA_PROMPT, floorQaVerdict, floorRetryNote, type FloorQa, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt } from "./prompts";
 
 type Env = { DB: D1Database; IMAGES: R2Bucket; ASSETS: Fetcher; DAILY_CREDITS: string; OPEN_ACCESS?: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
@@ -14,6 +15,13 @@ const isAdmin = (u: User) => ADMIN_EMAILS.includes(u.email.toLowerCase());
 const DAY = 86_400_000;
 const SESSION_TTL = 30 * DAY;
 const app = new Hono<{ Bindings: Env; Variables: Vars }>();
+
+/** Runs a background write without delaying the response (falls back to fire-and-forget outside a request context). */
+const later = (c: any, p: Promise<unknown>) => { try { c.executionCtx.waitUntil(p); } catch { p.catch(() => {}); } };
+/** onUsage callback that records what one LLM call cost. */
+const llmCost = (c: any, tool: string, generationId: string | null, userId?: string) => (u: { input: number; output: number }) =>
+  later(c, recordCost(c.env.DB, { id: `llm:${crypto.randomUUID()}`, kind: "llm", model: CRITIQUE_MODEL, tool, generationId, userId: userId ?? c.get("user")?.id,
+    usd: llmUsd(CRITIQUE_MODEL, u.input, u.output), tokensIn: u.input, tokensOut: u.output }));
 
 /** A VICOSTONE tile swatch from the static assets, when the floor material is one of the tiles. Tile jobs run on TILE_EDIT. */
 async function tileSwatch(c: any, material: unknown) {
@@ -33,7 +41,7 @@ const NO_FLOOR = "No bare floor is visible in this photo, so there is nothing to
 async function floorScout(c: any, key: string): Promise<FloorScout | null> {
   const o = await c.env.IMAGES.get(key);
   if (!o) return null;
-  const call = chatJson(c.env.RUNNINGHUB_API_KEY, { model: CRITIQUE_MODEL, prompt: FLOOR_SCOUT_PROMPT, image: { bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" } })
+  const call = chatJson(c.env.RUNNINGHUB_API_KEY, { model: CRITIQUE_MODEL, prompt: FLOOR_SCOUT_PROMPT, image: { bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" }, onUsage: llmCost(c, "interior-floor", null) })
     .then(cleanFloorScout, () => null);
   // Median ~12 s, but about one photo in ten takes 30-45 s; past 45 s the edit runs without the scout.
   return Promise.race([call, new Promise<null>((r) => setTimeout(() => r(null), 45_000))]);
@@ -230,7 +238,7 @@ app.post("/api/generate", requireAuth, async (c) => {
   await c.env.DB.prepare("INSERT INTO credit_ledger (user_id,delta,reason,generation_id,created_at) VALUES (?,?,?,?,?)").bind(u.id, -cost, "generate", id, now).run();
   try {
     if (critique) {
-      const result = cleanLlmResult(b.tool, await chatJson(c.env.RUNNINGHUB_API_KEY, { model: CRITIQUE_MODEL, prompt, image: { bytes: await obj!.arrayBuffer(), mime: obj!.httpMetadata?.contentType ?? "image/jpeg" } }));
+      const result = cleanLlmResult(b.tool, await chatJson(c.env.RUNNINGHUB_API_KEY, { model: CRITIQUE_MODEL, prompt, image: { bytes: await obj!.arrayBuffer(), mime: obj!.httpMetadata?.contentType ?? "image/jpeg" }, onUsage: llmCost(c, b.tool, id) }));
       const outKey = `out/${u.id}/${id}.json`;
       await c.env.IMAGES.put(outKey, JSON.stringify(result), { httpMetadata: { contentType: "application/json" } });
       await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,input_key,output_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
@@ -268,7 +276,7 @@ app.post("/api/bizplan/detect", requireAuth, async (c) => {
   const plan = await ownImage(c, b.inputKey);
   if (!plan) return c.json({ error: "Upload a floor plan first · Hãy tải mặt bằng lên trước" }, 400);
   try {
-    const r = await chatJson(c.env.RUNNINGHUB_API_KEY, { model: CRITIQUE_MODEL, prompt: PLAN_DETECT_PROMPT, image: { bytes: await plan.arrayBuffer(), mime: plan.httpMetadata?.contentType ?? "image/jpeg" } });
+    const r = await chatJson(c.env.RUNNINGHUB_API_KEY, { model: CRITIQUE_MODEL, prompt: PLAN_DETECT_PROMPT, image: { bytes: await plan.arrayBuffer(), mime: plan.httpMetadata?.contentType ?? "image/jpeg" }, onUsage: llmCost(c, BIZPLAN_TOOL, null) });
     const rooms = cleanRooms(r?.rooms);
     if (!rooms.length) return c.json({ error: "No rooms found — is this a floor plan? · Không tìm thấy phòng nào — ảnh này có phải mặt bằng không?" }, 422);
     return c.json({ home: String(r?.home ?? "").trim().slice(0, 200), rooms });
@@ -405,7 +413,7 @@ app.post("/api/advisor", requireAuth, async (c) => {
       { role: "system", content: advisorSystem({ ...opts, hasPhoto: !!img }) },
       ...all.map((t, i): ChatMessage => (i === 0 && t.role === "user" && img ? { role: "user", content: [{ type: "text", text: t.text }, img] } : { role: t.role, content: t.text })),
     ];
-    const reply = (await chatText(c.env.RUNNINGHUB_API_KEY, { model: ADVISOR_MODEL, messages })).slice(0, 4000);
+    const reply = (await chatText(c.env.RUNNINGHUB_API_KEY, { model: ADVISOR_MODEL, messages, onUsage: llmCost(c, ADVISOR_TOOL, id) })).slice(0, 4000);
     all.push({ role: "assistant", text: reply });
     const outKey = row?.output_key ?? `out/${u.id}/${id}.json`;
     await c.env.IMAGES.put(outKey, JSON.stringify({ messages: all }), { httpMetadata: { contentType: "application/json" } });
@@ -440,7 +448,7 @@ async function tileCheck(c: any, g: any, params: any, out: Img): Promise<{ done:
   const swatch = await tileSwatch(c, params.material).catch(() => null);
   let verdict: FloorQa | null = null;
   if (input && swatch) {
-    const call = chatJson(c.env.RUNNINGHUB_API_KEY, { model: CRITIQUE_MODEL, prompt: FLOOR_QA_PROMPT, images: [{ bytes: await input.arrayBuffer(), mime: input.httpMetadata?.contentType ?? "image/jpeg" }, out, swatch] })
+    const call = chatJson(c.env.RUNNINGHUB_API_KEY, { model: CRITIQUE_MODEL, prompt: FLOOR_QA_PROMPT, images: [{ bytes: await input.arrayBuffer(), mime: input.httpMetadata?.contentType ?? "image/jpeg" }, out, swatch], onUsage: llmCost(c, "interior-floor", g.id, g.user_id) })
       .then((r) => floorQaVerdict(r, params.scout?.floor_closeup === true), () => null);
     verdict = await Promise.race([call, new Promise<null>((r) => setTimeout(() => r(null), 45_000))]);
   }
@@ -476,6 +484,12 @@ app.get("/api/generations/:id", requireAuth, async (c) => {
   if ((g.status === "RUNNING" || g.status === "QUEUED") && c.env.RUNNINGHUB_API_KEY) {
     let pollError = "";
     const r = await queryTask(c.env.RUNNINGHUB_API_KEY, g.rh_task_id, c.env.RUNNINGHUB_BASE).catch((e: Error) => { pollError = e.message; return null; });
+    if (r && g.rh_task_id && r.status !== "QUEUED" && r.status !== "RUNNING") {
+      const billed = r.usage?.thirdPartyConsumeMoney;
+      const params = JSON.parse(g.params), model = modelOf(g.tool, params);
+      later(c, recordCost(c.env.DB, { id: `task:${g.rh_task_id}`, kind: kindOf(model) === "video" ? "video" : "image", model, tool: g.tool, generationId: g.id, userId: g.user_id,
+        usd: billed != null && Number.isFinite(Number(billed)) ? Number(billed) : estimateUsd(g.tool, params, r.status), estimated: billed == null || !Number.isFinite(Number(billed)) }));
+    }
     // status guard makes the refund happen exactly once even with concurrent polls
     const fail = async (msg: string) => {
       const upd = await c.env.DB.prepare("UPDATE generations SET status='FAILED', error=? WHERE id=? AND status IN ('QUEUED','RUNNING')").bind(msg, g.id).run();
@@ -513,6 +527,90 @@ app.get("/api/generations/:id", requireAuth, async (c) => {
   // Written critiques and advisor transcripts are stored as JSON in place of an output image.
   const json: any = g.status === "SUCCESS" && String(g.output_key).endsWith(".json") ? await c.env.IMAGES.get(g.output_key).then((o) => o?.json()).catch(() => null) : undefined;
   return c.json({ id: g.id, tool: g.tool, params: JSON.parse(g.params), status: g.status, error: g.error, public: !!g.is_public, critique: g.tool === "interior-critique" ? json : undefined, finder: g.tool === "interior-finder" ? json : undefined, orient: g.tool === "exterior-orient" ? json : undefined, chat: g.tool === ADVISOR_TOOL ? json?.messages : undefined, inputUrl: g.input_key ? `/api/images/${g.input_key}` : null, outputUrl: g.output_key ? `/api/images/${g.output_key}` : null });
+});
+
+// ---------- Admin: API cost page ----------
+/**
+ * Only a real login of an admin email. Under OPEN_ACCESS every visitor runs as the shared admin account, so requireAuth
+ * and isAdmin alone would show the cost page to anyone.
+ */
+async function realAdmin(c: any) {
+  const sid = getCookie(c, "sid");
+  if (!sid) return null;
+  const row: any = await c.env.DB.prepare("SELECT u.email FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.id=? AND s.expires_at>?").bind(sid, Date.now()).first();
+  return row && ADMIN_EMAILS.includes(String(row.email).toLowerCase()) ? row : null;
+}
+const VN_OFFSET = 7 * 3_600_000; // days on the cost page are Vietnam calendar days
+const vnDay = (t: number) => new Date(t + VN_OFFSET).toISOString().slice(0, 10);
+
+// Recorded charges plus list-price estimates for generations that have none (older rows, or no amount reported).
+app.get("/api/admin/costs", async (c) => {
+  if (!(await realAdmin(c))) return c.json({ error: "Log in with an admin account to see API costs · Đăng nhập bằng tài khoản admin để xem chi phí API" }, 403);
+  const days = [7, 30, 90].includes(Number(c.req.query("days"))) ? Number(c.req.query("days")) : 30;
+  const now = Date.now();
+  const since = Date.parse(vnDay(now - (days - 1) * DAY) + "T00:00:00Z") - VN_OFFSET; // start of the first VN day in range
+  let tracked: any[] = [], trackingReady = true;
+  try {
+    tracked = (await c.env.DB.prepare("SELECT kind,model,tool,generation_id,usd,estimated,tokens_in,tokens_out,created_at FROM api_costs WHERE created_at>=? ORDER BY created_at DESC").bind(since).all()).results;
+  } catch { trackingReady = false; } // migration 0003 not applied yet: everything below is an estimate
+  const gens: any[] = (await c.env.DB.prepare("SELECT g.id,g.tool,g.params,g.status,g.created_at,u.email FROM generations g LEFT JOIN users u ON u.id=g.user_id WHERE g.created_at>=? AND g.status IN ('SUCCESS','FAILED')").bind(since).all()).results;
+  const email = new Map(gens.map((g) => [g.id, g.email]));
+  const covered = new Set(tracked.map((r) => r.generation_id).filter(Boolean));
+  type Row = { at: number; tool: string; model: string; kind: string; usd: number; estimated: boolean; user?: string };
+  const rows: Row[] = tracked.map((r) => ({ at: r.created_at, tool: r.tool ?? "", model: r.model, kind: r.kind, usd: r.usd, estimated: !!r.estimated, user: email.get(r.generation_id) }));
+  for (const g of gens) {
+    if (covered.has(g.id)) continue;
+    const params = JSON.parse(g.params), model = modelOf(g.tool, params);
+    rows.push({ at: g.created_at, tool: g.tool, model, kind: kindOf(model), usd: estimateUsd(g.tool, params, g.status), estimated: true, user: g.email });
+  }
+  rows.sort((x, y) => y.at - x.at);
+  const sum = (list: Row[]) => list.reduce((a, r) => a + r.usd, 0);
+  const group = (key: (r: Row) => string) => {
+    const m = new Map<string, Row[]>();
+    for (const r of rows) m.set(key(r), [...(m.get(key(r)) ?? []), r]);
+    return [...m].map(([k, list]) => ({ key: k, count: list.length, usd: sum(list), estimatedUsd: sum(list.filter((r) => r.estimated)) })).sort((x, y) => y.usd - x.usd);
+  };
+  const byDay = Array.from({ length: days }, (_, i) => vnDay(since + i * DAY)).map((day) => {
+    const list = rows.filter((r) => vnDay(r.at) === day);
+    return { day, exact: sum(list.filter((r) => !r.estimated)), estimated: sum(list.filter((r) => r.estimated)), count: list.length };
+  });
+  const today = vnDay(now);
+  const images = rows.filter((r) => r.kind !== "llm" && r.usd > 0);
+  return c.json({
+    days, since, trackingReady,
+    totals: { usd: sum(rows), estimatedUsd: sum(rows.filter((r) => r.estimated)), today: sum(rows.filter((r) => vnDay(r.at) === today)), last7: sum(rows.filter((r) => r.at >= now - 7 * DAY)),
+      count: rows.length, perImage: images.length ? sum(images) / images.length : 0, llmUsd: sum(rows.filter((r) => r.kind === "llm")) },
+    byDay, byTool: group((r) => r.tool || "—"), byModel: group((r) => r.model), recent: rows.slice(0, 50),
+  });
+});
+
+// Billing CSV from the RunningHub console: replaces tracked/estimated amounts with what was actually charged. Tasks that
+// match no generation (other apps on the same key, test scripts) are kept with no tool and shown as outside the app.
+app.post("/api/admin/costs/import", async (c) => {
+  if (!(await realAdmin(c))) return c.json({ error: "Log in with an admin account · Đăng nhập bằng tài khoản admin" }, 403);
+  const text = (await c.req.text()).replace(/^\uFEFF/, "");
+  if (!text || text.length > 5_000_000) return c.json({ error: "Upload the RunningHub billing CSV (max 5 MB) · Hãy tải file CSV hoá đơn RunningHub (tối đa 5 MB)" }, 400);
+  const [head, ...body] = parseCsv(text);
+  const col = (name: string) => head?.indexOf(name) ?? -1;
+  const ix = { id: col("Task ID"), name: col("Task Name"), status: col("Task Status"), usd: col("Wallet Amount"), at: col("Created Time") };
+  if (Object.values(ix).some((i) => i < 0)) return c.json({ error: "This is not a RunningHub billing CSV · Đây không phải file CSV hoá đơn RunningHub" }, 400);
+  const tasks = body.map((r) => ({ id: r[ix.id], model: r[ix.name], usd: Number(r[ix.usd]) || 0, at: rhTime(r[ix.at]) })).filter((t) => /^\d+$/.test(t.id) && t.model && Number.isFinite(t.at));
+  try { await c.env.DB.prepare("SELECT 1 FROM api_costs LIMIT 1").first(); } catch { return c.json({ error: "Run migration 0003_api_costs first · Cần chạy migration 0003_api_costs trước" }, 500); }
+  const gens = new Map<string, any>();
+  for (let i = 0; i < tasks.length; i += 80) {
+    const ids = tasks.slice(i, i + 80).map((t) => t.id);
+    const { results } = await c.env.DB.prepare(`SELECT id,tool,user_id,rh_task_id FROM generations WHERE rh_task_id IN (${ids.map(() => "?").join(",")})`).bind(...ids).all<any>();
+    for (const g of results) gens.set(g.rh_task_id, g);
+  }
+  const stmt = c.env.DB.prepare("INSERT OR REPLACE INTO api_costs (id,kind,model,tool,generation_id,user_id,usd,estimated,tokens_in,tokens_out,created_at) VALUES (?,?,?,?,?,?,?,0,NULL,NULL,?)");
+  for (let i = 0; i < tasks.length; i += 50) {
+    await c.env.DB.batch(tasks.slice(i, i + 50).map((t) => {
+      const g = gens.get(t.id);
+      return stmt.bind(`task:${t.id}`, kindOf(t.model) === "video" ? "video" : "image", t.model, g?.tool ?? null, g?.id ?? null, g?.user_id ?? null, t.usd, t.at);
+    }));
+  }
+  return c.json({ imported: tasks.length, matched: tasks.filter((t) => gens.has(t.id)).length, usd: tasks.reduce((a, t) => a + t.usd, 0),
+    from: Math.min(...tasks.map((t) => t.at)), to: Math.max(...tasks.map((t) => t.at)) });
 });
 
 app.get("/api/generations", requireAuth, async (c) => {
