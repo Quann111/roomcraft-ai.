@@ -88,7 +88,7 @@ figcaption { font-size: 13px; color: var(--muted); }
     <div class="stat"><b>~$11.7</b><span>tổng chi phí test (203 ảnh và ~209 lượt AI đọc ảnh)</span></div>
   </div>
   <div class="box ok">
-    <p><b>Kết luận.</b> Khách chọn một trong 8 mẫu gạch thì ảnh mẫu gạch thật được gửi kèm cho AI.</p>
+    <p><b>Kết luận.</b> 8 mẫu gạch là <b>preset có sẵn trong app</b>, team làm sẵn cho khách. Người dùng chỉ chọn mẫu, không tải ảnh gạch lên. App tự gửi kèm ảnh mẫu gạch đã lưu sẵn cho AI.</p>
     <p>Trước khi lát, một AI khác đọc ảnh để biết phải giữ những tấm thảm, người, đồ vật nào. Ảnh không thấy sàn thì từ chối và không trừ credit.</p>
     <p>Model lát gạch là <b>GPT Image 2.5 Sunburst</b>. Model này thắng rõ trong bài so sánh 7 model: giữ thảm, giữ người và giữ khung ảnh tốt nhất.</p>
     <p>Gạch ra đúng khổ 120 × 120 cm, bóng kiếng, đúng màu và vân mẫu.</p>
@@ -105,6 +105,10 @@ figcaption { font-size: 13px; color: var(--muted); }
     <li>Tên hiển thị: <b>"Gạch VICOSTONE + mã gạch"</b>.</li>
     <li>Dùng được ở cả chế độ một vật liệu và so sánh tối đa 4 vật liệu trên cùng ảnh.</li>
   </ul>
+  <div class="box">
+    <p><b>8 mẫu là preset có sẵn, không phải ảnh người dùng tải lên.</b> Team lấy ảnh mẫu từ bộ ảnh khách gửi. Mỗi mẫu được chuẩn hoá thành 3 ảnh: ảnh mẫu 1024 px gửi cho AI, ảnh nhỏ cho ô chọn, ảnh lắp đặt thực tế nếu có. Cả 3 lưu cố định trong app.</p>
+    <p>Người dùng chỉ tải ảnh căn phòng của mình rồi bấm chọn một ô gạch, như chọn gỗ sồi hay đá cẩm thạch. Muốn thêm hoặc bớt mẫu thì sửa danh mục trong code (<span class="num">floorTiles.ts</span>), người dùng không tự thêm được.</p>
+  </div>
   <div class="tiles">
     <figure><img src="/materials/floor/AZ26-P121221-thumb.jpg" alt="Mẫu gạch AZ26-P121221" loading="lazy"><figcaption>AZ26-P121221</figcaption></figure>
     <figure><img src="/materials/floor/AZ26-P121222-thumb.jpg" alt="Mẫu gạch AZ26-P121222" loading="lazy"><figcaption>AZ26-P121222</figcaption></figure>
@@ -119,13 +123,13 @@ figcaption { font-size: 13px; color: var(--muted); }
 
 <section id="co-che">
   <h2>3. Cơ chế hoạt động</h2>
-  <p>Mỗi lần khách bấm tạo ảnh với một mẫu gạch VICOSTONE, hệ thống chạy các bước sau.</p>
+  <p>Người dùng tải ảnh căn phòng lên, chọn một mẫu gạch VICOSTONE có sẵn rồi bấm tạo ảnh. Hệ thống chạy các bước sau.</p>
   <ol class="flow">
-    <li><b>Chuẩn bị ảnh (trên máy khách)</b><span>Xoay đúng chiều, giảm dung lượng, xoá thông tin vị trí. Ảnh được cắt nhẹ mép về đúng tỉ lệ chuẩn gần nhất (16:9, 4:3, 3:2…). Lý do: model tạo ảnh luôn trả ảnh theo đúng tỉ lệ chuẩn. Ảnh gốc lệch tỉ lệ thì kết quả bị dàn lại khung và lệch so với ảnh gốc.</span><span class="meta">tức thì · miễn phí</span></li>
+    <li><b>Chuẩn bị ảnh phòng (ngay trên trình duyệt của người dùng)</b><span>Xoay đúng chiều, giảm dung lượng, xoá thông tin vị trí. Ảnh được cắt nhẹ mép về đúng tỉ lệ chuẩn gần nhất (16:9, 4:3, 3:2…). Lý do: model tạo ảnh luôn trả ảnh theo đúng tỉ lệ chuẩn. Ảnh gốc lệch tỉ lệ thì kết quả bị dàn lại khung và lệch so với ảnh gốc.</span><span class="meta">tức thì · miễn phí</span></li>
     <li><b>AI đọc ảnh</b> (Gemini 3.8 Flash)<span>Trả lời 4 câu hỏi về ảnh:</span><span>• Có thấy mặt sàn trống không?</span><span>• Có phải ảnh chụp cận sàn không?</span><span>• Có những tấm thảm, người, thú cưng, đồ vật nào trên sàn phải giữ?</span><span>• Bề mặt nào dễ bị nhầm là sàn (mặt bếp, bàn, cầu thang)?</span><span>Không thấy sàn thì <b>từ chối ngay, không trừ credit</b>. Nếu AI đọc quá 45 s thì bỏ qua bước này và dùng prompt chung.</span><span class="meta">trung vị 12 s · ~$0.001</span></li>
-    <li><b>AI lát gạch</b> (GPT Image 2.5 Sunburst)<span>Model nhận 2 ảnh: ảnh phòng và <b>ảnh mẫu gạch thật</b> của VICOSTONE.</span><span>Prompt yêu cầu:</span><span>• Chỉ thay sàn. Giữ nguyên người, đồ vật, thảm và khung ảnh.</span><span>• Lát lưới gạch 120 × 120 cm, ron mảnh, bóng kiếng phản chiếu.</span><span>• Có mốc kích thước để AI không vẽ gạch nhỏ, ví dụ "sofa 2,2 m chưa tới 2 viên".</span><span>Danh sách cụ thể từ bước 2 được ghi thẳng vào prompt, ví dụ "giữ tấm thảm kem dưới bàn trà".</span><span class="meta">trung vị 48 s · $0.05 ở mọi độ phân giải</span></li>
+    <li><b>AI lát gạch</b> (GPT Image 2.5 Sunburst)<span>Model nhận 2 ảnh: ảnh phòng của người dùng và <b>ảnh mẫu gạch preset</b> lưu sẵn trong app.</span><span>Prompt yêu cầu:</span><span>• Chỉ thay sàn. Giữ nguyên người, đồ vật, thảm và khung ảnh.</span><span>• Lát lưới gạch 120 × 120 cm, ron mảnh, bóng kiếng phản chiếu.</span><span>• Có mốc kích thước để AI không vẽ gạch nhỏ, ví dụ "sofa 2,2 m chưa tới 2 viên".</span><span>Danh sách cụ thể từ bước 2 được ghi thẳng vào prompt, ví dụ "giữ tấm thảm kem dưới bàn trà".</span><span class="meta">trung vị 48 s · $0.05 ở mọi độ phân giải</span></li>
     <li class="opt"><b>Tự kiểm tra (tuỳ chọn, mặc định tắt)</b><span>AI chấm ảnh kết quả so với ảnh gốc và mẫu gạch. Thấy mất thảm, mất người, mất đồ vật hoặc lệch khung thì tạo lại 1 lần và ghi rõ lỗi lần trước. Sau đó giữ lần tốt hơn. Chi tiết ở <a href="#tu-kiem-tra">mục 7</a>.</span><span class="meta">+~15 s · +$0.002 · nếu phải tạo lại: +~60 s, +$0.05</span></li>
-    <li><b>Trả kết quả</b><span>Khách xem ảnh trước và sau, tải về, so sánh nhiều mẫu. Mỗi ảnh trừ 1 credit (2K: 2, 4K: 3), như các vật liệu khác. Nếu AI lỗi thì tự hoàn credit.</span></li>
+    <li><b>Trả kết quả</b><span>Người dùng xem ảnh trước và sau, tải về, so sánh nhiều mẫu. Mỗi ảnh trừ 1 credit (2K: 2, 4K: 3), như các vật liệu khác. Nếu AI lỗi thì tự hoàn credit.</span></li>
   </ol>
 </section>
 
@@ -200,12 +204,12 @@ figcaption { font-size: 13px; color: var(--muted); }
 
 <section id="tu-kiem-tra">
   <h2>7. Tự kiểm tra kết quả (tuỳ chọn, mặc định tắt)</h2>
-  <p>Ô "Tự kiểm tra kết quả" chỉ hiện khi khách chọn một mẫu gạch VICOSTONE. Khi bật:</p>
+  <p>Ô "Tự kiểm tra kết quả" chỉ hiện khi người dùng chọn một mẫu gạch VICOSTONE. Khi bật:</p>
   <ol>
     <li>Ảnh tạo xong, AI Gemini nhận 3 ảnh: ảnh gốc, ảnh kết quả, mẫu gạch. AI chấm theo 8 tiêu chí.</li>
     <li>Hệ thống chỉ quyết định dựa trên 4 tiêu chí đã đối chiếu đáng tin khi test: <b>giữ thảm, giữ người và thú cưng, giữ đồ vật, giữ khung ảnh</b>. Ảnh cận sàn thì bỏ qua tiêu chí khung ảnh. Các tiêu chí còn lại (cỡ gạch, phần không phải sàn) hay báo nhầm nên không dùng để quyết định.</li>
     <li>Có lỗi thì tạo lại 1 lần, prompt ghi rõ lỗi lần trước, ví dụ "lần trước làm mất tấm thảm". Lần 2 cũng được chấm. Hệ thống giữ lần ít lỗi hơn, nếu bằng nhau thì giữ lần sau.</li>
-    <li>Dưới ảnh hiện một dòng cho khách biết, ví dụ "✓ Đã tự kiểm tra: không thấy lỗi" hoặc "Đã tự tạo lại 1 lần vì lần đầu: …".</li>
+    <li>Dưới ảnh hiện một dòng cho người dùng biết, ví dụ "✓ Đã tự kiểm tra: không thấy lỗi" hoặc "Đã tự tạo lại 1 lần vì lần đầu: …".</li>
     <li>Không trừ thêm credit. Nếu AI chấm lỗi hoặc quá 45 s thì trả nguyên kết quả lần đầu. Chỉ một lượt kiểm tra chạy cho mỗi ảnh, kể cả khi trang hỏi trạng thái nhiều lần cùng lúc.</li>
   </ol>
   <div class="table"><table>
@@ -240,7 +244,7 @@ figcaption { font-size: 13px; color: var(--muted); }
   </table></div>
   <ul>
     <li><b>Ước tính theo số lượng:</b> 1.000 ảnh gạch VICOSTONE tốn khoảng <b>$51</b> khi tắt tự kiểm tra, khoảng <b>$55</b> khi bật.</li>
-    <li><b>Credit tính cho khách không đổi:</b> 1K = 1, 2K = 2, 4K = 3 credit. Chi phí AI như nhau ở mọi độ phân giải, nên với ảnh 2K và 4K khách trả nhiều credit hơn trong khi chi phí không đổi.</li>
+    <li><b>Credit tính cho người dùng không đổi:</b> 1K = 1, 2K = 2, 4K = 3 credit. Chi phí AI như nhau ở mọi độ phân giải, nên với ảnh 2K và 4K người dùng trả nhiều credit hơn trong khi chi phí không đổi.</li>
     <li><b>Thời gian thực tế phụ thuộc hàng đợi RunningHub.</b> Có lần chạy trong app mất 186 s. Bước đọc ảnh có 10% số lần mất 30–45 s.</li>
   </ul>
 </section>
@@ -269,7 +273,7 @@ figcaption { font-size: 13px; color: var(--muted); }
 <section id="han-che">
   <h2>10. Hạn chế còn lại và đề xuất</h2>
   <ul>
-    <li><b>Khoảng 3% vẫn mất thảm</b> khi tắt tự kiểm tra. Đề xuất: khách quan trọng hoặc ảnh có thảm thì bật. Muốn chắc hơn có thể bật mặc định, tốn thêm khoảng $0.004 mỗi ảnh và chậm thêm khoảng 15 s.</li>
+    <li><b>Khoảng 3% vẫn mất thảm</b> khi tắt tự kiểm tra. Đề xuất: bật khi demo cho khách hoặc khi ảnh có thảm. Muốn chắc hơn có thể bật mặc định, tốn thêm khoảng $0.004 mỗi ảnh và chậm thêm khoảng 15 s.</li>
     <li><b>Ảnh chụp cận sàn:</b> không còn bịa phòng, nhưng góc máy đôi khi hơi nghiêng so với ảnh gốc.</li>
     <li><b>Ảnh phủ thảm kín sàn</b> (wall-to-wall) bị từ chối vì AI coi là không có sàn trống. An toàn nhưng hơi khắt khe.</li>
     <li><b>Model đang dùng kênh giá rẻ (economy)</b> của RunningHub, kém ổn định hơn kênh chính thức. Kênh chính thức chưa có bảng giá công khai để so.</li>
