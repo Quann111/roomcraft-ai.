@@ -325,7 +325,8 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                 {cfg.room && (
                   <>
                     <h4>{t("1. Select Room Type", "1. Chọn loại phòng")} <button type="button" className="view-all" onClick={() => setShowAll({ ...showAll, room: !showAll.room })}>{showAll.room ? t("Less", "Thu gọn") : t("View All", "Xem tất cả")}</button></h4>
-                    <div className="preset-grid">{list(meta.roomTypes, "room").map((r, i) => choice(bi(r), i, r === g.room, () => g.setRoom((cfg.text || cfg.llm) && r === g.room ? "" : r), thumbOf(ROOM_PHOTOS, r)))}</div>
+                    {/* Redesign: "auto" keeps the photo's own room type, so an office is not turned into the default living room. */}
+                    <div className="preset-grid">{cfg.autoRoom && choice(t("Auto-detect", "Tự nhận diện"), 0, g.room === "", () => g.setRoom(""), g.preview || undefined)}{list(meta.roomTypes, "room").map((r, i) => choice(bi(r), i, r === g.room, () => g.setRoom((cfg.text || cfg.llm || cfg.autoRoom) && r === g.room ? "" : r), thumbOf(ROOM_PHOTOS, r)))}</div>
                   </>
                 )}
                 {cfg.scope && (

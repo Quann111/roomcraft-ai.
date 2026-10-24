@@ -279,6 +279,16 @@ export const TEXT_TOOLS: readonly ToolId[] = ["interior-text", "exterior-text", 
 
 const STRUCTURE_LOCK =
   "Keep the exact same room structure, wall layout, windows, doors, ceiling height, and camera angle. Keep the room proportions and perspective identical to the original photo. Photorealistic, high quality interior photography.";
+/**
+ * Redesign kept re-framing photos: it zoomed out or tilted up to fit the pendant lights and sofa the style prompts ask for,
+ * and sometimes added a window. This goes first so the model reads it before the style.
+ */
+const FRAME_LOCK =
+  "This is an in-place edit of this exact photo. Keep the camera position, height, angle, lens and crop exactly as they are: walls, windows, doors, floor edges and the top and bottom of the frame stay at the same places. Do not zoom out, widen the view, tilt up, or reveal any ceiling, wall or floor area that is not already visible, and do not add or remove windows or doors. Only change what is inside the current frame; if the ceiling is not visible, do not add ceiling or pendant lights. If the photo mostly shows floor, the result still mostly shows floor.";
+/** Repeated last: several style prompts ask for pendant lights or a sofa, which made the model widen the view to fit them. */
+const FRAME_OVERRIDE = "The framing rule overrides anything the style asks for: leave out any furniture or lighting that would need a wider, higher or different view than the original photo.";
+/** Used when the user leaves the room type on auto, so an office is not turned into the default living room. */
+const KEEP_PURPOSE = "Keep the room's current purpose and the furniture that serves it, restyled: for example a home office keeps a desk with its screens and a work chair.";
 const EXT_LOCK = "Keep the exact same building structure and camera angle. Photorealistic architectural photography.";
 
 function styleFor(slug: unknown, scope: Style["scope"]) {
@@ -347,7 +357,7 @@ export function buildPrompt(tool: string, p: any): string {
   const join = (...a: string[]) => a.filter(Boolean).join(" ");
   switch (tool as ToolId) {
     case "interior-redesign":
-      return join(styleFor(p.styleSlug, "interior").prompt, room(p), INTERVENTION_TEXT[oneOf(INTERVENTION, p.intervention) ?? "medium"], custom(p), STRUCTURE_LOCK);
+      return join(FRAME_LOCK, styleFor(p.styleSlug, "interior").prompt, room(p) || KEEP_PURPOSE, INTERVENTION_TEXT[oneOf(INTERVENTION, p.intervention) ?? "medium"], custom(p), STRUCTURE_LOCK, FRAME_OVERRIDE);
     case "interior-staging": {
       const s = styleFor(p.styleSlug, "interior");
       return join(
