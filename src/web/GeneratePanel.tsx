@@ -284,6 +284,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
   const [remove, setRemove] = useState<string[]>(["furniture"]);
   const [surface, setSurface] = useState("floor");
   const [material, setMaterial] = useState("");
+  const [autoCheck, setAutoCheck] = useState(false); // VICOSTONE tiles: optional post-check with one retry, off by default
   const [weather, setWeather] = useState("");
   const [angle, setAngle] = useState("front");
   const [view, setView] = useState("isometric");
@@ -397,7 +398,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
           ...(cfg.intervention ? { intervention: meta.intervention[lvl] } : {}),
           ...(cfg.remove ? { remove } : {}),
           ...(cfg.surface ? { surface, material } : {}),
-          ...(cfg.floor ? { surface: "floor", material } : {}),
+          ...(cfg.floor ? { surface: "floor", material, ...(autoCheck ? { autoCheck: true } : {}) } : {}),
           ...(cfg.paint ? { color, finish: paintFinish } : {}),
           ...(refKey ? { refKey } : {}),
           ...(itemKeys ? { itemKeys } : {}),
@@ -415,7 +416,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     } catch (e: any) { setErr(e.message); setBusy(false); onCreditsChange(); }
   };
 
-  return { cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, view, setView, motion, setMotion, lighting, setLighting, kind, setKind, facing, setFacing, city, setCity, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, items, pickItem, removeItem, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory };
+  return { autoCheck, setAutoCheck, cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, view, setView, motion, setMotion, lighting, setLighting, kind, setKind, facing, setFacing, city, setCity, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, items, pickItem, removeItem, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory };
 }
 
 export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId; preset?: Preset; onCreditsChange: () => void }) {

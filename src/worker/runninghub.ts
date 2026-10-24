@@ -85,15 +85,15 @@ export async function chatText(apiKey: string, o: { model: string; messages: Cha
   return text;
 }
 
-/** One vision chat call that must answer with a JSON object; returns the parsed object. */
-export async function chatJson(apiKey: string, o: { model: string; prompt: string; image: InputImage }, base = LLM_BASE): Promise<any> {
+/** One vision chat call that must answer with a JSON object; returns the parsed object. `images` sends several in order. */
+export async function chatJson(apiKey: string, o: { model: string; prompt: string; image?: InputImage; images?: InputImage[] }, base = LLM_BASE): Promise<any> {
   const r = await fetch(`${base}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
       model: o.model,
       response_format: { type: "json_object" },
-      messages: [{ role: "user", content: [{ type: "text", text: o.prompt }, { type: "image_url", image_url: { url: toDataUri(o.image.bytes, o.image.mime) } }] }],
+      messages: [{ role: "user", content: [{ type: "text", text: o.prompt }, ...(o.images ?? [o.image!]).map((i) => ({ type: "image_url", image_url: { url: toDataUri(i.bytes, i.mime) } }))] }],
     }),
   });
   const data: any = await r.json().catch(() => ({}));

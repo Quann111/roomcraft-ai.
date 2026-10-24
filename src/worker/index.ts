@@ -3,7 +3,7 @@ import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { TILE_EDIT, submitImageToImage, submitTextToImage, submitImageToVideo, queryTask, chatJson, chatText, imagePart, type ChatMessage } from "./runninghub";
 import { CITIES, DIRECTIONS } from "./solar";
 import { FLOOR_TILES, floorTile } from "./floorTiles";
-import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, COMPARE_TOOLS, MAX_COMPARE, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, FLOOR_SCOUT_PROMPT, cleanFloorScout, type FloorScout, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt } from "./prompts";
+import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, COMPARE_TOOLS, MAX_COMPARE, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, FLOOR_SCOUT_PROMPT, cleanFloorScout, type FloorScout, FLOOR_QA_PROMPT, floorQaVerdict, floorRetryNote, type FloorQa, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt } from "./prompts";
 
 type Env = { DB: D1Database; IMAGES: R2Bucket; ASSETS: Fetcher; DAILY_CREDITS: string; OPEN_ACCESS?: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
 type User = { id: string; email: string; credits: number; credits_refilled_at: number };
@@ -248,7 +248,7 @@ app.post("/api/generate", requireAuth, async (c) => {
         prompt, aspectRatio: swatch ? aspectRatio ?? "4:3" : aspectRatio, resolution, model: swatch ? TILE_EDIT : undefined,
       }, c.env.RUNNINGHUB_BASE);
     await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,rh_task_id,input_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: b.surface, material: b.material, weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, lighting: b.tool === "interior-lighting" ? b.lighting : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, scout: scout ?? undefined, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
+      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: b.surface, material: b.material, weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, lighting: b.tool === "interior-lighting" ? b.lighting : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, scout: scout ?? undefined, autoCheck: swatch && b.autoCheck === true ? true : undefined, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
     return c.json({ id, status: "RUNNING" });
   } catch (e: any) {
     await refund("refund_submit_failed");
@@ -350,7 +350,9 @@ app.post("/api/compare", requireAuth, async (c) => {
       const s = await tileSwatch(c, job.label);
       if (!s) continue;
       Object.assign(job, { extra: [s], model: TILE_EDIT });
+      if (b.autoCheck === true) job.params = { ...job.params, autoCheck: true };
       if (scout) Object.assign(job, { prompt: buildPrompt(b.tool, { surface, material: job.label, custom: b.custom, scout }), params: { ...job.params, scout } });
+      if (b.autoCheck === true) job.params = { ...job.params, autoCheck: true };
     }
   }
   const resolution = RES.includes(b.resolution) ? b.resolution : "1k";
@@ -420,6 +422,53 @@ app.post("/api/advisor", requireAuth, async (c) => {
   }
 });
 
+type Img = { bytes: ArrayBuffer; mime: string };
+/**
+ * Optional post-check for VICOSTONE tile edits (the user ticks "Tự kiểm tra"): a Gemini judge compares original, result and
+ * swatch; when a rug, person or object was lost or the framing changed, the edit is resubmitted once with a note about the
+ * mistake, and the better of the two attempts is kept. No extra credit is charged. Returns done:false while a retry runs or
+ * another poll holds the check; a judge error accepts the result as it is.
+ */
+async function tileCheck(c: any, g: any, params: any, out: Img): Promise<{ done: false } | { done: true; bytes?: ArrayBuffer; params?: any }> {
+  const qa: { attempts: (FloorQa & { task: string })[] } = params.qa ?? { attempts: [] };
+  if (qa.attempts.some((a) => a.task === g.rh_task_id)) return { done: true };
+  // One poll judges each attempt; concurrent polls see the claim and keep waiting.
+  const claim = await c.env.DB.prepare("UPDATE generations SET params=json_set(params,'$.qaLock',?) WHERE id=? AND coalesce(json_extract(params,'$.qaLock'),'')<>?")
+    .bind(g.rh_task_id, g.id, g.rh_task_id).run();
+  if (!claim.meta.changes) return { done: false };
+  const input = await c.env.IMAGES.get(g.input_key);
+  const swatch = await tileSwatch(c, params.material).catch(() => null);
+  let verdict: FloorQa | null = null;
+  if (input && swatch) {
+    const call = chatJson(c.env.RUNNINGHUB_API_KEY, { model: CRITIQUE_MODEL, prompt: FLOOR_QA_PROMPT, images: [{ bytes: await input.arrayBuffer(), mime: input.httpMetadata?.contentType ?? "image/jpeg" }, out, swatch] })
+      .then((r) => floorQaVerdict(r, params.scout?.floor_closeup === true), () => null);
+    verdict = await Promise.race([call, new Promise<null>((r) => setTimeout(() => r(null), 45_000))]);
+  }
+  if (!verdict) return { done: true, params: { ...params, qa: { ...qa, skipped: true } } };
+  qa.attempts.push({ ...verdict, task: g.rh_task_id });
+  const next = { ...params, qa };
+  if (verdict.pass || qa.attempts.length >= 2) {
+    // Keep the attempt with fewer failed checks (ties go to the newer one).
+    const [first, second] = qa.attempts;
+    const try1 = `out/${g.user_id}/${g.id}-try1`;
+    const saved = second && first.failed.length < second.failed.length ? await c.env.IMAGES.get(try1) : null;
+    const bytes = saved ? await saved.arrayBuffer() : undefined;
+    if (second) await c.env.IMAGES.delete(try1);
+    return { done: true, bytes, params: { ...next, qa: { ...qa, kept: bytes ? 1 : qa.attempts.length } } };
+  }
+  try {
+    await c.env.IMAGES.put(`out/${g.user_id}/${g.id}-try1`, out.bytes, { httpMetadata: { contentType: out.mime } });
+    const task = await submitImageToImage(c.env.RUNNINGHUB_API_KEY, {
+      images: [{ bytes: await (await c.env.IMAGES.get(g.input_key)).arrayBuffer(), mime: input!.httpMetadata?.contentType ?? "image/jpeg" }, swatch!],
+      prompt: `${g.prompt} ${floorRetryNote(verdict.problems)}`, aspectRatio: params.aspectRatio ?? "4:3", resolution: params.resolution ?? "1k", model: TILE_EDIT,
+    }, c.env.RUNNINGHUB_BASE);
+    await c.env.DB.prepare("UPDATE generations SET rh_task_id=?, params=? WHERE id=?").bind(task, JSON.stringify(next), g.id).run();
+    return { done: false };
+  } catch {
+    return { done: true, params: { ...next, qa: { ...qa, retryFailed: true } } };
+  }
+}
+
 app.get("/api/generations/:id", requireAuth, async (c) => {
   const u = c.get("user");
   const g: any = await c.env.DB.prepare("SELECT * FROM generations WHERE id=? AND user_id=?").bind(c.req.param("id"), u.id).first();
@@ -443,10 +492,17 @@ app.get("/api/generations/:id", requireAuth, async (c) => {
       const img = await fetch(r.results[0].url).catch(() => null);
       if (img?.ok) {
         const ext = r.results[0].outputType || "png";
-        const key = `out/${u.id}/${g.id}.${ext}`;
-        await c.env.IMAGES.put(key, await img.arrayBuffer(), { httpMetadata: { contentType: ext === "mp4" ? "video/mp4" : `image/${ext === "jpg" ? "jpeg" : ext}` } });
-        await c.env.DB.prepare("UPDATE generations SET status='SUCCESS', output_key=? WHERE id=?").bind(key, g.id).run();
-        g.status = "SUCCESS"; g.output_key = key;
+        const mime = ext === "mp4" ? "video/mp4" : `image/${ext === "jpg" ? "jpeg" : ext}`;
+        let bytes = await img.arrayBuffer();
+        const params = JSON.parse(g.params);
+        const check = params.autoCheck ? await tileCheck(c, g, params, { bytes, mime }) : { done: true as const };
+        if (check.done) {
+          if (check.bytes) bytes = check.bytes;
+          const key = `out/${u.id}/${g.id}.${ext}`;
+          await c.env.IMAGES.put(key, bytes, { httpMetadata: { contentType: mime } });
+          await c.env.DB.prepare("UPDATE generations SET status='SUCCESS', output_key=?, params=? WHERE id=?").bind(key, JSON.stringify(check.params ?? params), g.id).run();
+          g.status = "SUCCESS"; g.output_key = key; g.params = JSON.stringify(check.params ?? params);
+        }
       } else if (expired) await fail("Could not download the result image · Không tải được ảnh kết quả");
     } else if (r && r.status !== "QUEUED" && r.status !== "RUNNING" && r.status !== "SUCCESS") {
       await fail(r.errorMessage || "RunningHub reported an error · RunningHub báo lỗi");

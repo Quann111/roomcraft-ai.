@@ -303,6 +303,22 @@ function floorScoutLines(s: FloorScout | undefined) {
   if (s.not_floor.length) out.push(`These are not floor and must not be tiled: ${s.not_floor.join("; ")}.`);
   return out.join(" ");
 }
+/** Optional post-check of a VICOSTONE tile edit; images are original, result, swatch. Same wording as the benchmark judge. */
+export const FLOOR_QA_PROMPT = "You are a strict QA reviewer for an AI floor-replacement tool. Image 1 is the ORIGINAL photo, image 2 is the RESULT,\nimage 3 is the tile SWATCH the floor should now show (a 120 x 120 cm polished porcelain tile). The only allowed change is the bare floor.\nCompare carefully and answer JSON only:\n{\"floor_replaced\": bool,            // bare floor now shows the swatch tile (true also if no bare floor existed and nothing changed)\n \"tile_matches_swatch\": bool,       // color and pattern match the swatch\n \"tile_scale_ok\": bool,             // tiles look about 1.2 m (few large slabs), not small tiles\n \"rugs_kept\": bool,                 // every rug/mat/carpet runner on the floor is still there, same pattern and place (true if none)\n \"people_animals_kept\": bool,       // same people/animals, same poses and places (true if none)\n \"objects_kept\": bool,              // no furniture/objects added, removed or moved\n \"non_floor_unchanged\": bool,       // walls, countertops, tables, stairs, ceiling, windows unchanged\n \"framing_same\": bool,              // same camera framing, no zoom out, no invented room\n \"problems\": [string]}              // short concrete list of anything wrong, empty if none";
+export type FloorQa = { pass: boolean; failed: string[]; problems: string[] };
+/**
+ * Only the checks that matched what we saw by eye decide a retry. Tile scale, "non-floor unchanged" and, on floor close-ups,
+ * framing flagged correct results too often in testing, so they are ignored.
+ */
+export function floorQaVerdict(r: any, closeup: boolean): FloorQa | null {
+  if (!r || typeof r !== "object") return null;
+  const keys = ["rugs_kept", "people_animals_kept", "objects_kept", ...(closeup ? [] : ["framing_same"])];
+  const failed = keys.filter((k) => r[k] === false);
+  const problems = (Array.isArray(r.problems) ? r.problems : []).filter((x: unknown): x is string => typeof x === "string")
+    .map((x: string) => x.replace(/\s+/g, " ").trim().slice(0, 160)).filter(Boolean).slice(0, 4);
+  return { pass: !failed.length, failed, problems: failed.length ? (problems.length ? problems : failed) : [] };
+}
+export const floorRetryNote = (problems: string[]) => `A previous attempt at this edit made these mistakes; avoid them this time: ${problems.join("; ")}.`;
 const oneOf = <T extends string>(list: readonly T[], v: unknown): T | undefined => list.find((x) => x === v);
 const custom = (p: any) => {
   const c = String(p.custom ?? "").trim().slice(0, 500);
