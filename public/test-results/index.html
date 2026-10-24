@@ -60,6 +60,8 @@ video { width: 100%; border-radius: 12px; background: #000; display: block; }
 .lightbox img { max-width: 100%; max-height: 88vh; border-radius: 8px; }
 .lightbox p { color: #fff; margin-top: 8px; text-align: center; }
 .empty { color: var(--muted); }
+.callout { background: var(--accent-soft); border-radius: 10px; padding: 10px 14px; max-width: none; }
+.callout a, section p a { color: var(--accent); }
 @media (max-width: 520px) { h1 { font-size: 23px; } }
 @media (prefers-reduced-motion: no-preference) { .card { transition: border-color .15s; } .card:hover { border-color: var(--accent); } }
 </style>
@@ -69,8 +71,9 @@ video { width: 100%; border-radius: 12px; background: #000; display: block; }
 <div class="wrap">
   <header style="display:grid; gap:8px">
     <h1>RoomCraft AI · Thư viện ảnh test</h1>
-    <p class="muted num" style="font-size:13px">Cập nhật 23/10/2026 · thêm ảnh mới: đặt file vào img/ và thêm mục vào manifest.json</p>
+    <p class="muted num" style="font-size:13px">Cập nhật 24/10/2026 · thêm ảnh mới: đặt file vào img/ và thêm mục vào manifest.json</p>
     <p class="muted"><b>Trang nội bộ, không liên kết từ menu.</b> Toàn bộ ảnh tạo ra khi phát triển và test các tính năng AI (RunningHub, nano-banana-2, Veo 3.1 Fast, Gemini 3.8 Flash). Mỗi ô gồm ảnh gốc, ảnh kết quả, tuỳ chọn đã dùng và đánh giá. Bấm vào ảnh để phóng to.</p>
+    <p class="callout"><b>Báo cáo chi tiết:</b> <a href="vicostone.html">tích hợp gạch VICOSTONE (yêu cầu của khách)</a>: cơ chế, so sánh 10 model, độ chính xác, thời gian, chi phí.</p>
     <div class="legend"><span class="pill ok">Đạt</span><span class="pill warn">Lưu ý</span><span class="pill fail">Chưa đạt (đã sửa ở lần sau)</span><span id="totals" class="num"></span></div>
   </header>
   <nav id="toc" aria-label="Mục lục"></nav>
@@ -103,10 +106,10 @@ fetch("manifest.json").then((r) => r.json()).then((m) => {
   const blocks = [], toc = [];
   let n = 0, imgs = 0;
   m.sections.forEach((s) => {
-    n++; const id = "s" + n; const title = s.title.replace(/^\d+\.\s*/, "");
+    n++; const id = s.id ?? "s" + n; const title = s.title.replace(/^\d+\.\s*/, "");
     imgs += s.items.reduce((a, it) => a + it.before.length + (it.after ? 1 : 0), 0);
     toc.push(`<a href="#${id}">${n}. ${esc(title.replace(/\s*\(PR.*\)$/, ""))}</a>`);
-    blocks.push(`<section id="${id}"><h2>${n}. ${esc(title)}</h2><p class="muted">${esc(s.note)}</p><div class="grid">${s.items.map(card).join("")}</div></section>`);
+    blocks.push(`<section id="${id}"><h2>${n}. ${esc(title)}</h2><p class="muted">${esc(s.note)}${s.link ? ` <a href="${esc(s.link.href)}">${esc(s.link.text)}</a>` : ""}</p><div class="grid">${s.items.map(card).join("")}</div></section>`);
   });
   const crit = m.texts.filter((x) => x.kind === "critique"), chats = m.texts.filter((x) => x.kind === "chat");
   if (crit.length) {
