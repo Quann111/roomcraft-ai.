@@ -48,15 +48,27 @@ async function decode(file: File): Promise<ImageBitmap | HTMLImageElement> {
 const toBlob = (c: HTMLCanvasElement, quality: number) =>
   new Promise<Blob>((ok, fail) => c.toBlob((b) => (b ? ok(b) : fail(new Error("Could not encode image · Không mã hoá được ảnh"))), "image/jpeg", quality));
 
-export async function prepareImage(file: File): Promise<PreparedImage> {
+/**
+ * `exactAspect` center-crops the photo to exactly its nearest supported ratio. Use it for tools whose model always returns
+ * that exact ratio (the VICOSTONE tile edit), which otherwise re-frames the scene so the result no longer lines up.
+ */
+export async function prepareImage(file: File, o: { exactAspect?: boolean } = {}): Promise<PreparedImage> {
   const src = await decode(file);
   const w0 = "naturalWidth" in src ? src.naturalWidth : src.width;
   const h0 = "naturalHeight" in src ? src.naturalHeight : src.height;
   if (!w0 || !h0) throw new Error("Empty image · Ảnh rỗng");
+  const aspectRatio = nearestAspect(w0, h0);
 
-  const scale = Math.min(1, MAX_SIDE / Math.max(w0, h0));
-  let w = Math.round(w0 * scale);
-  let h = Math.round(h0 * scale);
+  // Source rectangle: the whole photo, or its centered crop to the exact target ratio.
+  let sw = w0, sh = h0;
+  if (o.exactAspect) {
+    const [aw, ah] = aspectRatio.split(":").map(Number);
+    if (w0 / h0 > aw / ah) sw = Math.round(h0 * aw / ah); else sh = Math.round(w0 * ah / aw);
+  }
+  const sx = Math.round((w0 - sw) / 2), sy = Math.round((h0 - sh) / 2);
+  const scale = Math.min(1, MAX_SIDE / Math.max(sw, sh));
+  let w = Math.round(sw * scale);
+  let h = Math.round(sh * scale);
   const canvas = document.createElement("canvas");
   const draw = () => {
     canvas.width = w; canvas.height = h;
@@ -64,7 +76,7 @@ export async function prepareImage(file: File): Promise<PreparedImage> {
     ctx.fillStyle = "#fff"; // transparent PNGs/sketches get a white background instead of black
     ctx.fillRect(0, 0, w, h);
     ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(src, 0, 0, w, h);
+    ctx.drawImage(src, sx, sy, sw, sh, 0, 0, w, h);
   };
   draw();
 
@@ -79,12 +91,13 @@ export async function prepareImage(file: File): Promise<PreparedImage> {
   if ("close" in src) src.close();
 
   const warnings: string[] = [];
+  if (sw !== w0 || sh !== h0) warnings.push(`Trimmed the edges to an exact ${aspectRatio} frame so the result lines up with the photo · Đã cắt nhẹ mép ảnh về đúng khung ${aspectRatio} để kết quả khớp với ảnh gốc`);
   if (Math.min(w0, h0) < MIN_SIDE) warnings.push(`Low resolution (${w0}×${h0}) — results may look blurry · Ảnh độ phân giải thấp (${w0}×${h0}) — kết quả có thể bị mờ`);
 
   const name = file.name.replace(/\.[^.]+$/, "") + ".jpg";
   return {
     file: new File([blob], name, { type: "image/jpeg" }),
-    aspectRatio: nearestAspect(w0, h0),
+    aspectRatio,
     original: { width: w0, height: h0, bytes: file.size, type: file.type || "unknown" },
     output: { width: w, height: h, bytes: blob.size },
     warnings,

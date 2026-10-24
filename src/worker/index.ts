@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
-import { PRO_EDIT, submitImageToImage, submitTextToImage, submitImageToVideo, queryTask, chatJson, chatText, imagePart, type ChatMessage } from "./runninghub";
+import { TILE_EDIT, submitImageToImage, submitTextToImage, submitImageToVideo, queryTask, chatJson, chatText, imagePart, type ChatMessage } from "./runninghub";
 import { CITIES, DIRECTIONS } from "./solar";
 import { FLOOR_TILES, floorTile } from "./floorTiles";
-import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, COMPARE_TOOLS, MAX_COMPARE, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt } from "./prompts";
+import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, COMPARE_TOOLS, MAX_COMPARE, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, FLOOR_SCOUT_PROMPT, cleanFloorScout, type FloorScout, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt } from "./prompts";
 
 type Env = { DB: D1Database; IMAGES: R2Bucket; ASSETS: Fetcher; DAILY_CREDITS: string; OPEN_ACCESS?: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
 type User = { id: string; email: string; credits: number; credits_refilled_at: number };
@@ -15,14 +15,28 @@ const DAY = 86_400_000;
 const SESSION_TTL = 30 * DAY;
 const app = new Hono<{ Bindings: Env; Variables: Vars }>();
 
-/** A VICOSTONE tile swatch from the static assets, when the floor material is one of the tiles. Tile jobs run on
- * Nano Banana Pro: flash lays the 120 × 120 cm slabs noticeably too small. */
+/** A VICOSTONE tile swatch from the static assets, when the floor material is one of the tiles. Tile jobs run on TILE_EDIT. */
 async function tileSwatch(c: any, material: unknown) {
   const tile = floorTile(material);
   if (!tile) return null;
   const r = await c.env.ASSETS.fetch(new URL(tile.swatch, c.req.url));
   if (!r.ok) throw new Error(`Tile swatch missing: ${tile.code}`);
   return { bytes: await r.arrayBuffer(), mime: "image/jpeg" };
+}
+
+const NO_FLOOR = "No bare floor is visible in this photo, so there is nothing to tile. Upload a photo that shows the floor · Ảnh này không thấy rõ mặt sàn nên không lát gạch được. Hãy tải ảnh có thấy mặt sàn";
+/**
+ * Reads the photo before a tile edit: is there bare floor, is it a close-up, which rugs/people/objects must stay. Takes its own
+ * copy of the R2 object (a body can be read once). Returns null when the model is slow or fails, and the edit then runs on
+ * the general prompt alone.
+ */
+async function floorScout(c: any, key: string): Promise<FloorScout | null> {
+  const o = await c.env.IMAGES.get(key);
+  if (!o) return null;
+  const call = chatJson(c.env.RUNNINGHUB_API_KEY, { model: CRITIQUE_MODEL, prompt: FLOOR_SCOUT_PROMPT, image: { bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" } })
+    .then(cleanFloorScout, () => null);
+  // Median ~12 s, but about one photo in ten takes 30-45 s; past 45 s the edit runs without the scout.
+  return Promise.race([call, new Promise<null>((r) => setTimeout(() => r(null), 45_000))]);
 }
 
 const b64 = (buf: ArrayBuffer | Uint8Array) => btoa(String.fromCharCode(...new Uint8Array(buf as ArrayBuffer)));
@@ -198,6 +212,10 @@ app.post("/api/generate", requireAuth, async (c) => {
   if (needsItems && !b.itemKeys.every((k: unknown) => typeof k === "string" && k.startsWith(`in/${u.id}/`))) return c.json({ error: "Invalid item image · Ảnh đồ vật không hợp lệ" }, 400);
   const items = needsItems ? await Promise.all((b.itemKeys as string[]).map((k) => c.env.IMAGES.get(k))) : [];
   if (items.some((o) => !o)) return c.json({ error: "Item image not found · Không tìm thấy ảnh đồ vật" }, 400);
+  // VICOSTONE tiles: read the photo first (before charging) so the edit knows what to keep, and refuse photos without floor.
+  const scout = b.tool === "interior-floor" && floorTile(b.material) ? await floorScout(c, b.inputKey) : null;
+  if (scout && !scout.bare_floor_visible) return c.json({ error: NO_FLOOR }, 422);
+  if (scout) prompt = buildPrompt(b.tool, { ...b, scout });
 
   const video = VIDEO_TOOLS.includes(b.tool);
   const cost = isAdmin(u) ? 0 : video ? VIDEO_COST : RES_COST[resolution]; // admin: unlimited, no credits charged
@@ -227,10 +245,10 @@ app.post("/api/generate", requireAuth, async (c) => {
       ? await submitTextToImage(c.env.RUNNINGHUB_API_KEY, { prompt, aspectRatio: aspectRatio ?? "16:9", resolution }, c.env.RUNNINGHUB_BASE)
       : await submitImageToImage(c.env.RUNNINGHUB_API_KEY, {
         images: [...await Promise.all(images.map(async (o) => ({ bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" }))), ...(swatch ? [swatch] : [])],
-        prompt, aspectRatio: swatch ? aspectRatio ?? "4:3" : aspectRatio, resolution, model: swatch ? PRO_EDIT : undefined,
+        prompt, aspectRatio: swatch ? aspectRatio ?? "4:3" : aspectRatio, resolution, model: swatch ? TILE_EDIT : undefined,
       }, c.env.RUNNINGHUB_BASE);
     await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,rh_task_id,input_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: b.surface, material: b.material, weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, lighting: b.tool === "interior-lighting" ? b.lighting : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
+      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: b.surface, material: b.material, weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, lighting: b.tool === "interior-lighting" ? b.lighting : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, scout: scout ?? undefined, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
     return c.json({ id, status: "RUNNING" });
   } catch (e: any) {
     await refund("refund_submit_failed");
@@ -325,7 +343,16 @@ app.post("/api/compare", requireAuth, async (c) => {
   try { jobs = materials.map((m) => ({ prompt: buildPrompt(b.tool, { surface, material: m, custom: b.custom }), params: { surface, material: m }, label: m })); } catch (e: any) { return c.json({ error: e.message }, 400); }
   const photo = await ownImage(c, b.inputKey);
   if (!photo) return c.json({ error: "Invalid input image · Ảnh đầu vào không hợp lệ" }, 400);
-  if (b.tool === "interior-floor") for (const job of jobs) { const s = await tileSwatch(c, job.label); if (s) { job.extra = [s]; job.model = PRO_EDIT; } }
+  if (b.tool === "interior-floor" && materials.some((m) => floorTile(m))) {
+    const scout = await floorScout(c, b.inputKey); // once for the photo, shared by every tile in the comparison
+    if (scout && !scout.bare_floor_visible) return c.json({ error: NO_FLOOR }, 422);
+    for (const job of jobs) {
+      const s = await tileSwatch(c, job.label);
+      if (!s) continue;
+      Object.assign(job, { extra: [s], model: TILE_EDIT });
+      if (scout) Object.assign(job, { prompt: buildPrompt(b.tool, { surface, material: job.label, custom: b.custom, scout }), params: { ...job.params, scout } });
+    }
+  }
   const resolution = RES.includes(b.resolution) ? b.resolution : "1k";
   const r = await runBatch(c, {
     tool: b.tool, inputKey: b.inputKey, image: { bytes: await photo.arrayBuffer(), mime: photo.httpMetadata?.contentType ?? "image/jpeg" },

@@ -284,6 +284,25 @@ function styleFor(slug: unknown, scope: Style["scope"]) {
   if (!s) throw new Error("Style not found · Style không tồn tại");
   return s;
 }
+/** Asked of the vision model before a VICOSTONE tile edit; the answer becomes photo-specific instructions (see floorScoutLines). */
+export const FLOOR_SCOUT_PROMPT = "You prepare a floor-replacement edit of this photo. Look carefully and answer JSON only:\n{\"bare_floor_visible\": bool,      // is any bare walkable floor visible (not covered by rugs/carpet)? false for a kitchen counter close-up, a bed close-up, etc.\n \"floor_closeup\": bool,           // the photo shows (almost) only floor surface, no walls or furniture\n \"rugs\": [string],                // every rug, carpet, runner or mat lying on the floor, each with color/pattern and where it is, e.g. \"cream low-pile rug under the coffee table, centre\"\n \"keep\": [string],                // people, animals and small objects standing on the floor that must stay, with position\n \"not_floor\": [string]}           // surfaces that could be mistaken for floor but must not be tiled (countertop, table top, stairs, bed, wall-to-wall carpet is floor)";
+export type FloorScout = { bare_floor_visible: boolean; floor_closeup: boolean; rugs: string[]; keep: string[]; not_floor: string[] };
+/** Validates the scout's JSON; its lists end up inside the image prompt, so they are trimmed and capped. */
+export function cleanFloorScout(r: any): FloorScout | null {
+  if (!r || typeof r.bare_floor_visible !== "boolean") return null;
+  const list = (v: unknown) => (Array.isArray(v) ? v : []).filter((x): x is string => typeof x === "string")
+    .map((x) => x.replace(/\s+/g, " ").trim().slice(0, 160)).filter(Boolean).slice(0, 8);
+  return { bare_floor_visible: r.bare_floor_visible, floor_closeup: r.floor_closeup === true, rugs: list(r.rugs), keep: list(r.keep), not_floor: list(r.not_floor) };
+}
+function floorScoutLines(s: FloorScout | undefined) {
+  if (!s) return "";
+  const out: string[] = [];
+  if (s.floor_closeup) out.push("This photo is a close-up of a floor surface with no room visible. Replace only the floor material with the tile, seen from the same camera distance and angle, so the result is again a close-up of floor texture filling the frame. Never add walls, windows, furniture or a room.");
+  if (s.rugs.length) out.push(`Rugs in this photo that must stay exactly as they are, same size, pattern and position: ${s.rugs.join("; ")}.`);
+  if (s.keep.length) out.push(`People, animals and objects that must stay unchanged: ${s.keep.join("; ")}.`);
+  if (s.not_floor.length) out.push(`These are not floor and must not be tiled: ${s.not_floor.join("; ")}.`);
+  return out.join(" ");
+}
 const oneOf = <T extends string>(list: readonly T[], v: unknown): T | undefined => list.find((x) => x === v);
 const custom = (p: any) => {
   const c = String(p.custom ?? "").trim().slice(0, 500);
@@ -355,12 +374,15 @@ export function buildPrompt(tool: string, p: any): string {
     case "interior-floor": {
       const tile = floorTile(p.material);
       if (tile) return join(
-        `The second image is a flat swatch of one ${TILE_BRAND} ${tile.code} porcelain floor tile, ${TILE_SIZE}, polished high-gloss finish (${tile.look}).`,
-        `Replace only the flooring in the first image with this exact tile: same color, pattern and veining as the swatch, laid across the whole visible floor in a straight grid of large-format ${TILE_SIZE} square slabs with thin, barely visible grout joints, following the room's perspective so tiles shrink correctly toward the back.`,
+        "This is an in-place edit of the first image: change the floor surface and nothing else.", floorScoutLines(p.scout),
+        "Keep everything that is not floor pixel-identical: every person and animal with the same pose, face and clothes; all furniture, tables, chairs and objects in the same places, with nothing added, removed or moved; walls, doors, windows, ceiling, lighting and the exact camera framing and crop.",
+        "Rugs, carpets, runners and mats lying on the floor are not floor: keep each one exactly as in the photo, with the same shape, size, pattern and position, even when it is pale or close in color to the floor. Lay tiles only on the bare floor around and between them.",
+        "Only the horizontal surface people walk on counts as floor. Never retile countertops, kitchen islands, tables, desks, shelves, beds, steps, stairs or walls. If no bare floor is visible, return the photo unchanged.",
+        "Do not zoom out or extend the scene. If the photo shows only floor, with no walls or furniture, the result shows only floor at the same distance: the tile surface with at most one or two joints, never a room.",
+        `The second image is a flat swatch of one ${TILE_BRAND} ${tile.code} porcelain floor tile, ${TILE_SIZE}, polished high-gloss finish (${tile.look}). Use exactly this tile: same color, pattern and veining, laid in a straight grid of large-format ${TILE_SIZE} square slabs with thin, barely visible grout joints, following the room's perspective so tiles shrink correctly toward the back.`,
         "Scale matters: each tile is 1.2 m wide, about the length of an armchair plus side table, so a 2.2 m sofa spans fewer than two tiles and a 4 m wide room shows only three to four tiles across. Joints are far apart; do not use small 60 cm or 80 cm tiles.",
         "Neighboring tiles vary slightly as natural stone-look slabs do; do not repeat one identical tile or add veining the swatch does not have.",
-        "Give the floor a polished mirror-like gloss that softly reflects windows, lights and furniture, matching the original lighting.",
-        "Keep all furniture, rugs, walls, skirting and objects unchanged, and keep furniture legs resting realistically on the new floor.", custom(p), STRUCTURE_LOCK);
+        "Give the floor a polished mirror-like gloss that softly reflects windows, lights and furniture, matching the original lighting, and keep furniture legs resting realistically on the new floor.", custom(p), STRUCTURE_LOCK);
       if (!SURFACES.floor.includes(p.material)) throw new Error("Invalid material · Vật liệu không hợp lệ");
       return join(
         `Replace only the flooring in this room with ${p.material}, laid naturally across the whole visible floor with correct perspective, scale and seams.`,

@@ -25,8 +25,11 @@ async function rh(apiKey: string, url: string, body: unknown): Promise<RhResult>
 
 type InputImage = { bytes: ArrayBuffer; mime: string };
 
-/** Nano Banana Pro edit (~$0.06 vs $0.027): reads real-world scale better, used where scale must be exact. Without an aspect ratio it returns a square image. */
-export const PRO_EDIT = "rhart-image-n-pro/edit";
+/**
+ * GPT Image 2.5 Sunburst edit ($0.05 at any resolution), used for VICOSTONE tiles: in our benchmark it kept rugs, people and
+ * framing far more reliably than Nano Banana flash/Pro, FLUX.2 and GPT Image 2. Same request shape as the flash endpoint.
+ */
+export const TILE_EDIT = "rhart-image-g-2.5/sunburst/image-to-image";
 
 /** `images[0]` is the photo being edited; any further images are references the prompt refers to. */
 export async function submitImageToImage(apiKey: string, o: { images: InputImage[]; prompt: string; aspectRatio?: string; resolution: "1k" | "2k" | "4k"; model?: string }, base = DEFAULT_BASE) {

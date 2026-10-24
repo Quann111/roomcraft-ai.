@@ -346,13 +346,14 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
   };
 
   /** Optimise a picked image in the browser (orientation, format, size, metadata) before it is used. */
-  const prepare = async (f: File, done: (p: PreparedImage) => void) => {
+  const prepare = async (f: File, done: (p: PreparedImage) => void, exactAspect = false) => {
     setGen(null); setErr(""); setPreparing((n) => n + 1);
-    try { done(await prepareImage(f)); } catch (e: any) { setErr(e.message); } finally { setPreparing((n) => n - 1); }
+    try { done(await prepareImage(f, { exactAspect })); } catch (e: any) { setErr(e.message); } finally { setPreparing((n) => n - 1); }
   };
   const pick = (f?: File) => {
     if (!f) return;
-    prepare(f, (p) => { setFile(p.file); setPrep(p); setPreview(URL.createObjectURL(p.file)); });
+    // Floor Editor: VICOSTONE tiles run on a model that returns an exact supported frame, so the photo must already be in one.
+    prepare(f, (p) => { setFile(p.file); setPrep(p); setPreview(URL.createObjectURL(p.file)); }, !!cfg.floor);
   };
 
   const pickRef = (f?: File) => {
