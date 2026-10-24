@@ -8,7 +8,7 @@ import { OrientView, DIRS, DIR_NAMES, type Orient } from "./OrientView";
 type Meta = {
   styles: { slug: string; name: string; scope: string; thumb?: string }[];
   roomTypes: string[]; intervention: string[];
-  surfaces: Record<string, string[]>; paints: { name: string; hex: string }[]; finishes: string[]; weather: string[]; remove: string[]; angles: string[]; planViews: string[]; motions: string[]; lighting: string[]; cities: string[];
+  surfaces: Record<string, string[]>; paints: { name: string; hex: string }[]; finishes: string[]; weather: string[]; remove: string[]; angles: string[]; planViews: string[]; lockedPlanViews?: string[]; motions: string[]; lighting: string[]; cities: string[];
 };
 export type Critique = {
   room: string; style: string; score: number; summary: string; strengths: string[];
@@ -466,7 +466,7 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
         </>}
         {cfg.lighting && <select className={field} value={lighting} onChange={(e) => setLighting(e.target.value)}>{meta.lighting.map((l) => <option key={l} value={l}>{bi("Lighting · Ánh sáng")}: {bi(l)}</option>)}</select>}
         {cfg.video && <select className={field} value={motion} onChange={(e) => setMotion(e.target.value)}>{meta.motions.map((m) => <option key={m} value={m}>{bi("Camera · Camera")}: {bi(m)}</option>)}</select>}
-        {cfg.planView && <select className={field} value={view} onChange={(e) => setView(e.target.value)}>{meta.planViews.map((v) => <option key={v} value={v}>{bi("View · Góc nhìn")}: {bi(v)}</option>)}</select>}
+        {cfg.planView && <select className={field} value={view} onChange={(e) => setView(e.target.value)}>{meta.planViews.map((v) => <option key={v} value={v} disabled={meta.lockedPlanViews?.includes(v)}>{bi("View · Góc nhìn")}: {bi(v)}{meta.lockedPlanViews?.includes(v) ? ` (${bi("soon · sắp có")})` : ""}</option>)}</select>}
         {cfg.weather && <select className={field} value={weather} onChange={(e) => setWeather(e.target.value)}>{meta.weather.map((w) => <option key={w} value={w}>{bi(w)}</option>)}</select>}
         {cfg.remove && (
           <div className="flex flex-wrap gap-3 text-sm">
