@@ -22,7 +22,7 @@ export function useCompare(onCredits: () => void) {
     }, 5000));
   };
 
-  const run = async (o: { tool: string; file: File; surface: string; materials: string[]; resolution: string; aspectRatio?: string; custom: string }) => {
+  const run = async (o: { tool: string; file: File; surface: string; materials: string[]; resolution: string; aspectRatio?: string; custom: string; autoCheck?: boolean }) => {
     setBusy(true); setErr(""); setItems([]);
     try {
       const up = await fetch("/api/upload", { method: "POST", headers: { "Content-Type": o.file.type }, body: o.file });
@@ -30,7 +30,7 @@ export function useCompare(onCredits: () => void) {
       if (!up.ok) throw new Error(u.error ?? "Upload failed · Tải ảnh thất bại");
       const r = await fetch("/api/compare", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tool: o.tool, inputKey: u.key, surface: o.surface, materials: o.materials, resolution: o.resolution, aspectRatio: o.aspectRatio, custom: o.custom }),
+        body: JSON.stringify({ tool: o.tool, inputKey: u.key, surface: o.surface, materials: o.materials, resolution: o.resolution, aspectRatio: o.aspectRatio, custom: o.custom, ...(o.autoCheck ? { autoCheck: true } : {}) }),
       });
       const d: any = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error ?? "Error · Lỗi");

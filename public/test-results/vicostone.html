@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Báo cáo gạch VICOSTONE</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Same tokens as index.html so the report reads as part of the test library. */
+:root {
+  --bg: #f4f5f7; --surface: #ffffff; --fg: #1a2130; --muted: #5d6779; --line: #dde2ea; --accent: #2346a0; --accent-soft: #e7ecf8;
+  --ok: #1f6b44; --ok-soft: #e3f2ea; --warn: #8a5300; --warn-soft: #fbf0dc; --bad: #9b1c1c; --bad-soft: #fde8e7;
+  --font-body: "Be Vietnam Pro", system-ui, sans-serif; --font-num: "JetBrains Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11151c; --surface: #19202a; --fg: #e6eaf1; --muted: #9aa4b5; --line: #2b3441; --accent: #8fb0ff; --accent-soft: #1f2b45;
+  --ok: #7fd3a3; --ok-soft: #173426; --warn: #f0b765; --warn-soft: #3a2c15; --bad: #f39a94; --bad-soft: #3b1d1c; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #11151c; --surface: #19202a; --fg: #e6eaf1; --muted: #9aa4b5; --line: #2b3441; --accent: #8fb0ff; --accent-soft: #1f2b45;
+  --ok: #7fd3a3; --ok-soft: #173426; --warn: #f0b765; --warn-soft: #3a2c15; --bad: #f39a94; --bad-soft: #3b1d1c; color-scheme: dark }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.6; }
+.wrap { max-width: 980px; margin: 0 auto; padding-block: 28px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 40px; }
+h1 { font-size: 28px; line-height: 1.25; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+h2 { font-size: 20px; margin: 0; text-wrap: balance; }
+h3 { font-size: 16px; margin: 0; }
+p, li { max-width: 72ch; }
+p { margin: 0; }
+a { color: var(--accent); }
+.muted { color: var(--muted); }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+section { display: grid; gap: 14px; scroll-margin-top: 16px; }
+nav { display: flex; flex-wrap: wrap; gap: 6px; }
+nav a { font-size: 13px; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); text-decoration: none; }
+nav a:hover, nav a:focus-visible { border-color: var(--accent); outline: none; }
+.stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 10px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 2px; align-content: start; }
+.stat b { font-family: var(--font-num); font-size: 24px; line-height: 1.2; color: var(--accent); }
+.stat span { font-size: 13px; color: var(--muted); }
+.box { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 8px; }
+.box.ok { border-color: var(--ok); } .box.warn { border-color: var(--warn); }
+ul, ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.table { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; background: var(--bg); }
+tr:last-child td { border-bottom: 0; }
+td.n { font-family: var(--font-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.pick td { background: var(--ok-soft); }
+.pill { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.ok-t { color: var(--ok); background: var(--ok-soft); } .warn-t { color: var(--warn); background: var(--warn-soft); } .bad-t { color: var(--bad); background: var(--bad-soft); }
+figure { margin: 0; display: grid; gap: 6px; }
+figure img { width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); display: block; background: var(--surface); }
+figcaption { font-size: 13px; color: var(--muted); }
+.flow { list-style: none; padding: 0; display: grid; gap: 8px; counter-reset: step; }
+.flow li { max-width: none; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px 12px 52px; position: relative; counter-increment: step; display: grid; gap: 2px; }
+.flow li::before { content: counter(step); position: absolute; left: 14px; top: 12px; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--surface); font-weight: 700; font-size: 14px; display: grid; place-items: center; }
+.flow li.opt { border-style: dashed; }
+.flow .meta { font-family: var(--font-num); font-size: 12px; color: var(--muted); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 104px), 1fr)); gap: 8px; }
+.tiles figure img { aspect-ratio: 1; object-fit: cover; }
+.tiles figcaption { font-family: var(--font-num); font-size: 11px; }
+@media (max-width: 520px) { h1 { font-size: 23px; } .stat b { font-size: 21px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header style="display:grid; gap:10px">
+  <p class="muted num" style="font-size:13px">RoomCraft AI · tính năng Chỉnh sửa sàn · 24/10/2026 · PR #25 (chờ duyệt) · <a href="./">← Thư viện ảnh test</a></p>
+  <h1>Báo cáo: tích hợp gạch VICOSTONE vào Chỉnh sửa sàn</h1>
+  <p>Khách yêu cầu đưa 8 mẫu gạch VICOSTONE vào tính năng thay vật liệu sàn. Báo cáo này trình bày cách làm, kết quả test, chọn model AI, thời gian và chi phí. Toàn bộ số liệu lấy từ 203 ảnh tạo thật trên RunningHub.</p>
+  <nav aria-label="Mục lục">
+    <a href="#tom-tat">Tóm tắt</a><a href="#yeu-cau">Yêu cầu</a><a href="#co-che">Cơ chế</a><a href="#van-de">Vấn đề và cách sửa</a><a href="#model">So sánh model</a>
+    <a href="#ket-qua">Kết quả bản chốt</a><a href="#tu-kiem-tra">Tự kiểm tra</a><a href="#chi-phi">Thời gian và chi phí</a><a href="#chi-phi-test">Chi phí test</a><a href="#han-che">Hạn chế, đề xuất</a><a href="#phuong-phap">Phương pháp</a>
+  </nav>
+</header>
+
+<section id="tom-tat">
+  <h2>1. Tóm tắt</h2>
+  <div class="stats">
+    <div class="stat"><b>0 / 50</b><span>ảnh test có lỗi nặng ở bản chốt (bản đầu: 7/23, tức 30%)</span></div>
+    <div class="stat"><b>~97%</b><span>số lần giữ được thảm (28/29). Bật tự kiểm tra thì ca lỗi được sửa 3/3</span></div>
+    <div class="stat"><b>~1 phút</b><span>mỗi ảnh (phân tích ~12 s + tạo ảnh ~48 s)</span></div>
+    <div class="stat"><b>$0.051</b><span>chi phí AI mỗi ảnh (bản đầu dùng Nano Banana Pro: $0.06)</span></div>
+    <div class="stat"><b>10</b><span>model AI đã thử, 7 model chạy được</span></div>
+    <div class="stat"><b>~$11.7</b><span>tổng chi phí test (203 ảnh và ~209 lượt AI đọc ảnh)</span></div>
+  </div>
+  <div class="box ok">
+    <p><b>Kết luận.</b> Khách chọn một trong 8 mẫu gạch thì ảnh mẫu gạch thật được gửi kèm cho AI.</p>
+    <p>Trước khi lát, một AI khác đọc ảnh để biết phải giữ những tấm thảm, người, đồ vật nào. Ảnh không thấy sàn thì từ chối và không trừ credit.</p>
+    <p>Model lát gạch là <b>GPT Image 2.5 Sunburst</b>. Model này thắng rõ trong bài so sánh 7 model: giữ thảm, giữ người và giữ khung ảnh tốt nhất.</p>
+    <p>Gạch ra đúng khổ 120 × 120 cm, bóng kiếng, đúng màu và vân mẫu.</p>
+  </div>
+  <div class="box warn">
+    <p><b>Còn lại.</b> Khoảng 3% số lần vẫn mất thảm. Có tuỳ chọn <b>tự kiểm tra kết quả</b>, mặc định tắt: AI chấm ảnh và tạo lại 1 lần nếu lỗi. Bật thì chậm thêm khoảng 15 s, trung bình tốn thêm khoảng $0.004 mỗi ảnh.</p>
+  </div>
+</section>
+
+<section id="yeu-cau">
+  <h2>2. Yêu cầu của khách</h2>
+  <ul>
+    <li>8 mẫu gạch VICOSTONE, khổ <b>120 × 120 cm</b>, bề mặt <b>bóng kiếng</b>.</li>
+    <li>Tên hiển thị: <b>"Gạch VICOSTONE + mã gạch"</b>.</li>
+    <li>Dùng được ở cả chế độ một vật liệu và so sánh tối đa 4 vật liệu trên cùng ảnh.</li>
+  </ul>
+  <div class="tiles">
+    <figure><img src="/materials/floor/AZ26-P121221-thumb.jpg" alt="Mẫu gạch AZ26-P121221" loading="lazy"><figcaption>AZ26-P121221</figcaption></figure>
+    <figure><img src="/materials/floor/AZ26-P121222-thumb.jpg" alt="Mẫu gạch AZ26-P121222" loading="lazy"><figcaption>AZ26-P121222</figcaption></figure>
+    <figure><img src="/materials/floor/CA26-P121221-thumb.jpg" alt="Mẫu gạch CA26-P121221" loading="lazy"><figcaption>CA26-P121221</figcaption></figure>
+    <figure><img src="/materials/floor/CA26-P121222-thumb.jpg" alt="Mẫu gạch CA26-P121222" loading="lazy"><figcaption>CA26-P121222</figcaption></figure>
+    <figure><img src="/materials/floor/CA26-P121223-thumb.jpg" alt="Mẫu gạch CA26-P121223" loading="lazy"><figcaption>CA26-P121223</figcaption></figure>
+    <figure><img src="/materials/floor/CA26-P121224-thumb.jpg" alt="Mẫu gạch CA26-P121224" loading="lazy"><figcaption>CA26-P121224</figcaption></figure>
+    <figure><img src="/materials/floor/NY26-P121221-thumb.jpg" alt="Mẫu gạch NY26-P121221" loading="lazy"><figcaption>NY26-P121221</figcaption></figure>
+    <figure><img src="/materials/floor/NY26-P121222-thumb.jpg" alt="Mẫu gạch NY26-P121222" loading="lazy"><figcaption>NY26-P121222</figcaption></figure>
+  </div>
+</section>
+
+<section id="co-che">
+  <h2>3. Cơ chế hoạt động</h2>
+  <p>Mỗi lần khách bấm tạo ảnh với một mẫu gạch VICOSTONE, hệ thống chạy các bước sau.</p>
+  <ol class="flow">
+    <li><b>Chuẩn bị ảnh (trên máy khách)</b><span>Xoay đúng chiều, giảm dung lượng, xoá thông tin vị trí. Ảnh được cắt nhẹ mép về đúng tỉ lệ chuẩn gần nhất (16:9, 4:3, 3:2…). Lý do: model tạo ảnh luôn trả ảnh theo đúng tỉ lệ chuẩn. Ảnh gốc lệch tỉ lệ thì kết quả bị dàn lại khung và lệch so với ảnh gốc.</span><span class="meta">tức thì · miễn phí</span></li>
+    <li><b>AI đọc ảnh</b> (Gemini 3.8 Flash)<span>Trả lời 4 câu hỏi về ảnh:</span><span>• Có thấy mặt sàn trống không?</span><span>• Có phải ảnh chụp cận sàn không?</span><span>• Có những tấm thảm, người, thú cưng, đồ vật nào trên sàn phải giữ?</span><span>• Bề mặt nào dễ bị nhầm là sàn (mặt bếp, bàn, cầu thang)?</span><span>Không thấy sàn thì <b>từ chối ngay, không trừ credit</b>. Nếu AI đọc quá 45 s thì bỏ qua bước này và dùng prompt chung.</span><span class="meta">trung vị 12 s · ~$0.001</span></li>
+    <li><b>AI lát gạch</b> (GPT Image 2.5 Sunburst)<span>Model nhận 2 ảnh: ảnh phòng và <b>ảnh mẫu gạch thật</b> của VICOSTONE.</span><span>Prompt yêu cầu:</span><span>• Chỉ thay sàn. Giữ nguyên người, đồ vật, thảm và khung ảnh.</span><span>• Lát lưới gạch 120 × 120 cm, ron mảnh, bóng kiếng phản chiếu.</span><span>• Có mốc kích thước để AI không vẽ gạch nhỏ, ví dụ "sofa 2,2 m chưa tới 2 viên".</span><span>Danh sách cụ thể từ bước 2 được ghi thẳng vào prompt, ví dụ "giữ tấm thảm kem dưới bàn trà".</span><span class="meta">trung vị 48 s · $0.05 ở mọi độ phân giải</span></li>
+    <li class="opt"><b>Tự kiểm tra (tuỳ chọn, mặc định tắt)</b><span>AI chấm ảnh kết quả so với ảnh gốc và mẫu gạch. Thấy mất thảm, mất người, mất đồ vật hoặc lệch khung thì tạo lại 1 lần và ghi rõ lỗi lần trước. Sau đó giữ lần tốt hơn. Chi tiết ở <a href="#tu-kiem-tra">mục 7</a>.</span><span class="meta">+~15 s · +$0.002 · nếu phải tạo lại: +~60 s, +$0.05</span></li>
+    <li><b>Trả kết quả</b><span>Khách xem ảnh trước và sau, tải về, so sánh nhiều mẫu. Mỗi ảnh trừ 1 credit (2K: 2, 4K: 3), như các vật liệu khác. Nếu AI lỗi thì tự hoàn credit.</span></li>
+  </ol>
+</section>
+
+<section id="van-de">
+  <h2>4. Vấn đề phát hiện khi test và cách sửa</h2>
+  <div class="table"><table>
+    <thead><tr><th>Vấn đề</th><th>Nguyên nhân</th><th>Cách sửa</th><th>Sau khi sửa</th></tr></thead>
+    <tbody>
+      <tr><td>Gạch vẽ nhỏ, khoảng 60–80 cm thay vì 120 cm</td><td>Model Nano Banana flash không hiểu đúng tỉ lệ</td><td>Thêm mốc kích thước vào prompt, rồi đổi model</td><td>Gạch khổ lớn, đúng 120 cm</td></tr>
+      <tr><td>Kết quả lệch so với ảnh gốc</td><td>Model luôn trả đúng tỉ lệ chuẩn và dàn lại khung khi ảnh gốc lệch tỉ lệ</td><td>Cắt ảnh về đúng tỉ lệ chuẩn trước khi gửi</td><td class="n">lệch 6.5% → 0.1–0.5%</td></tr>
+      <tr><td>Mất thảm, nhất là thảm màu nhạt</td><td>AI coi thảm là một phần của sàn</td><td>AI đọc ảnh liệt kê từng tấm thảm, kết hợp đổi model</td><td class="n">khoảng 50% → khoảng 3%</td></tr>
+      <tr><td>Thay đổi người, thêm bàn ghế</td><td>Prompt chưa đủ chặt</td><td>Đưa quy tắc giữ nguyên lên đầu prompt, liệt kê người cần giữ</td><td class="n">9/9 ảnh giữ đúng</td></tr>
+      <tr><td>Lát gạch lên mặt bếp, cầu thang khi ảnh không có sàn</td><td>Không model nào tự từ chối được</td><td>AI đọc ảnh phát hiện "không có sàn" và từ chối trước khi trừ credit</td><td>Từ chối sau khoảng 10 s, 0 credit</td></tr>
+      <tr><td>Ảnh chụp cận sàn bị bịa thành cả căn phòng</td><td>AI tự đoán bối cảnh</td><td>Nhận ra ảnh cận sàn và dùng hướng dẫn riêng</td><td class="n">0/8 bịa phòng</td></tr>
+    </tbody>
+  </table></div>
+  <figure><img src="report/fig-frame.jpg" alt="Ảnh gốc và kết quả trước và sau khi sửa lỗi lệch khung" loading="lazy"><figcaption>Lỗi lệch khung: ảnh gốc tỉ lệ 1.9:1 gửi kèm khung 16:9 thì AI dàn lại cảnh. Cắt ảnh về đúng 16:9 trước thì kết quả trùng khớp.</figcaption></figure>
+  <figure><img src="report/fig-people.jpg" alt="Nhà hàng có thực khách: ảnh gốc, bản đầu và bản chốt" loading="lazy"><figcaption>Ảnh có người: bản đầu làm mất 2 thực khách và thêm bàn ghế. Bản chốt giữ đúng mọi người.</figcaption></figure>
+  <figure><img src="report/fig-nofloor.jpg" alt="Bếp không thấy sàn: ảnh gốc và kết quả lát gạch lên mặt bếp" loading="lazy"><figcaption>Ảnh không thấy sàn: nếu không có bước đọc ảnh, mọi model đều lát gạch lên mặt bếp. Giờ app báo "Ảnh này không thấy rõ mặt sàn…" và không trừ credit.</figcaption></figure>
+  <figure><img src="report/fig-closeup.jpg" alt="Ảnh cận sàn: ảnh gốc, bản bịa phòng và bản chốt" loading="lazy"><figcaption>Ảnh chụp cận sàn: trước đây AI bịa ra cả căn phòng. Bản chốt vẫn là ảnh cận sàn, thấy 1 đường ron.</figcaption></figure>
+</section>
+
+<section id="model">
+  <h2>5. So sánh model AI</h2>
+  <p>10 model trên RunningHub, cùng prompt, cùng 8 ảnh khó:</p>
+  <ul>
+    <li>thảm sáng màu</li>
+    <li>thảm dưới bàn ăn</li>
+    <li>nhà hàng có người</li>
+    <li>bếp không thấy sàn</li>
+    <li>góc máy sát sàn</li>
+    <li>phòng ngủ tối</li>
+    <li>phòng trống</li>
+    <li>ảnh cận sàn</li>
+  </ul>
+  <p>Mỗi ảnh được chấm bằng đo lệch khung, AI chấm điểm và xem bằng mắt. 3 model đứng đầu được chạy thêm với bước AI đọc ảnh trên 10 ảnh.</p>
+  <div class="table"><table>
+    <thead><tr><th>Model</th><th>Giá/ảnh</th><th>Thời gian (trung vị)</th><th>Đạt, chưa đọc ảnh (8 ca)</th><th>Đạt, có đọc ảnh (10 ca)</th><th>Nhận xét</th></tr></thead>
+    <tbody>
+      <tr class="pick"><td><b>GPT Image 2.5 Sunburst</b> <span class="pill ok-t">chọn</span></td><td class="n">$0.05</td><td class="n">48 s</td><td class="n">6/8</td><td class="n"><b>10/10</b></td><td>Giữ thảm, người và khung ảnh tốt nhất. Giá như nhau ở 1K, 2K, 4K</td></tr>
+      <tr><td>GPT Image 2.5 Flare</td><td class="n">$0.05</td><td class="n">49 s</td><td class="n">6/8</td><td class="n">9/10</td><td>Gần bằng Sunburst. Có lần tự vẽ thêm ghế bar ở ảnh bếp</td></tr>
+      <tr><td>Nano Banana Pro (bản đầu)</td><td class="n">$0.06</td><td class="n">66 s</td><td class="n">3/8</td><td class="n">5/10</td><td>Hay mất thảm, kể cả khi có danh sách thảm cần giữ</td></tr>
+      <tr><td>Nano Banana 2 flash</td><td class="n">$0.027</td><td class="n">17 s</td><td class="n">4/8</td><td>—</td><td>Nhanh, rẻ nhưng vẽ gạch nhỏ, mất thảm, xoá người</td></tr>
+      <tr><td>GPT Image 2 (chất lượng cao)</td><td class="n">$0.198</td><td class="n">87 s</td><td class="n">5/8</td><td>—</td><td>Lệch khung tới 14%. Trang giá ghi $0.027 nhưng thực tế tính $0.198</td></tr>
+      <tr><td>FLUX.2 Klein 9B</td><td class="n">$0.01</td><td class="n">44 s</td><td class="n">1/8</td><td>—</td><td>Chỉ nhận 1 ảnh nên không gửi được mẫu gạch. Vân gạch sai</td></tr>
+      <tr><td>FLUX.2 Dev</td><td class="n">$0.04</td><td class="n">135 s</td><td class="n">0/8</td><td>—</td><td>Xoá cả giường, bàn ăn. Lớp gạch đè lên người</td></tr>
+      <tr><td>Grok (3 model)</td><td class="n">$0.01–0.063</td><td>—</td><td>—</td><td>—</td><td>Không test được. RunningHub trả lỗi "Model response exception" cho mọi yêu cầu, kể cả ảnh mẫu và prompt ngắn, thử lại sau 1,5 giờ vẫn lỗi</td></tr>
+    </tbody>
+  </table></div>
+  <p class="muted" style="font-size:13px">"Đạt" là không có lỗi nặng theo AI chấm và xem bằng mắt. Ca bếp không có sàn thì không model nào làm đúng nếu không có bước đọc ảnh. Có bước đọc ảnh thì ca đó bị từ chối đúng.</p>
+  <figure><img src="report/fig-models.jpg" alt="Cùng một ảnh phòng khách có thảm, kết quả của 7 model" loading="lazy"><figcaption>Cùng ảnh phòng khách có thảm sáng màu: chỉ 2 model GPT Image 2.5 giữ được thảm và khung ảnh.</figcaption></figure>
+</section>
+
+<section id="ket-qua">
+  <h2>6. Kết quả bản chốt</h2>
+  <p>Bản chốt gồm AI đọc ảnh và GPT Image 2.5 Sunburst. Bộ test có 23 ảnh nguồn đủ loại phòng, ở cả 1K, 2K, 4K. 10 ca khó chạy lặp 3 lần để đo độ ổn định. Tổng cộng 50 ảnh tạo ra và 5 lượt bị từ chối vì không thấy sàn.</p>
+  <div class="table"><table>
+    <thead><tr><th>Tiêu chí</th><th>Kết quả</th><th>Ghi chú</th></tr></thead>
+    <tbody>
+      <tr><td>Lỗi nặng (mất thảm, người, đồ vật, lệch khung)</td><td class="n"><span class="pill ok-t">0/50</span></td><td>Chạy thật trong app có 1 lần mất thảm trong 4 lần</td></tr>
+      <tr><td>Khớp khung ảnh</td><td class="n">lệch trung vị 0.11%</td><td>40/41 ảnh đo được lệch dưới 1.5%. 1 ảnh lệch 1.73%, cảnh vẫn nguyên</td></tr>
+      <tr><td>Giữ thảm</td><td class="n">28/29 (~97%)</td><td>Ca lỗi duy nhất được sửa khi bật tự kiểm tra (3/3)</td></tr>
+      <tr><td>Giữ người và thú cưng</td><td class="n">9/9</td><td>Nhà hàng đông người, chó trên sofa, chó nằm ghế lười</td></tr>
+      <tr><td>Ảnh chụp cận sàn</td><td class="n">8/8 không bịa phòng</td><td><span class="pill warn-t">lưu ý</span> 4/6 lần góc máy hơi nghiêng</td></tr>
+      <tr><td>Từ chối ảnh không có sàn</td><td class="n">đúng 2/2 loại</td><td>Bếp, cầu thang. Ảnh đen trắng phủ thảm kín sàn cũng bị từ chối (hơi khắt khe)</td></tr>
+      <tr><td>Độ phân giải</td><td class="n">1K · 2K · 4K</td><td>Ví dụ: 1536×1024, 2048×1360, 2880×2880</td></tr>
+      <tr><td>Đúng mẫu gạch</td><td>đúng màu, vân, khổ lớn, bóng kiếng</td><td>AI chấm có 1 lần lưu ý ron gạch quá mờ</td></tr>
+    </tbody>
+  </table></div>
+  <figure><img src="report/fig-final.jpg" alt="Kết quả bản chốt trên 8 loại phòng khác nhau" loading="lazy"><figcaption>Bản chốt trên nhiều loại ảnh: phòng ngủ tối, phòng tắm có thảm chân, sảnh 4K, phòng ăn có thảm, siêu thị, góc máy sát sàn, phòng trống, ảnh ban đêm. Ảnh gốc và từng kết quả xem trong <a href="./#vicostone-final">thư viện ảnh test</a>.</figcaption></figure>
+</section>
+
+<section id="tu-kiem-tra">
+  <h2>7. Tự kiểm tra kết quả (tuỳ chọn, mặc định tắt)</h2>
+  <p>Ô "Tự kiểm tra kết quả" chỉ hiện khi khách chọn một mẫu gạch VICOSTONE. Khi bật:</p>
+  <ol>
+    <li>Ảnh tạo xong, AI Gemini nhận 3 ảnh: ảnh gốc, ảnh kết quả, mẫu gạch. AI chấm theo 8 tiêu chí.</li>
+    <li>Hệ thống chỉ quyết định dựa trên 4 tiêu chí đã đối chiếu đáng tin khi test: <b>giữ thảm, giữ người và thú cưng, giữ đồ vật, giữ khung ảnh</b>. Ảnh cận sàn thì bỏ qua tiêu chí khung ảnh. Các tiêu chí còn lại (cỡ gạch, phần không phải sàn) hay báo nhầm nên không dùng để quyết định.</li>
+    <li>Có lỗi thì tạo lại 1 lần, prompt ghi rõ lỗi lần trước, ví dụ "lần trước làm mất tấm thảm". Lần 2 cũng được chấm. Hệ thống giữ lần ít lỗi hơn, nếu bằng nhau thì giữ lần sau.</li>
+    <li>Dưới ảnh hiện một dòng cho khách biết, ví dụ "✓ Đã tự kiểm tra: không thấy lỗi" hoặc "Đã tự tạo lại 1 lần vì lần đầu: …".</li>
+    <li>Không trừ thêm credit. Nếu AI chấm lỗi hoặc quá 45 s thì trả nguyên kết quả lần đầu. Chỉ một lượt kiểm tra chạy cho mỗi ảnh, kể cả khi trang hỏi trạng thái nhiều lần cùng lúc.</li>
+  </ol>
+  <div class="table"><table>
+    <thead><tr><th>Kiểm chứng</th><th>Kết quả</th></tr></thead>
+    <tbody>
+      <tr><td>Chạy thử trên 50 ảnh kết quả đúng của bản chốt: có bao nhiêu ảnh bị tạo lại oan?</td><td class="n"><span class="pill ok-t">0/50</span></td></tr>
+      <tr><td>Chạy thử trên các lỗi đã biết: mất thảm, mất người ở các model khác và lần mất thảm trong app</td><td>bắt được tất cả</td></tr>
+      <tr><td>Lần mất thảm trong app, tạo lại kèm ghi chú lỗi</td><td class="n">giữ thảm 3/3</td></tr>
+      <tr><td>Trong app, tắt (mặc định)</td><td>chạy như cũ, khoảng 43 s</td></tr>
+      <tr><td>Trong app, bật, lần đầu đạt</td><td>báo "Đã tự kiểm tra", khoảng 67 s</td></tr>
+      <tr><td>Trong app, bật, ép lần đầu lỗi</td><td>tự tạo lại, giữ lần 2, xoá ảnh tạm, khoảng 145 s</td></tr>
+      <tr><td>Trong app, so sánh 2 mẫu, ép cả 2 lần lỗi</td><td>giữ lần đầu vì ít lỗi hơn</td></tr>
+      <tr><td>Credit</td><td>luôn 1 credit/ảnh, tạo lại không tính thêm</td></tr>
+    </tbody>
+  </table></div>
+  <figure><img src="report/fig-retry.jpg" alt="Lần mất thảm khi chạy trong app và 3 lần tạo lại đều giữ thảm" loading="lazy"><figcaption>Lần chạy thật trong app làm mất thảm dưới bàn ăn. Tạo lại kèm ghi chú lỗi thì cả 3 lần đều giữ thảm. Mẫu khác chạy cùng lúc thì giữ thảm ngay lần đầu.</figcaption></figure>
+  <p class="muted" style="font-size:13px">Hai lần "ép lỗi" là test kỹ thuật: tạm cho AI chấm báo lỗi để thử đường tạo lại. Đoạn code đó đã gỡ, không có trong bản giao.</p>
+</section>
+
+<section id="chi-phi">
+  <h2>8. Thời gian và chi phí vận hành</h2>
+  <div class="table"><table>
+    <thead><tr><th>Mỗi ảnh</th><th>Thời gian</th><th>Chi phí AI</th></tr></thead>
+    <tbody>
+      <tr class="pick"><td><b>Bản chốt, tự kiểm tra tắt (mặc định)</b></td><td class="n">~60 s (12 s + 48 s)</td><td class="n">~$0.051</td></tr>
+      <tr><td>Bản chốt, tự kiểm tra bật, lần đầu đạt (~97%)</td><td class="n">~75 s</td><td class="n">~$0.053</td></tr>
+      <tr><td>Bản chốt, tự kiểm tra bật, phải tạo lại (~3%)</td><td class="n">~140 s</td><td class="n">~$0.105</td></tr>
+      <tr><td>Bản chốt, tự kiểm tra bật, tính trung bình</td><td class="n">~77 s</td><td class="n">~$0.055</td></tr>
+      <tr><td>Bản đầu (Nano Banana Pro, không đọc ảnh)</td><td class="n">~66 s</td><td class="n">$0.06–0.07</td></tr>
+      <tr><td>Vật liệu sàn thường (gỗ sồi, đá…), không đổi</td><td class="n">~17 s</td><td class="n">$0.027</td></tr>
+    </tbody>
+  </table></div>
+  <ul>
+    <li><b>Ước tính theo số lượng:</b> 1.000 ảnh gạch VICOSTONE tốn khoảng <b>$51</b> khi tắt tự kiểm tra, khoảng <b>$55</b> khi bật.</li>
+    <li><b>Credit tính cho khách không đổi:</b> 1K = 1, 2K = 2, 4K = 3 credit. Chi phí AI như nhau ở mọi độ phân giải, nên với ảnh 2K và 4K khách trả nhiều credit hơn trong khi chi phí không đổi.</li>
+    <li><b>Thời gian thực tế phụ thuộc hàng đợi RunningHub.</b> Có lần chạy trong app mất 186 s. Bước đọc ảnh có 10% số lần mất 30–45 s.</li>
+  </ul>
+</section>
+
+<section id="chi-phi-test">
+  <h2>9. Chi phí test</h2>
+  <div class="table"><table>
+    <thead><tr><th>Giai đoạn</th><th>Số ảnh</th><th>Chi phí</th></tr></thead>
+    <tbody>
+      <tr><td>Tích hợp ban đầu, thử kích thước gạch (flash và Pro)</td><td class="n">13</td><td class="n">$0.55</td></tr>
+      <tr><td>Kiểm tra lệch khung trên 8 tỉ lệ ảnh</td><td class="n">8</td><td class="n">$0.48</td></tr>
+      <tr><td>Bộ test rộng 23 ảnh (Nano Banana Pro), kèm 2 ảnh tình huống tạo bằng AI</td><td class="n">25</td><td class="n">$1.44</td></tr>
+      <tr><td>Chạy lại với prompt mới (các ca lỗi ×2 và hồi quy)</td><td class="n">17</td><td class="n">$1.02</td></tr>
+      <tr><td>So sánh 10 model × 8 ca (Grok lỗi, không tính phí)</td><td class="n">56</td><td class="n">$3.48</td></tr>
+      <tr><td>3 model tốt nhất kèm bước đọc ảnh</td><td class="n">30</td><td class="n">$1.60</td></tr>
+      <tr><td>Độ ổn định bản chốt (23 ảnh và 10 ca khó ×3)</td><td class="n">40</td><td class="n">$2.00</td></tr>
+      <tr><td>Chạy thật trong app (một mẫu, so sánh, từ chối, tự kiểm tra)</td><td class="n">11</td><td class="n">$0.55</td></tr>
+      <tr><td>Kiểm chứng tạo lại của tự kiểm tra</td><td class="n">3</td><td class="n">$0.15</td></tr>
+      <tr><td>AI đọc và chấm ảnh (Gemini, ~209 lượt)</td><td>—</td><td class="n">~$0.39</td></tr>
+      <tr><td><b>Tổng</b></td><td class="n"><b>203</b></td><td class="n"><b>~$11.7</b></td></tr>
+    </tbody>
+  </table></div>
+  <p class="muted" style="font-size:13px">Tính theo bảng giá RunningHub và phí thực tế API trả về cho từng ảnh. GPT Image 2 (chất lượng cao) bị tính $0.198/ảnh theo phí API trả về, không phải $0.027 như trên trang giá. Chưa đối chiếu với hoá đơn tài khoản.</p>
+</section>
+
+<section id="han-che">
+  <h2>10. Hạn chế còn lại và đề xuất</h2>
+  <ul>
+    <li><b>Khoảng 3% vẫn mất thảm</b> khi tắt tự kiểm tra. Đề xuất: khách quan trọng hoặc ảnh có thảm thì bật. Muốn chắc hơn có thể bật mặc định, tốn thêm khoảng $0.004 mỗi ảnh và chậm thêm khoảng 15 s.</li>
+    <li><b>Ảnh chụp cận sàn:</b> không còn bịa phòng, nhưng góc máy đôi khi hơi nghiêng so với ảnh gốc.</li>
+    <li><b>Ảnh phủ thảm kín sàn</b> (wall-to-wall) bị từ chối vì AI coi là không có sàn trống. An toàn nhưng hơi khắt khe.</li>
+    <li><b>Model đang dùng kênh giá rẻ (economy)</b> của RunningHub, kém ổn định hơn kênh chính thức. Kênh chính thức chưa có bảng giá công khai để so.</li>
+    <li><b>Grok chưa test được</b> vì RunningHub lỗi. Sẽ thử lại khi dịch vụ chạy.</li>
+    <li><b>RunningHub thỉnh thoảng từ chối ngẫu nhiên</b> với lý do "kiểm duyệt nội dung": 1 lần trong khoảng 200 ảnh. Khi đó app tự hoàn credit.</li>
+    <li><b>Chưa merge:</b> code nằm ở PR #25, chờ duyệt.</li>
+  </ul>
+</section>
+
+<section id="phuong-phap">
+  <h2>11. Phương pháp test</h2>
+  <ul>
+    <li><b>Ảnh nguồn:</b> 24 ảnh.
+      <ul>
+        <li>17 ảnh thật từ Wikimedia Commons, giấy phép CC hoặc phạm vi công cộng, có ghi nguồn trong thư viện ảnh test.</li>
+        <li>5 ảnh Unsplash, trong đó có 1 ảnh cận sàn.</li>
+        <li>2 ảnh tạo bằng AI để thử tình huống: ban đêm, góc máy sát sàn.</li>
+      </ul>
+      Các ảnh được cắt ở nhiều tỉ lệ: 1:1, 4:3, 3:2, 16:9, 21:9, 3:4, 2:3, 4:5.</li>
+    <li><b>Ba cách chấm cho mỗi ảnh:</b>
+      <ol>
+        <li>Đo lệch khung bằng máy: so điểm đặc trưng ở phần trên ảnh (tường, cửa, đồ đạc), vì phần sàn đã thay đổi.</li>
+        <li>AI chấm điểm: Gemini 3.8 Flash so ảnh gốc, kết quả, mẫu gạch theo 8 tiêu chí.</li>
+        <li>Xem bằng mắt từng ảnh. Kết luận cuối dựa trên mắt khi AI chấm và đo máy không khớp.</li>
+      </ol></li>
+    <li><b>Độ ổn định:</b> AI tạo ảnh có tính ngẫu nhiên, nên 10 ca khó chạy 3 lần. Bản chốt được chạy thật trong app: một mẫu, so sánh 2 mẫu, ảnh không có sàn, tự kiểm tra bật và tắt.</li>
+    <li><b>Ảnh và kết quả từng ca:</b> xem trong <a href="./#vicostone-models">so sánh 7 model</a>, <a href="./#vicostone-final">bản chốt</a> và <a href="./#vicostone-autocheck">tự kiểm tra</a>.</li>
+  </ul>
+</section>
+
+</div>
+</body>
+</html>

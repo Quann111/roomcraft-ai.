@@ -25,8 +25,11 @@ async function rh(apiKey: string, url: string, body: unknown): Promise<RhResult>
 
 type InputImage = { bytes: ArrayBuffer; mime: string };
 
-/** Nano Banana Pro edit (~$0.06 vs $0.027): reads real-world scale better, used where scale must be exact. Without an aspect ratio it returns a square image. */
-export const PRO_EDIT = "rhart-image-n-pro/edit";
+/**
+ * GPT Image 2.5 Sunburst edit ($0.05 at any resolution), used for VICOSTONE tiles: in our benchmark it kept rugs, people and
+ * framing far more reliably than Nano Banana flash/Pro, FLUX.2 and GPT Image 2. Same request shape as the flash endpoint.
+ */
+export const TILE_EDIT = "rhart-image-g-2.5/sunburst/image-to-image";
 
 /** `images[0]` is the photo being edited; any further images are references the prompt refers to. */
 export async function submitImageToImage(apiKey: string, o: { images: InputImage[]; prompt: string; aspectRatio?: string; resolution: "1k" | "2k" | "4k"; model?: string }, base = DEFAULT_BASE) {
@@ -82,15 +85,15 @@ export async function chatText(apiKey: string, o: { model: string; messages: Cha
   return text;
 }
 
-/** One vision chat call that must answer with a JSON object; returns the parsed object. */
-export async function chatJson(apiKey: string, o: { model: string; prompt: string; image: InputImage }, base = LLM_BASE): Promise<any> {
+/** One vision chat call that must answer with a JSON object; returns the parsed object. `images` sends several in order. */
+export async function chatJson(apiKey: string, o: { model: string; prompt: string; image?: InputImage; images?: InputImage[] }, base = LLM_BASE): Promise<any> {
   const r = await fetch(`${base}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
       model: o.model,
       response_format: { type: "json_object" },
-      messages: [{ role: "user", content: [{ type: "text", text: o.prompt }, { type: "image_url", image_url: { url: toDataUri(o.image.bytes, o.image.mime) } }] }],
+      messages: [{ role: "user", content: [{ type: "text", text: o.prompt }, ...(o.images ?? [o.image!]).map((i) => ({ type: "image_url", image_url: { url: toDataUri(i.bytes, i.mime) } }))] }],
     }),
   });
   const data: any = await r.json().catch(() => ({}));

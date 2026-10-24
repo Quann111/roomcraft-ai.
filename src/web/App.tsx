@@ -125,7 +125,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
   useEffect(() => { setPicked([]); cmp.reset(); }, [g.surface, tool]);
   const togglePick = (m: string) => setPicked((a) => (a.includes(m) ? a.filter((x) => x !== m) : a.length >= MAX_COMPARE ? a : [...a, m]));
   const cost = ({ "1k": 1, "2k": 2, "4k": 3 } as Record<string, number>)[g.res] ?? 1;
-  const runCompare = () => g.file && cmp.run({ tool, file: g.file, surface: g.cfg.floor ? "floor" : g.surface, materials: picked, resolution: g.res, aspectRatio: g.prep?.aspectRatio, custom: g.custom });
+  const runCompare = () => g.file && cmp.run({ tool, file: g.file, surface: g.cfg.floor ? "floor" : g.surface, materials: picked, resolution: g.res, aspectRatio: g.prep?.aspectRatio, custom: g.custom, autoCheck: g.autoCheck });
   const comparing = compare && canCompare;
   const modeSwitch = canCompare && (
     <div className="segmented" style={{ marginBottom: 10 }}>
@@ -245,6 +245,15 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
             ) : g.gen?.status === "SUCCESS" && g.gen.outputUrl ? (
               <>
                 <BeforeAfter before={g.gen.inputUrl} after={g.gen.outputUrl} />
+                {(() => {
+                  const qa = (g.gen as any).params?.qa;
+                  if (!qa) return null;
+                  const tries = qa.attempts?.length ?? 0;
+                  const msg = qa.skipped ? t("Auto-check could not run; this is the first result.", "Không tự kiểm tra được; đây là kết quả lần đầu.")
+                    : tries <= 1 ? t("✓ Auto-checked: no problems found.", "✓ Đã tự kiểm tra: không thấy lỗi.")
+                    : `${t("Redone once after the check found", "Đã tự tạo lại 1 lần vì lần đầu")}: ${qa.attempts[0].problems.join("; ")}.${qa.kept === 1 ? t(" The first result was better and is shown.", " Lần đầu vẫn tốt hơn nên giữ lần đầu.") : ""}`;
+                  return <p className="helper" style={{ marginTop: 8 }}>{msg}</p>;
+                })()}
                 <div className="row-between" style={{ marginTop: 14, flexWrap: "wrap", gap: 8 }}>
                   <a className="outline-btn" href={g.gen.outputUrl} download={resultFile(g.gen.id, g.gen.outputUrl)}><Icon n="download" /> {t("Download", "Tải xuống")}</a>
                   {!g.gen.outputUrl.endsWith(".mp4") && <button className="outline-btn" onClick={g.togglePublic}><Icon n="globe" /> {g.gen.public ? t("Unpublish", "Gỡ khỏi thư viện") : t("Publish", "Đăng lên thư viện")}</button>}
@@ -376,7 +385,13 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                   <><h4>{comparing ? t("Floors to compare", "Các loại sàn cần so sánh") : t("Flooring material", "Vật liệu sàn")}</h4>
                     {modeSwitch}
                     {comparing ? pickGrid(meta.surfaces.floor) : <div className="segmented">{meta.surfaces.floor.map((m) => <button key={m} type="button" className={m === g.material ? "active" : ""} onClick={() => g.setMaterial(m)}>{bi(m)}</button>)}</div>}
-                    {comparing ? tileGrid((n) => picked.includes(n), togglePick) : tileGrid((n) => n === g.material, g.setMaterial)}</>
+                    {comparing ? tileGrid((n) => picked.includes(n), togglePick) : tileGrid((n) => n === g.material, g.setMaterial)}
+                    {(comparing ? picked : [g.material]).some((n) => meta.floorTiles?.some((x) => x.name === n)) && (
+                      <label className="switch" style={{ display: "flex", marginTop: 10, alignItems: "flex-start", gap: 8 }}>
+                        <input type="checkbox" checked={g.autoCheck} onChange={(e) => g.setAutoCheck(e.target.checked)} />
+                        <span>{t("Auto-check the result: if a rug, person or object was lost, redo it once (no extra credit, about 15–60 s slower)", "Tự kiểm tra kết quả: nếu mất thảm, người hoặc đồ vật thì tự tạo lại 1 lần (không tốn thêm credit, chậm hơn khoảng 15–60 giây)")}</span>
+                      </label>
+                    )}</>
                 )}
                 {cfg.paint && (
                   <><h4>{t("Wall color", "Màu sơn tường")}</h4>
