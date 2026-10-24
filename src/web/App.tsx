@@ -38,7 +38,6 @@ const ICONS: Record<string, string> = {
   file: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 13h6m-6 4h6"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/>',
   lock: '<path d="M7 10V8a5 5 0 0 1 10 0v2M6 10h12v10H6z"/>',
-  photo: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="m21 16-5-5-8 8"/>',
 };
 const ALL_ICONS: Record<string, string> = { ...ICONS, ...ARCH };
 const Icon = ({ n, className = "icon-svg" }: { n: string; className?: string }) => (
@@ -250,7 +249,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                   return <p className="helper" style={{ marginTop: 8 }}>{msg}</p>;
                 })()}
                 <div className="row-between" style={{ marginTop: 14, flexWrap: "wrap", gap: 8 }}>
-                  <DownloadLink className="outline-btn" url={g.gen.outputUrl} name={resultFile(g.gen.id, g.gen.outputUrl)} phone={<><Icon n="photo" /> {t("Save to Photos", "Lưu vào Ảnh")}</>}><Icon n="download" /> {t("Download", "Tải xuống")}</DownloadLink>
+                  <DownloadLink className="outline-btn" url={g.gen.outputUrl} name={resultFile(g.gen.id, g.gen.outputUrl)} phone={<><Icon n="download" /> {t("Save to Photos", "Lưu vào Ảnh")}</>}><Icon n="download" /> {t("Download", "Tải xuống")}</DownloadLink>
                   {!g.gen.outputUrl.endsWith(".mp4") && <button className="outline-btn" onClick={g.togglePublic}><Icon n="globe" /> {g.gen.public ? t("Unpublish", "Gỡ khỏi thư viện") : t("Publish", "Đăng lên thư viện")}</button>}
                   <button className="outline-btn" onClick={g.remove_}><Icon n="trash" /> {t("Delete", "Xoá")}</button>
                 </div>
@@ -539,7 +538,7 @@ function LatestDesigns({ tool, refresh, styles: given, onDeleted }: { tool: stri
                     <span><strong>{t("Made", "Tạo lúc")}:</strong> {when(h.createdAt)}</span>
                   </div>
                   <div className="latest-actions">
-                    {!h.rooms && !isTextResult(h) && <DownloadLink className="latest-action" title={t("Download", "Tải xuống")} url={h.outputUrl!} name={resultFile(h.id, h.outputUrl!)} phone={<Icon n="photo" />}><Icon n="download" /></DownloadLink>}
+                    {!h.rooms && !isTextResult(h) && <DownloadLink className="latest-action" title={t("Download", "Tải xuống")} url={h.outputUrl!} name={resultFile(h.id, h.outputUrl!)} phone={<Icon n="download" />}><Icon n="download" /></DownloadLink>}
                     <button className="latest-action" title={t("Preview", "Xem trước")} onClick={() => preview(h)}><Icon n="eye" /></button>
                     {!h.rooms && <button className="latest-action" title={t("Reuse settings", "Dùng lại cài đặt")} onClick={() => navigate(`/app?tool=${h.tool}&p=${encodeURIComponent(JSON.stringify(h.params ?? {}))}`)}><Icon n="edit" /></button>}
                     {!h.rooms && !isTextResult(h) && !isVideo(h) && <button className="latest-action" title={h.public ? t("Unpublish", "Gỡ đăng") : t("Publish", "Đăng công khai")} onClick={() => publish(h)}><Icon n="globe" /></button>}
@@ -581,7 +580,7 @@ function LatestDesigns({ tool, refresh, styles: given, onDeleted }: { tool: stri
               : open.chat ? <><h3 style={{ marginTop: 0 }}>{t("Design Advisor", "Tư vấn thiết kế")}</h3>{open.inputUrl && <img src={open.inputUrl} alt="" style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 10, marginBottom: 12 }} />}<Transcript turns={open.chat} /></>
               : open.orient ? <OrientView photo={open.inputUrl} o={open.orient} id={open.id} params={open.params ?? {}} Compare={BeforeAfter} />
               : open.finder ? <FinderView photo={open.inputUrl} f={open.finder} />
-              : open.critique ? <CritiqueView photo={open.inputUrl} c={open.critique} /> : <><BeforeAfter before={open.inputUrl} after={open.outputUrl} zoomable />{open.outputUrl && <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}><DownloadLink className="outline-btn" url={open.outputUrl} name={resultFile(open.id, open.outputUrl)} phone={<><Icon n="photo" /> {t("Save to Photos", "Lưu vào Ảnh")}</>}><Icon n="download" /> {t("Download", "Tải xuống")}</DownloadLink></div>}</>}
+              : open.critique ? <CritiqueView photo={open.inputUrl} c={open.critique} /> : <><BeforeAfter before={open.inputUrl} after={open.outputUrl} zoomable />{open.outputUrl && <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}><DownloadLink className="outline-btn" url={open.outputUrl} name={resultFile(open.id, open.outputUrl)} phone={<><Icon n="download" /> {t("Save to Photos", "Lưu vào Ảnh")}</>}><Icon n="download" /> {t("Download", "Tải xuống")}</DownloadLink></div>}</>}
           </div>
         </div>
       )}
