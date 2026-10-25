@@ -316,6 +316,10 @@
     .preset-grid, .style-grid, .choice-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
     .visual-choice { position: relative; min-height: 70px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--ivory-2); background-position: center; background-size: cover; cursor: pointer; }
     .visual-choice span { position: absolute; z-index: 1; right: 7px; bottom: 6px; left: 7px; color: var(--white); font-size: 10px; text-align: left; }
+    /* Once a card is picked, the others go 70% darker so the pick stands out; labels stay readable above the shade. */
+    .visual-choice::before { content: ""; position: absolute; inset: 0; background: rgb(0 0 0 / 0); transition: background .2s ease; }
+    :is(.preset-grid, .style-grid, .choice-grid):has(.visual-choice.active) .visual-choice:not(.active)::before { background: rgb(0 0 0 / .7); }
+    :is(.preset-grid, .style-grid, .choice-grid):has(.visual-choice.active) .visual-choice:not(.active):hover::before { background: rgb(0 0 0 / .45); }
     .segmented { display: flex; flex-wrap: wrap; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--ivory); }
     .segmented button { flex: 1; padding: 8px 7px; border: 0; border-radius: 3px; color: var(--stone); background: transparent; font-size: 11px; }
     .segmented button:hover { color: var(--ink); }
