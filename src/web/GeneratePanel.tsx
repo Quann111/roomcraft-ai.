@@ -285,7 +285,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
   const [remove, setRemove] = useState<string[]>(["furniture"]);
   const [surface, setSurface] = useState("floor");
   const [material, setMaterial] = useState("");
-  const [autoCheck, setAutoCheck] = useState(false); // VICOSTONE tiles: optional post-check with one retry, off by default
+  const [autoCheck, setAutoCheck] = useState(false); // VICOSTONE tiles and 2D -> 3D plans: optional post-check with one retry, off by default
   const [weather, setWeather] = useState("");
   const [angle, setAngle] = useState("front");
   const [view, setView] = useState("isometric");
@@ -406,7 +406,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
           ...(cfg.llm ? { lang: getLang() } : {}),
           ...(cfg.weather ? { weather } : {}),
           ...(cfg.angle ? { angle } : {}),
-          ...(cfg.planView ? { view } : {}),
+          ...(cfg.planView ? { view, ...(autoCheck ? { autoCheck: true } : {}) } : {}),
           ...(cfg.video ? { motion } : {}),
           ...(cfg.lighting ? { lighting } : {}),
           ...(cfg.orient ? { kind, facing, city } : {}),

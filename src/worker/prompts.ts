@@ -162,26 +162,128 @@ export const BIZPLAN_TOOL = "interior-bizplan";
 export const MAX_PLAN_ROOMS = 8;
 export const PLAN_DETECT_PROMPT = [
   "This image is a 2D floor plan of a home. List every space a buyer would want to see as a photo: living areas, kitchen, dining, bedrooms, bathrooms, study and large balconies. Skip closets, corridors, shafts and storage.",
-  `Return at most ${MAX_PLAN_ROOMS} spaces. For each give: "name" (as labelled on the plan, or a clear name such as "Bedroom 2"), and "view": one or two English sentences that let an artist render an eye-level photo of that space from the plan: where it sits on the plan, its shape, which walls have windows or doors, and built-in fixtures (kitchen units, bath, shower).`,
+  `Return at most ${MAX_PLAN_ROOMS} spaces. For each give: "name" (as labelled on the plan, or a clear name such as "Bedroom 2"), "view": one or two English sentences that let an artist render an eye-level photo of that space from the plan (where it sits on the plan, its shape, which walls have windows or doors, built-in fixtures),`,
+  '"box": [x0, y0, x1, y1] the space on the image as fractions 0-1 of its width and height, "size": width x depth in metres from the dimensions when readable, "walls": for each side as drawn ("left", "right", "top", "bottom") what is on it (solid wall, window, door to X, open to X, glass wall, stair, built-in units), "fixtures": what is drawn inside (furniture symbols, sanitary ware, kitchen units, stairs, columns), and "not_here": things a renderer might wrongly add (e.g. "no window: interior room", "no stairs in this room").',
   'Also give "home": a short English description of the whole home (for example "two-bedroom apartment with an open-plan living and kitchen area").',
-  'Reply with JSON only: {"home": string, "rooms": [{"name": string, "view": string}]}.',
+  'Reply with JSON only: {"home": string, "rooms": [{"name": string, "view": string, "box": [number, number, number, number], "size": string, "walls": {"left": string, "right": string, "top": string, "bottom": string}, "fixtures": string, "not_here": string}]}.',
 ].join("\n");
-export type PlanRoom = { name: string; view: string };
+export type PlanRoom = { name: string; view: string; box?: number[]; size?: string; walls?: string; fixtures?: string; notHere?: string };
+const box = (v: unknown) => (Array.isArray(v) && v.length === 4 && v.every((n) => typeof n === "number" && n >= 0 && n <= 1) && v[2] > v[0] && v[3] > v[1] ? v.map((n) => Math.round(n * 1000) / 1000) : undefined);
+const short = (v: unknown, n: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, n) : "");
 /** Bound the LLM's room list (or a client-edited one) to safe, short values. */
 export function cleanRooms(v: unknown): PlanRoom[] {
   return (Array.isArray(v) ? v : []).slice(0, MAX_PLAN_ROOMS)
-    .map((r: any) => ({ name: String(r?.name ?? "").trim().slice(0, 40), view: String(r?.view ?? "").trim().slice(0, 400) }))
+    .map((r: any) => ({
+      name: short(r?.name, 40), view: short(r?.view, 400), box: box(r?.box), size: short(r?.size, 40) || undefined,
+      // The detector answers walls as {"left": "...", ...}; a client sends back the joined string.
+      walls: (r?.walls && typeof r.walls === "object" ? Object.entries(r.walls).map(([k, x]) => `${k}: ${short(x, 120)}`).join("; ") : short(r?.walls, 500)).slice(0, 500) || undefined,
+      fixtures: short(r?.fixtures, 300) || undefined, notHere: short(r?.notHere ?? r?.not_here, 200) || undefined,
+    }))
     .filter((r) => r.name);
 }
-export function planRoomPrompt(styleSlug: unknown, room: PlanRoom, home: string) {
+/** "P. KHÁCH [Living room]" -> "Living room": the English gloss keeps plan labels from being lettered into the picture. Round brackets are left alone ("WC (Master)"). */
+export const gloss = (name: string) => /\[([^\]]+)\]/.exec(name)?.[1].trim() || name;
+const roomFacts = (r: PlanRoom) => [r.size && `size about ${r.size}`, r.walls && `walls as drawn: ${r.walls}`, r.fixtures && `drawn inside: ${r.fixtures}`].filter(Boolean).join("; ");
+/**
+ * One room of a Business 3D Floorplan. `cropped`: a second image shows just this room's part of the plan (cut by the browser
+ * from the detector's box), which in testing kept walls and fixtures on the right side more often. Older room lists only have `view`.
+ */
+export function planRoomPrompt(styleSlug: unknown, room: PlanRoom, home: string, cropped = false) {
   const s = styleFor(styleSlug, "interior");
+  const name = gloss(room.name);
   return [
-    `This image is the floor plan of a home${home ? ` (${home})` : ""}. Render a photorealistic eye-level interior photograph of one space from it: the ${room.name}.`,
-    room.view && `About this space: ${room.view}`,
-    "Keep its shape, proportions, windows and doors as the plan shows them, and furnish it for its purpose at realistic scale.",
+    cropped
+      ? `Image 1 is the floor plan of a home${home ? ` (${home})` : ""}. Image 2 is the part of that plan showing one space: the ${name}. Render a photorealistic eye-level interior photograph of exactly that space.${room.view ? ` ${room.view}` : ""}`
+      : `This image is the floor plan of a home${home ? ` (${home})` : ""}. Render a photorealistic eye-level interior photograph of exactly one space from it: the ${name}.${room.view ? ` ${room.view}` : ""}`,
+    roomFacts(room) && `Facts read from the plan, which the photo must match: ${roomFacts(room)}.`,
+    room.notHere && `Do not add: ${room.notHere}.`,
+    "Keep its shape, proportions and every window, door and opening on the wall where the plan shows it; furnish it only with what the plan draws or what its purpose needs, at realistic scale.",
     `The whole home shares one consistent ${s.name} interior design: the same flooring, wall color, wood tone, metal finish and lighting style in every room.`,
-    "Wide-angle professional interior photography, natural daylight, no people, no text, no plan lines.",
+    "Wide-angle professional interior photography from a corner so two or three walls are visible, natural daylight, no people, no text, no plan lines.",
   ].filter(Boolean).join(" ");
+}
+
+/** Read before a 2D -> 3D render (interior-floorplan): the facts the render prompt then enforces. */
+export const PLAN_READ_PROMPT = `This image is a 2D architectural floor plan (possibly a CAD drawing with grid axes, dimension chains, level marks and notes).
+Read the building itself, ignoring grid lines, axis bubbles, dimension lines, level marks, leader notes and the title.
+Reply with JSON only:
+{"footprint": {"length_m": number, "depth_m": number, "shape": "rectangle" | "L-shape" | "irregular", "notes": string},
+ "long_axis": "horizontal" | "vertical",
+ "spaces": [{"name": string, "kind": "room" | "bathroom" | "kitchen" | "stair" | "elevator" | "corridor" | "storage" | "parking" | "balcony" | "yard" | "garden" | "lightwell" | "other", "where": string, "size": string, "contents": string}],
+ "absent": [string]}
+Rules:
+- footprint: the overall built outline including attached yards, porches and balconies, in metres taken from the outer dimension chains when present.
+- spaces: every space drawn on the plan, in order along the long axis from left to right (or top to bottom). "where": its position on the plan (e.g. "left end, full depth"). "size": width x depth in metres from the dimensions when readable, else an estimate. "contents": what is drawn inside (fixtures, furniture symbols, stair flights, doors, windows to the outside, water features).
+- Stairs (a row of treads with numbered steps or an arrow), elevator shafts (a box with an X or a car symbol, often labelled T.M or THANG MÁY) and light wells must be listed as their own spaces.
+- absent: common home spaces that are NOT on this plan (choose from kitchen, dining room, bedroom, bathroom, living room, laundry, garage), so a renderer does not invent them.
+Use the plan's own labels as names (keep Vietnamese labels, add an English gloss in brackets).`;
+const SPACE_KINDS = ["room", "bathroom", "kitchen", "stair", "elevator", "corridor", "storage", "parking", "balcony", "yard", "garden", "lightwell", "other"] as const;
+export type PlanFacts = { length: number; depth: number; shape: string; notes: string; vertical: boolean; spaces: { name: string; kind: string; where: string; size: string; contents: string }[]; absent: string[] };
+export function cleanPlanFacts(r: any): PlanFacts | null {
+  const f = r?.footprint ?? {}, length = Number(f.length_m), depth = Number(f.depth_m);
+  const spaces = (Array.isArray(r?.spaces) ? r.spaces : []).slice(0, 30).map((x: any) => ({
+    name: short(x?.name, 60), kind: oneOf(SPACE_KINDS, x?.kind) ?? "other", where: short(x?.where, 160), size: short(x?.size, 40), contents: short(x?.contents, 240),
+  })).filter((x: { name: string }) => x.name);
+  if (!spaces.length || !(length > 0 && length < 500 && depth > 0 && depth < 500)) return null;
+  return { length, depth, shape: short(f.shape, 20), notes: short(f.notes, 200), vertical: r?.long_axis === "vertical", spaces,
+    absent: (Array.isArray(r?.absent) ? r.absent : []).map((x: unknown) => short(x, 30)).filter(Boolean).slice(0, 8) };
+}
+function planFactLines(f: PlanFacts) {
+  const kinds = new Set(f.spaces.map((s) => s.kind));
+  const must = ([["stair", "the staircase with its flights and treads"], ["elevator", "the enclosed elevator shaft"], ["lightwell", "the open light wells (no floor, no roof)"]] as const).filter(([k]) => kinds.has(k)).map(([, t]) => t);
+  const ratio = Math.max(f.length, f.depth) / Math.min(f.length, f.depth);
+  return [
+    `Plan facts read from the drawing, which the rendering must match. Footprint: ${f.length} m long and ${f.depth} m deep (${f.shape}${f.notes ? `; ${f.notes}` : ""}), so the building is about ${ratio.toFixed(1)} times longer than it is deep; keep that proportion, with the long side running ${f.vertical ? "top to bottom" : "left to right"} as drawn.`,
+    "Spaces in order along the long side: " + f.spaces.map((s, i) => `${i + 1}) ${gloss(s.name)} (${s.kind}): ${s.where}; about ${s.size}; ${s.contents}`).join(" "),
+    must.length ? `These must be clearly built in the model, in their drawn positions: ${must.join("; ")}.` : "",
+    f.absent.length ? `This floor has no ${f.absent.join(", no ")}: do not add any.` : "",
+  ];
+}
+
+/** Optional check after a 2D -> 3D render: which plan spaces are missing, invented or misplaced. */
+export const planQaPrompt = (f: PlanFacts) => `You are a strict QA reviewer. Image 1 is a 2D floor plan, image 2 is a 3D rendering of it (an isometric model view, which may be seen from any corner; mentally rotate it).
+The plan has these spaces:
+${f.spaces.map((s, i) => `${i + 1}. ${gloss(s.name)} (${s.kind}): ${s.where}, ${s.size}`).join("\n")}
+Footprint ${f.length} m x ${f.depth} m.${f.absent.length ? ` The plan has no ${f.absent.join(", no ")}.` : ""}
+Check the structure only (walls, spaces, positions, stairs, shafts), not furniture style. Answer JSON only:
+{"missing": [number],        // spaces from the list not built in the rendering
+ "misplaced": [number],      // spaces clearly in the wrong place or merged with another
+ "invented": [string],       // rooms or major built elements in the rendering that are not on the plan (a kitchen, a pool, an extra bedroom)
+ "proportion_ok": bool,      // the building's length/depth ratio looks like the plan's
+ "text_in_image": bool,      // letters, numbers or dimension lines drawn in the rendering
+ "problems": [string]}       // short concrete list of what is wrong, empty if nothing`;
+export type PlanQa = { pass: boolean; failed: string[]; problems: string[] };
+const strings = (v: unknown, n: number) => (Array.isArray(v) ? v : []).filter((x): x is string => typeof x === "string").map((x) => short(x, 160)).filter(Boolean).slice(0, n);
+/** A missing stair or elevator, an invented room, wrong proportions or lettering fail; one other missing or misplaced space is tolerated. */
+export function planQaVerdict(r: any, f: PlanFacts): PlanQa | null {
+  if (!r || typeof r !== "object") return null;
+  const nums = (v: unknown) => (Array.isArray(v) ? v.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= f.spaces.length) : []);
+  const missing = nums(r.missing), misplaced = nums(r.misplaced), invented = strings(r.invented, 4);
+  const failed = [
+    missing.some((n) => ["stair", "elevator"].includes(f.spaces[n - 1].kind)) && "core_missing",
+    missing.length + misplaced.length >= 2 && "spaces",
+    invented.length > 0 && "invented",
+    r.proportion_ok === false && "proportion",
+    r.text_in_image === true && "text",
+  ].filter((x): x is string => !!x);
+  const problems = [...missing.map((n) => `the ${gloss(f.spaces[n - 1].name)} is missing`), ...invented.map((x) => `added ${x}, which is not on the plan`), ...strings(r.problems, 4)].slice(0, 6);
+  return { pass: !failed.length, failed, problems: failed.length ? (problems.length ? problems : failed) : [] };
+}
+
+/** Optional check after a Business 3D Floorplan room: could the photo truly be that room on the plan. */
+export const roomQaPrompt = (room: PlanRoom) => `You are a strict QA reviewer. Image 1 is a floor plan; image 2 is meant to be an eye-level photo of one space on it: the ${gloss(room.name)}${room.view ? ` (${room.view})` : ""}.
+${roomFacts(room) ? `Facts read from the plan: ${roomFacts(room)}.` : ""}
+Judge whether the photo could truly be this space, as a buyer comparing with the plan would. Answer JSON only:
+{"shape_ok": bool,       // proportions and shape fit the room on the plan
+ "fixtures_ok": bool,    // the drawn fixtures and furniture (beds, sanitary ware, kitchen units) are there and on the right walls
+ "invented": [string],   // built elements not on the plan (a staircase, an extra window wall, a kitchen in a bedroom)
+ "problems": [string]}`;
+export function roomQaVerdict(r: any): PlanQa | null {
+  if (!r || typeof r !== "object") return null;
+  const invented = strings(r.invented, 4);
+  const failed = [r.shape_ok === false && "shape", r.fixtures_ok === false && "fixtures", invented.length > 0 && "invented"].filter((x): x is string => !!x);
+  const problems = [...strings(r.problems, 4), ...invented.map((x) => `added ${x}, which is not on the plan`)].slice(0, 5);
+  return { pass: !failed.length, failed, problems: failed.length ? (problems.length ? problems : failed) : [] };
 }
 
 /** Design Advisor is a chat, not a generation: it has its own endpoint and transcript. */
@@ -510,8 +612,9 @@ export function buildPrompt(tool: string, p: any): string {
         `This image is a 2D architectural floor plan. Turn it into a photorealistic 3D rendering of the same floor plan, furnished in a ${s.name} interior style.`,
         "The result is a picture of a real furnished home, not a drawing. Words on the plan only tell you what each room is for and are never drawn: every floor shows only real flooring, rugs and furniture, with no writing, numbers, dimension lines or symbols.",
         PLAN_VIEW_TEXT[oneOf(PLAN_VIEWS, p.view) ?? "isometric"],
+        ...(p.plan ? planFactLines(p.plan) : []),
         "Follow the plan exactly: the same outline, the same rooms in the same positions and proportions, and every wall, door opening and window where the plan shows it. Do not add, remove, merge or resize rooms.",
-        "Furnish each room for its purpose as shown by its label or fixtures (beds in bedrooms, sofa and coffee table in the living room, kitchen units, bathroom fixtures) at realistic scale, with matching floor materials per room.",
+        p.plan ? "Furnish each space only for its labelled purpose, using the furniture and fixtures drawn on the plan, at realistic scale." : "Furnish each room for its purpose as shown by its label or fixtures (beds in bedrooms, sofa and coffee table in the living room, kitchen units, bathroom fixtures) at realistic scale, with matching floor materials per room.",
         "Soft natural daylight, realistic materials, plain light background around the building, high quality architectural visualization.", custom(p),
         "Final check: the image contains no text of any kind.");
     }

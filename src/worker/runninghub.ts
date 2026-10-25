@@ -34,6 +34,9 @@ type InputImage = { bytes: ArrayBuffer; mime: string };
  * framing far more reliably than Nano Banana flash/Pro, FLUX.2 and GPT Image 2. Same request shape as the flash endpoint.
  */
 export const TILE_EDIT = "rhart-image-g-2.5/sunburst/image-to-image";
+/** Floor plan renders (2D -> 3D and Business rooms) also run on GPT Image 2.5: in a 70-image benchmark it kept stairs, elevator
+ * cores and room order on CAD plans where Nano Banana flash/Pro dropped them or copied the plan's lettering. */
+export const PLAN_EDIT = TILE_EDIT;
 
 /** `images[0]` is the photo being edited; any further images are references the prompt refers to. */
 export async function submitImageToImage(apiKey: string, o: { images: InputImage[]; prompt: string; aspectRatio?: string; resolution: "1k" | "2k" | "4k"; model?: string }, base = DEFAULT_BASE) {
