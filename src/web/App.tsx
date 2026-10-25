@@ -356,7 +356,11 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                 )}
                 {cfg.planView && (
                   <><h4>{t("3D view", "Góc nhìn 3D")}</h4>
-                    <div className="segmented">{meta.planViews.map((v) => { const off = meta.lockedPlanViews?.includes(v); return <button key={v} type="button" disabled={off} title={off ? t("Coming soon", "Sắp ra mắt") : undefined} style={off ? { opacity: 0.45, cursor: "not-allowed" } : undefined} className={v === g.view ? "active" : ""} onClick={() => g.setView(v)}>{bi(v)}{off ? ` · ${t("soon", "sắp có")}` : ""}</button>; })}</div></>
+                    <div className="segmented">{meta.planViews.map((v) => { const off = meta.lockedPlanViews?.includes(v); return <button key={v} type="button" disabled={off} title={off ? t("Coming soon", "Sắp ra mắt") : undefined} style={off ? { opacity: 0.45, cursor: "not-allowed" } : undefined} className={v === g.view ? "active" : ""} onClick={() => g.setView(v)}>{bi(v)}{off ? ` · ${t("soon", "sắp có")}` : ""}</button>; })}</div>
+                    <label className="switch" style={{ display: "flex", marginTop: 10, alignItems: "flex-start", gap: 8 }}>
+                      <input type="checkbox" checked={g.autoCheck} onChange={(e) => g.setAutoCheck(e.target.checked)} />
+                      <span>{t("Auto-check the result: if a staircase, elevator or room is missing or one was added, redo it once (no extra credit, about 1 minute slower)", "Tự kiểm tra kết quả: nếu thiếu cầu thang, thang máy, thiếu phòng hoặc thêm phòng không có trên bản vẽ thì tự vẽ lại 1 lần (không tốn thêm credit, chậm hơn khoảng 1 phút)")}</span>
+                    </label></>
                 )}
                 {cfg.weather && (
                   <><h4>{t("Change Sky Colors to:", "Đổi bầu trời thành:")}</h4>

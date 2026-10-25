@@ -1,10 +1,10 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
-import { TILE_EDIT, submitImageToImage, submitTextToImage, submitImageToVideo, queryTask, chatJson, chatText, imagePart, type ChatMessage } from "./runninghub";
+import { TILE_EDIT, PLAN_EDIT, submitImageToImage, submitTextToImage, submitImageToVideo, queryTask, chatJson, chatText, imagePart, type ChatMessage } from "./runninghub";
 import { CITIES, DIRECTIONS } from "./solar";
 import { FLOOR_TILES, floorTile } from "./floorTiles";
 import { recordCost, llmUsd, modelOf, kindOf, estimateUsd, parseCsv, rhTime } from "./costs";
-import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, LOCKED_PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, COMPARE_TOOLS, MAX_COMPARE, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, FLOOR_SCOUT_PROMPT, cleanFloorScout, type FloorScout, FLOOR_QA_PROMPT, floorQaVerdict, floorRetryNote, type FloorQa, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt } from "./prompts";
+import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, LOCKED_PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, COMPARE_TOOLS, MAX_COMPARE, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, FLOOR_SCOUT_PROMPT, cleanFloorScout, type FloorScout, FLOOR_QA_PROMPT, floorQaVerdict, floorRetryNote, type FloorQa, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt, PLAN_READ_PROMPT, cleanPlanFacts, type PlanFacts, planQaPrompt, planQaVerdict, roomQaPrompt, roomQaVerdict, type PlanRoom } from "./prompts";
 
 type Env = { DB: D1Database; IMAGES: R2Bucket; ASSETS: Fetcher; DAILY_CREDITS: string; OPEN_ACCESS?: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
 type User = { id: string; email: string; credits: number; credits_refilled_at: number };
@@ -45,6 +45,20 @@ async function floorScout(c: any, key: string): Promise<FloorScout | null> {
     .then(cleanFloorScout, () => null);
   // Median ~12 s, but about one photo in ten takes 30-45 s; past 45 s the edit runs without the scout.
   return Promise.race([call, new Promise<null>((r) => setTimeout(() => r(null), 45_000))]);
+}
+
+/**
+ * Reads a floor plan before a 2D -> 3D render: footprint, every space in order (stairs, elevator, light wells included) and the
+ * rooms the floor does not have; the render prompt then enforces them. Null when the model is slow or unsure, and the render
+ * runs on the general prompt.
+ */
+async function planRead(c: any, key: string): Promise<PlanFacts | null> {
+  const o = await c.env.IMAGES.get(key);
+  if (!o) return null;
+  const call = chatJson(c.env.RUNNINGHUB_API_KEY, { model: CRITIQUE_MODEL, prompt: PLAN_READ_PROMPT, image: { bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" }, onUsage: llmCost(c, "interior-floorplan", null) })
+    .then(cleanPlanFacts, () => null);
+  // Dense CAD plans take 20-40 s to read.
+  return Promise.race([call, new Promise<null>((r) => setTimeout(() => r(null), 60_000))]);
 }
 
 const b64 = (buf: ArrayBuffer | Uint8Array) => btoa(String.fromCharCode(...new Uint8Array(buf as ArrayBuffer)));
@@ -209,6 +223,7 @@ app.post("/api/generate", requireAuth, async (c) => {
     const sp = JSON.parse(src.params);
     Object.assign(b, { brief: analysis.renderBrief, kind: sp.kind, facing: sp.facing, inputKey: src.input_key, custom: undefined });
   }
+  delete b.plan; // plan facts only ever come from planRead below
   try { prompt = buildPrompt(b.tool, b); } catch (e: any) { return c.json({ error: e.message }, 400); }
   const obj = textOnly ? null : await c.env.IMAGES.get(b.inputKey);
   if (!textOnly && !obj) return c.json({ error: "Image not found · Không tìm thấy ảnh" }, 400);
@@ -224,6 +239,9 @@ app.post("/api/generate", requireAuth, async (c) => {
   const scout = b.tool === "interior-floor" && floorTile(b.material) ? await floorScout(c, b.inputKey) : null;
   if (scout && !scout.bare_floor_visible) return c.json({ error: NO_FLOOR }, 422);
   if (scout) prompt = buildPrompt(b.tool, { ...b, scout });
+  const floorplan = b.tool === "interior-floorplan";
+  const plan = floorplan ? await planRead(c, b.inputKey) : null;
+  if (plan) prompt = buildPrompt(b.tool, { ...b, plan });
 
   const video = VIDEO_TOOLS.includes(b.tool);
   const cost = isAdmin(u) ? 0 : video ? VIDEO_COST : RES_COST[resolution]; // admin: unlimited, no credits charged
@@ -253,10 +271,10 @@ app.post("/api/generate", requireAuth, async (c) => {
       ? await submitTextToImage(c.env.RUNNINGHUB_API_KEY, { prompt, aspectRatio: aspectRatio ?? "16:9", resolution }, c.env.RUNNINGHUB_BASE)
       : await submitImageToImage(c.env.RUNNINGHUB_API_KEY, {
         images: [...await Promise.all(images.map(async (o) => ({ bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" }))), ...(swatch ? [swatch] : [])],
-        prompt, aspectRatio: swatch ? aspectRatio ?? "4:3" : aspectRatio, resolution, model: swatch ? TILE_EDIT : undefined,
+        prompt, aspectRatio: swatch || floorplan ? aspectRatio ?? "4:3" : aspectRatio, resolution, model: swatch ? TILE_EDIT : floorplan ? PLAN_EDIT : undefined,
       }, c.env.RUNNINGHUB_BASE);
     await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,rh_task_id,input_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: b.surface, material: b.material, weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, lighting: b.tool === "interior-lighting" ? b.lighting : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, scout: scout ?? undefined, autoCheck: swatch && b.autoCheck === true ? true : undefined, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
+      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: b.surface, material: b.material, weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, lighting: b.tool === "interior-lighting" ? b.lighting : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, scout: scout ?? undefined, plan: plan ?? undefined, engine: floorplan ? "gpt25" : undefined, autoCheck: (swatch || plan) && b.autoCheck === true ? true : undefined, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
     return c.json({ id, status: "RUNNING" });
   } catch (e: any) {
     await refund("refund_submit_failed");
@@ -326,8 +344,18 @@ app.post("/api/bizplan/render", requireAuth, async (c) => {
   const rooms = cleanRooms(b.rooms);
   if (!rooms.length || (Array.isArray(b.rooms) && b.rooms.length > MAX_PLAN_ROOMS)) return c.json({ error: `Pick 1–${MAX_PLAN_ROOMS} rooms · Chọn 1–${MAX_PLAN_ROOMS} phòng` }, 400);
   const home = String(b.home ?? "").trim().slice(0, 200);
+  // The browser cuts each room's part of the plan from the detector's box and uploads it; a room without one uses the whole plan.
+  const crops = await Promise.all((b.rooms as any[]).slice(0, rooms.length).map(async (r) => {
+    const o = await ownImage(c, r?.cropKey);
+    return o ? { key: r.cropKey as string, img: { bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" } } : null;
+  }));
   let jobs: Job[];
-  try { jobs = rooms.map((r) => ({ prompt: planRoomPrompt(b.styleSlug, r, home), params: { styleSlug: b.styleSlug, roomType: r.name }, label: r.name })); } catch (e: any) { return c.json({ error: e.message }, 400); }
+  try {
+    jobs = rooms.map((r, i) => ({
+      prompt: planRoomPrompt(b.styleSlug, r, home, !!crops[i]), label: r.name, model: PLAN_EDIT, extra: crops[i] ? [crops[i]!.img] : undefined,
+      params: { styleSlug: b.styleSlug, roomType: r.name, engine: "gpt25", room: r, cropKey: crops[i]?.key, autoCheck: b.autoCheck === true ? true : undefined },
+    }));
+  } catch (e: any) { return c.json({ error: e.message }, 400); }
   const plan = await ownImage(c, b.inputKey);
   if (!plan) return c.json({ error: "Upload a floor plan first · Hãy tải mặt bằng lên trước" }, 400);
   const r = await runBatch(c, {
@@ -431,28 +459,46 @@ app.post("/api/advisor", requireAuth, async (c) => {
 });
 
 type Img = { bytes: ArrayBuffer; mime: string };
+const imgOf = async (o: any): Promise<Img> => ({ bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" });
+type Check = { judge: (out: Img) => Promise<FloorQa | null>; inputs: () => Promise<Img[]>; model: string };
+/** What "Tự kiểm tra" checks for each tool, and the images a redraw is sent with (the input first, as for the first attempt). */
+async function checkFor(c: any, g: any, params: any): Promise<Check | null> {
+  const input = await c.env.IMAGES.get(g.input_key);
+  if (!input) return null;
+  const plan = await imgOf(input);
+  const ask = (prompt: string, images: Img[], verdict: (r: any) => FloorQa | null) => {
+    const call = chatJson(c.env.RUNNINGHUB_API_KEY, { model: CRITIQUE_MODEL, prompt, images, onUsage: llmCost(c, g.tool, g.id, g.user_id) }).then(verdict, () => null);
+    return Promise.race([call, new Promise<null>((r) => setTimeout(() => r(null), 45_000))]);
+  };
+  if (g.tool === "interior-floor") {
+    const swatch = await tileSwatch(c, params.material).catch(() => null);
+    return swatch && { model: TILE_EDIT, inputs: async () => [plan, swatch], judge: (out) => ask(FLOOR_QA_PROMPT, [plan, out, swatch], (r) => floorQaVerdict(r, params.scout?.floor_closeup === true)) };
+  }
+  if (g.tool === "interior-floorplan" && params.plan) {
+    return { model: PLAN_EDIT, inputs: async () => [plan], judge: (out) => ask(planQaPrompt(params.plan), [plan, out], (r) => planQaVerdict(r, params.plan)) };
+  }
+  if (g.tool === BIZPLAN_TOOL && params.room) {
+    const crop = params.cropKey ? await c.env.IMAGES.get(params.cropKey).then((o: any) => o && imgOf(o)) : null;
+    return { model: PLAN_EDIT, inputs: async () => (crop ? [plan, crop] : [plan]), judge: (out) => ask(roomQaPrompt(params.room as PlanRoom), [crop ?? plan, out], roomQaVerdict) };
+  }
+  return null;
+}
 /**
- * Optional post-check for VICOSTONE tile edits (the user ticks "Tự kiểm tra"): a Gemini judge compares original, result and
- * swatch; when a rug, person or object was lost or the framing changed, the edit is resubmitted once with a note about the
- * mistake, and the better of the two attempts is kept. No extra credit is charged. Returns done:false while a retry runs or
- * another poll holds the check; a judge error accepts the result as it is.
+ * Optional post-check (the user ticks "Tự kiểm tra"): VICOSTONE tile edits, 2D -> 3D plans and Business rooms. A Gemini judge
+ * compares input and result; when it finds a serious mistake (a lost rug, a missing staircase, an invented room...) the job is
+ * resubmitted once with a note about the mistake, and the better of the two attempts is kept. No extra credit is charged.
+ * Returns done:false while a retry runs or another poll holds the check; a judge error accepts the result as it is.
  */
-async function tileCheck(c: any, g: any, params: any, out: Img): Promise<{ done: false } | { done: true; bytes?: ArrayBuffer; params?: any }> {
+async function qaCheck(c: any, g: any, params: any, out: Img): Promise<{ done: false } | { done: true; bytes?: ArrayBuffer; params?: any }> {
   const qa: { attempts: (FloorQa & { task: string })[] } = params.qa ?? { attempts: [] };
   if (qa.attempts.some((a) => a.task === g.rh_task_id)) return { done: true };
   // One poll judges each attempt; concurrent polls see the claim and keep waiting.
   const claim = await c.env.DB.prepare("UPDATE generations SET params=json_set(params,'$.qaLock',?) WHERE id=? AND coalesce(json_extract(params,'$.qaLock'),'')<>?")
     .bind(g.rh_task_id, g.id, g.rh_task_id).run();
   if (!claim.meta.changes) return { done: false };
-  const input = await c.env.IMAGES.get(g.input_key);
-  const swatch = await tileSwatch(c, params.material).catch(() => null);
-  let verdict: FloorQa | null = null;
-  if (input && swatch) {
-    const call = chatJson(c.env.RUNNINGHUB_API_KEY, { model: CRITIQUE_MODEL, prompt: FLOOR_QA_PROMPT, images: [{ bytes: await input.arrayBuffer(), mime: input.httpMetadata?.contentType ?? "image/jpeg" }, out, swatch], onUsage: llmCost(c, "interior-floor", g.id, g.user_id) })
-      .then((r) => floorQaVerdict(r, params.scout?.floor_closeup === true), () => null);
-    verdict = await Promise.race([call, new Promise<null>((r) => setTimeout(() => r(null), 45_000))]);
-  }
-  if (!verdict) return { done: true, params: { ...params, qa: { ...qa, skipped: true } } };
+  const check = await checkFor(c, g, params);
+  const verdict = check ? await check.judge(out) : null;
+  if (!verdict || !check) return { done: true, params: { ...params, qa: { ...qa, skipped: true } } };
   qa.attempts.push({ ...verdict, task: g.rh_task_id });
   const next = { ...params, qa };
   if (verdict.pass || qa.attempts.length >= 2) {
@@ -467,8 +513,7 @@ async function tileCheck(c: any, g: any, params: any, out: Img): Promise<{ done:
   try {
     await c.env.IMAGES.put(`out/${g.user_id}/${g.id}-try1`, out.bytes, { httpMetadata: { contentType: out.mime } });
     const task = await submitImageToImage(c.env.RUNNINGHUB_API_KEY, {
-      images: [{ bytes: await (await c.env.IMAGES.get(g.input_key)).arrayBuffer(), mime: input!.httpMetadata?.contentType ?? "image/jpeg" }, swatch!],
-      prompt: `${g.prompt} ${floorRetryNote(verdict.problems)}`, aspectRatio: params.aspectRatio ?? "4:3", resolution: params.resolution ?? "1k", model: TILE_EDIT,
+      images: await check.inputs(), prompt: `${g.prompt} ${floorRetryNote(verdict.problems)}`, aspectRatio: params.aspectRatio ?? "4:3", resolution: params.resolution ?? "1k", model: check.model,
     }, c.env.RUNNINGHUB_BASE);
     await c.env.DB.prepare("UPDATE generations SET rh_task_id=?, params=? WHERE id=?").bind(task, JSON.stringify(next), g.id).run();
     return { done: false };
@@ -509,7 +554,7 @@ app.get("/api/generations/:id", requireAuth, async (c) => {
         const mime = ext === "mp4" ? "video/mp4" : `image/${ext === "jpg" ? "jpeg" : ext}`;
         let bytes = await img.arrayBuffer();
         const params = JSON.parse(g.params);
-        const check = params.autoCheck ? await tileCheck(c, g, params, { bytes, mime }) : { done: true as const };
+        const check = params.autoCheck ? await qaCheck(c, g, params, { bytes, mime }) : { done: true as const };
         if (check.done) {
           if (check.bytes) bytes = check.bytes;
           const key = `out/${u.id}/${g.id}.${ext}`;

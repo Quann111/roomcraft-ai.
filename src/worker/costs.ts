@@ -13,7 +13,7 @@ export const llmUsd = (model: string, tokensIn: number, tokensOut: number) => {
 export function modelOf(tool: string, params: any) {
   if ((VIDEO_TOOLS as readonly string[]).includes(tool)) return "veo3.1-fast/image-to-video";
   if ((CRITIQUE_TOOLS as readonly string[]).includes(tool) || tool === ADVISOR_TOOL) return CRITIQUE_MODEL;
-  if (tool === "interior-floor" && floorTile(params?.material)) return "gpt-image-2.5/sunburst/image-to-image/economy";
+  if ((tool === "interior-floor" && floorTile(params?.material)) || params?.engine === "gpt25") return "gpt-image-2.5/sunburst/image-to-image/economy";
   return (TEXT_TOOLS as readonly string[]).includes(tool) ? "nano-banana-2/text-to-image/economy" : "nano-banana-2/image-to-image/economy";
 }
 export const kindOf = (model: string) => (/video/.test(model) ? "video" : model.startsWith("google/") ? "llm" : "image");
