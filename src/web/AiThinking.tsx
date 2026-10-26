@@ -52,7 +52,7 @@ const CSS = `
 .ai-thinking.tile .ai-word { font-size: 13px; } .ai-thinking.tile .ai-step { font-size: 11px; }
 .ai-orb i { position: absolute; z-index: 1; inset: 7px; display: grid; place-items: center; overflow: hidden; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #2B2E31 0, #17191B 70%); }
 /* The mark fills only ~72% of its SVG canvas, so 120% makes it cover ~86% of the disc and leaves a thin dark rim. */
-.ai-orb img { display: block; width: 120%; height: 120%; max-width: none; object-fit: contain; }
+.ai-orb img { position: absolute; inset: -10%; display: block; width: 120%; height: 120%; max-width: none; object-fit: contain; } /* equal overflow on every side keeps it centred; grid centring pushed it down */
 .ai-thinking.compact .ai-orb i { inset: 5px; }
 .ai-copy { display: grid; gap: 3px; justify-items: inherit; }
 .ai-thinking:not(.compact) .ai-copy { justify-items: center; }
