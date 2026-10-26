@@ -1,12 +1,10 @@
-import React, { useEffect, useRef, useState } from "react";
-import { AiThinking } from "./AiThinking";
-import { DownloadLink } from "./SaveToPhotos";
+import React, { useEffect, useState } from "react";
+import { PlanRun } from "./PlanRun";
 import { bi, t } from "./i18n";
 import { prepareImage, type PreparedImage } from "./imagePrep";
 
 /** A detected room; `box` (fractions of the plan) and the wall-by-wall facts come from the detector and go back with the render. */
 type Room = { name: string; view: string; box?: number[]; size?: string; walls?: string; fixtures?: string; notHere?: string; on: boolean };
-type Item = { id?: string; room: string; status: string; outputUrl?: string | null; error?: string };
 const MAX_ROOMS = 8; // matches MAX_PLAN_ROOMS in the worker
 const ink = "#1c1b19", line = "rgba(0,0,0,0.12)";
 
@@ -31,24 +29,22 @@ export function BizPlan({ onCreditsChange }: { onCreditsChange?: () => void }) {
   const [key, setKey] = useState<string | null>(null);
   const [home, setHome] = useState("");
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [items, setItems] = useState<Item[]>([]);
+  const [batch, setBatch] = useState<string | null>(null); // the run being shown under "3. Your renders"
   const [busy, setBusy] = useState<"" | "detect" | "render">("");
   const [err, setErr] = useState("");
   const [autoCheck, setAutoCheck] = useState(false); // optional post-check with one redraw per room, off by default
-  const timers = useRef<number[]>([]);
 
   useEffect(() => {
     fetch("/api/styles").then((r) => r.json() as Promise<any>).then((m) => {
       const list = m.styles.filter((s: any) => s.scope === "interior");
       setStyles(list); setStyle(list[0]?.slug ?? "");
     }).catch(() => {});
-    return () => timers.current.forEach(clearTimeout);
   }, []);
 
   const pick = async (f?: File) => {
     if (!f) return;
     setErr("");
-    try { const prep = await prepareImage(f); setPlan({ prep, url: URL.createObjectURL(prep.file) }); setKey(null); setRooms([]); setItems([]); } catch (e: any) { setErr(e.message); }
+    try { const prep = await prepareImage(f); setPlan({ prep, url: URL.createObjectURL(prep.file) }); setKey(null); setRooms([]); setBatch(null); } catch (e: any) { setErr(e.message); }
   };
   const upload = async (body: Blob) => {
     const up = await fetch("/api/upload", { method: "POST", headers: { "Content-Type": body.type }, body });
@@ -65,23 +61,13 @@ export function BizPlan({ onCreditsChange }: { onCreditsChange?: () => void }) {
 
   const detect = async () => {
     if (!plan) return;
-    setBusy("detect"); setErr(""); setItems([]);
+    setBusy("detect"); setErr(""); setBatch(null);
     try {
       let k = key;
       if (!k) { k = await upload(plan.prep.file); setKey(k); }
       const d = await post("/api/bizplan/detect", { inputKey: k });
       setHome(d.home); setRooms(d.rooms.map((r: any) => ({ ...r, on: true })));
     } catch (e: any) { setErr(e.message); } finally { setBusy(""); }
-  };
-
-  const poll = (id: string) => {
-    timers.current.push(window.setTimeout(async () => {
-      try {
-        const g: any = await fetch(`/api/generations/${id}`).then((r) => r.json());
-        setItems((a) => a.map((x) => (x.id === id ? { ...x, status: g.status, outputUrl: g.outputUrl, error: g.error } : x)));
-        if (g.status === "RUNNING" || g.status === "QUEUED") poll(id); else onCreditsChange?.();
-      } catch { poll(id); }
-    }, 5000));
   };
 
   const chosen = rooms.filter((r) => r.on && r.name.trim());
@@ -94,13 +80,11 @@ export function BizPlan({ onCreditsChange }: { onCreditsChange?: () => void }) {
         inputKey: key, styleSlug: style, home, aspectRatio: "4:3", ...(autoCheck ? { autoCheck: true } : {}),
         rooms: chosen.map(({ on, ...r }, i) => ({ ...r, cropKey: cropKeys[i] })),
       });
-      setItems(d.items.map((x: any) => ({ ...x, status: x.error ? "FAILED" : "RUNNING" })));
-      d.items.forEach((x: any) => x.id && poll(x.id));
+      setBatch(d.batchId);
       onCreditsChange?.();
     } catch (e: any) { setErr(e.message); } finally { setBusy(""); }
   };
 
-  const running = items.some((x) => x.status === "RUNNING" || x.status === "QUEUED");
   const field: React.CSSProperties = { padding: 8, borderRadius: 8, border: `1px solid ${line}`, font: "inherit", minWidth: 0 };
   const btn = (primary: boolean, disabled: boolean): React.CSSProperties => ({ padding: "10px 16px", borderRadius: 10, border: primary ? "none" : `1px solid ${line}`, background: primary ? ink : "transparent", color: primary ? "#fff" : ink, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.4 : 1, font: "inherit" });
 
@@ -138,7 +122,7 @@ export function BizPlan({ onCreditsChange }: { onCreditsChange?: () => void }) {
                 <input type="checkbox" checked={autoCheck} onChange={(e) => setAutoCheck(e.target.checked)} style={{ marginTop: 2 }} />
                 <span>{t("Auto-check each room: if its shape, fixtures or built elements do not match the plan, redo it once (no extra credit, about 1 minute slower)", "Tự kiểm tra từng phòng: nếu hình dáng, đồ đạc cố định hoặc kết cấu không khớp bản vẽ thì tự vẽ lại 1 lần (không tốn thêm credit, chậm hơn khoảng 1 phút)")}</span>
               </label>
-              <button type="button" disabled={!chosen.length || chosen.length > MAX_ROOMS || !!busy || running} onClick={render} style={btn(true, !chosen.length || !!busy || running)}>
+              <button type="button" disabled={!chosen.length || chosen.length > MAX_ROOMS || !!busy} onClick={render} style={btn(true, !chosen.length || !!busy)}>
                 {busy === "render" ? t("Starting…", "Đang bắt đầu…") : t(`Render ${chosen.length} rooms · ${chosen.length} credits`, `Render ${chosen.length} phòng · ${chosen.length} credit`)}
               </button>
             </>
@@ -147,23 +131,10 @@ export function BizPlan({ onCreditsChange }: { onCreditsChange?: () => void }) {
         </section>
       </div>
 
-      {items.length > 0 && (
+      {batch && (
         <section style={{ display: "grid", gap: 10 }}>
-          <h4 style={{ margin: 0, fontSize: 15 }}>{t("3. Your renders", "3. Ảnh render")}{running && <span style={{ fontWeight: 400, opacity: 0.7 }}> · {t("1–2 minutes", "1–2 phút")}</span>}</h4>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 240px), 1fr))", gap: 12 }}>
-            {items.map((x, i) => (
-              <figure key={x.id ?? i} style={{ margin: 0, border: `1px solid ${line}`, borderRadius: 12, overflow: "hidden", background: "#fff" }}>
-                <div style={{ aspectRatio: "4 / 3", display: "grid", placeItems: "center", background: "#f4f1ea" }}>
-                  {x.status === "SUCCESS" && x.outputUrl ? <a href={x.outputUrl} target="_blank" rel="noreferrer" style={{ display: "block", width: "100%", height: "100%" }}><img src={x.outputUrl} alt={x.room} style={{ width: "100%", height: "100%", objectFit: "cover" }} /></a>
-                    : x.status === "FAILED" ? <span style={{ fontSize: 13, opacity: 0.7, padding: 10, textAlign: "center" }}>{`${t("Failed (credit refunded)", "Lỗi (đã hoàn credit)")}${x.error ? ` · ${bi(x.error)}` : ""}`}</span> : <AiThinking tile />}
-                </div>
-                <figcaption style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 10px", fontSize: 14 }}>
-                  <b style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.room}</b>
-                  {x.status === "SUCCESS" && x.outputUrl && <span style={{ display: "flex", gap: 10, flex: "0 0 auto", fontSize: 13 }}><DownloadLink url={x.outputUrl} name={`${x.room}.png`} style={{ padding: 0, border: 0, background: "none", color: "inherit", font: "inherit", textDecoration: "underline" }} phone={t("Save to Photos", "Lưu vào Ảnh")}>{t("Download", "Tải xuống")}</DownloadLink></span>}
-                </figcaption>
-              </figure>
-            ))}
-          </div>
+          <h4 style={{ margin: 0, fontSize: 15 }}>{t("3. Your renders", "3. Ảnh render")} <span style={{ fontWeight: 400, opacity: 0.7 }}>· {t("tick a room to redraw it, matched to the others", "tick phòng nào cần vẽ lại, ảnh mới sẽ đồng bộ với các phòng khác")}</span></h4>
+          <PlanRun batchId={batch} onChange={onCreditsChange} />
         </section>
       )}
     </div>

@@ -203,6 +203,33 @@ export function planRoomPrompt(styleSlug: unknown, room: PlanRoom, home: string,
   ].filter(Boolean).join(" ");
 }
 
+/** Redrawing rooms of a Business run: Gemini lists the finishes of a room already drawn, so a redraw can match them. */
+export const PALETTE_PROMPT = `Image 1 is an interior photo. List its finishes so another photo of the same home can match them exactly. JSON only:
+{"floor": string, "walls": string, "ceiling": string, "wood": string, "metal": string, "stone": string, "lighting": string, "textiles": string}
+Each value: colour, material and finish in a few words (e.g. "wide-plank light oak, matte").`;
+export type Palette = Record<string, string>;
+export function cleanPalette(r: any): Palette | null {
+  if (!r || typeof r !== "object") return null;
+  const out: Palette = {};
+  for (const k of ["floor", "walls", "ceiling", "wood", "metal", "stone", "lighting", "textiles"]) { const v = short(r[k], 80); if (v) out[k] = v; }
+  return Object.keys(out).length ? out : null;
+}
+/**
+ * Extra lines for a redrawn room. `refIndex`: the position of the reference room among the images sent (it comes after the
+ * plan and the room crop). `note`: what the user said was wrong with the previous attempt.
+ */
+export function roomRedoLines(o: { room?: string; refIndex?: number; palette?: Palette | null; note?: string }) {
+  const note = short(o.note, 300);
+  // Copying a bedroom's oak floor into a bathroom was the one mismatch seen in testing, so wet and outdoor rooms say it outright.
+  const wet = /\b(wc|bath|toilet|shower|kitchen|laundry|balcony|loggia|terrace|yard|garden)|tắm|vệ sinh|bếp|ban công|lô gia|logia|sân|giặt/i.test(o.room ?? "");
+  return [
+    o.refIndex && `Image ${o.refIndex} is another room of this same home, already designed: match its finishes exactly, the same wall colour, ceiling, wood tone, metal finish, stone and lighting style${wet ? "" : " and the same flooring"}, so the two photos clearly belong to one home.`,
+    wet && "This is a wet or outdoor area: its floor is stone or porcelain tile in the home's colour family, never wood or wood-look planks.",
+    o.palette && `Finishes of this home: ${Object.entries(o.palette).map(([k, v]) => `${k}: ${v}`).join("; ")}.`,
+    note && `A previous attempt at this room was not right; the client asked: "${note}". Fix that while keeping everything else as the plan shows.`,
+  ].filter(Boolean).join(" ");
+}
+
 /** Read before a 2D -> 3D render (interior-floorplan): the facts the render prompt then enforces. */
 export const PLAN_READ_PROMPT = `This image is a 2D architectural floor plan (possibly a CAD drawing with grid axes, dimension chains, level marks and notes).
 Read the building itself, ignoring grid lines, axis bubbles, dimension lines, level marks, leader notes and the title.

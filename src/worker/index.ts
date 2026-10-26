@@ -4,7 +4,7 @@ import { TILE_EDIT, PLAN_EDIT, submitImageToImage, submitTextToImage, submitImag
 import { CITIES, DIRECTIONS } from "./solar";
 import { FLOOR_TILES, floorTile } from "./floorTiles";
 import { recordCost, llmUsd, modelOf, kindOf, estimateUsd, parseCsv, rhTime } from "./costs";
-import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, LOCKED_PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, COMPARE_TOOLS, MAX_COMPARE, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, FLOOR_SCOUT_PROMPT, cleanFloorScout, type FloorScout, FLOOR_QA_PROMPT, floorQaVerdict, floorRetryNote, type FloorQa, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt, PLAN_READ_PROMPT, cleanPlanFacts, type PlanFacts, planQaPrompt, planQaVerdict, roomQaPrompt, roomQaVerdict, type PlanRoom } from "./prompts";
+import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, LOCKED_PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, COMPARE_TOOLS, MAX_COMPARE, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, FLOOR_SCOUT_PROMPT, cleanFloorScout, type FloorScout, FLOOR_QA_PROMPT, floorQaVerdict, floorRetryNote, type FloorQa, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt, PLAN_READ_PROMPT, cleanPlanFacts, type PlanFacts, PALETTE_PROMPT, cleanPalette, roomRedoLines, planQaPrompt, planQaVerdict, roomQaPrompt, roomQaVerdict, type PlanRoom } from "./prompts";
 
 type Env = { DB: D1Database; IMAGES: R2Bucket; ASSETS: Fetcher; DAILY_CREDITS: string; OPEN_ACCESS?: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
 type User = { id: string; email: string; credits: number; credits_refilled_at: number };
@@ -309,13 +309,13 @@ type Job = { prompt: string; params: Record<string, unknown>; label: string; ext
  * Credits for every job are charged up front; a job whose submission fails is refunded at once. Each job becomes a
  * normal generation row, so polling, refunds on failure, downloads and history work as for single generations.
  */
-async function runBatch(c: any, o: { tool: string; inputKey: string; image: { bytes: ArrayBuffer; mime: string }; jobs: Job[]; each: number; resolution: "1k" | "2k" | "4k"; aspectRatio?: string }) {
+async function runBatch(c: any, o: { tool: string; inputKey: string; image: { bytes: ArrayBuffer; mime: string }; jobs: Job[]; each: number; resolution: "1k" | "2k" | "4k"; aspectRatio?: string; batchId?: string }) {
   const u = c.get("user");
   if (!isAdmin(u)) for (const _ of o.jobs) if (!(await allow(c.env, `gen:${u.id}`, 3_600_000, 20))) return { error: "Limit is 20 generations per hour · Tối đa 20 lượt tạo mỗi giờ", status: 429 as const };
   const total = o.each * o.jobs.length;
   const paid = await c.env.DB.prepare("UPDATE users SET credits=credits-? WHERE id=? AND credits>=?").bind(total, u.id, total).run();
   if (!paid.meta.changes) return { error: `This needs ${total} credits · Cần ${total} credit`, status: 402 as const };
-  const batchId = crypto.randomUUID();
+  const batchId = o.batchId ?? crypto.randomUUID(); // a redraw joins the run it came from
   const items = await Promise.all(o.jobs.map(async (job) => {
     const id = crypto.randomUUID();
     const now = Date.now();
@@ -353,7 +353,7 @@ app.post("/api/bizplan/render", requireAuth, async (c) => {
   try {
     jobs = rooms.map((r, i) => ({
       prompt: planRoomPrompt(b.styleSlug, r, home, !!crops[i]), label: r.name, model: PLAN_EDIT, extra: crops[i] ? [crops[i]!.img] : undefined,
-      params: { styleSlug: b.styleSlug, roomType: r.name, engine: "gpt25", room: r, cropKey: crops[i]?.key, autoCheck: b.autoCheck === true ? true : undefined },
+      params: { styleSlug: b.styleSlug, roomType: r.name, engine: "gpt25", room: r, home, cropKey: crops[i]?.key, autoCheck: b.autoCheck === true ? true : undefined },
     }));
   } catch (e: any) { return c.json({ error: e.message }, 400); }
   const plan = await ownImage(c, b.inputKey);
@@ -364,6 +364,68 @@ app.post("/api/bizplan/render", requireAuth, async (c) => {
   });
   if ("error" in r) return c.json({ error: r.error }, r.status);
   return c.json({ batchId: r.batchId, items: r.items.map(({ label, ...x }) => ({ ...x, room: label })) });
+});
+
+// ---------- Business 3D Floorplan: one run (all rooms and their redraws) and redrawing chosen rooms ----------
+async function runRows(c: any, batchId: string): Promise<any[]> {
+  const r = await c.env.DB.prepare(
+    "SELECT id,params,status,error,input_key,output_key,created_at FROM generations WHERE user_id=? AND tool=? AND json_extract(params,'$.batchId')=? ORDER BY created_at",
+  ).bind(c.get("user").id, BIZPLAN_TOOL, batchId).all();
+  return r.results;
+}
+
+app.get("/api/bizplan/run/:batchId", requireAuth, async (c) => {
+  const rows = await runRows(c, c.req.param("batchId"));
+  return c.json({ items: rows.map((g) => ({ id: g.id, params: JSON.parse(g.params), status: g.status, error: g.error, createdAt: g.created_at,
+    inputUrl: g.input_key ? `/api/images/${g.input_key}` : null, outputUrl: g.output_key ? `/api/images/${g.output_key}` : null })) });
+});
+
+/**
+ * Redraws chosen rooms of a run, 1 credit each, as new generations in the same batch (older versions stay). Each redraw reuses the
+ * room's stored plan facts and crop, gets the user's note, and is shown a reference room from the run (the user's pick, else the
+ * living room or the first finished room) plus Gemini's list of that room's finishes, so it matches the rest of the home.
+ */
+app.post("/api/bizplan/redo", requireAuth, async (c) => {
+  const u = c.get("user");
+  const b = await c.req.json<any>().catch(() => ({}));
+  if (!c.env.RUNNINGHUB_API_KEY) return c.json({ error: "Server is missing RUNNINGHUB_API_KEY · Server chưa cấu hình RUNNINGHUB_API_KEY" }, 500);
+  const rows = typeof b.batchId === "string" ? await runRows(c, b.batchId) : [];
+  if (!rows.length) return c.json({ error: "Render run not found · Không tìm thấy lần render" }, 404);
+  const byId = new Map<string, any>(rows.map((g) => [g.id, { ...g, p: JSON.parse(g.params) }]));
+  const asked: { id: string; note: string }[] = (Array.isArray(b.rooms) ? b.rooms : []).slice(0, MAX_PLAN_ROOMS)
+    .map((r: any) => ({ id: String(r?.id ?? ""), note: String(r?.note ?? "").trim().slice(0, 300) })).filter((r: any) => byId.has(r.id));
+  if (!asked.length) return c.json({ error: "Pick the rooms to redraw · Hãy chọn phòng cần vẽ lại" }, 400);
+  const done = (g: any) => g && g.status === "SUCCESS" && g.output_key;
+  const redoing = new Set(asked.map((r) => byId.get(r.id)!.p.roomType));
+  const candidates = [...byId.values()].filter((g) => done(g) && !redoing.has(g.p.roomType));
+  const ref = (typeof b.refId === "string" && done(byId.get(b.refId)) ? byId.get(b.refId) : null)
+    ?? candidates.find((g) => /living|khách/i.test(String(g.p.roomType))) ?? candidates[0] ?? null;
+  const first = rows[0];
+  const plan = await c.env.IMAGES.get(first.input_key);
+  if (!plan) return c.json({ error: "Floor plan image not found · Không tìm thấy ảnh mặt bằng" }, 400);
+  const refImg = ref ? await c.env.IMAGES.get(ref.output_key).then(async (o: any) => o && { bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/png" }) : null;
+  const palette = refImg ? await Promise.race([
+    chatJson(c.env.RUNNINGHUB_API_KEY, { model: CRITIQUE_MODEL, prompt: PALETTE_PROMPT, image: refImg, onUsage: llmCost(c, BIZPLAN_TOOL, null) }).then(cleanPalette, () => null),
+    new Promise<null>((r) => setTimeout(() => r(null), 40_000)),
+  ]) : null;
+  let jobs: Job[];
+  try {
+    jobs = await Promise.all(asked.map(async ({ id, note }) => {
+      const g = byId.get(id)!, p = g.p;
+      const room = p.room ?? { name: String(p.roomType ?? ""), view: "" };
+      const crop = p.cropKey ? await c.env.IMAGES.get(p.cropKey).then(async (o: any) => o && { bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" }) : null;
+      const extra = [...(crop ? [crop] : []), ...(refImg ? [refImg] : [])];
+      const prompt = `${planRoomPrompt(p.styleSlug, room, String(p.home ?? ""), !!crop)} ${roomRedoLines({ room: `${p.roomType ?? ""} ${room.name}`, refIndex: refImg ? extra.length + 1 : undefined, palette, note })}`.trim();
+      return { prompt, label: String(p.roomType ?? room.name), model: PLAN_EDIT, extra,
+        params: { styleSlug: p.styleSlug, roomType: p.roomType, engine: "gpt25", room, home: p.home, cropKey: p.cropKey, redoOf: id, refId: ref?.id, note: note || undefined, autoCheck: b.autoCheck === true ? true : undefined } };
+    }));
+  } catch (e: any) { return c.json({ error: e.message }, 400); }
+  const r = await runBatch(c, {
+    tool: BIZPLAN_TOOL, inputKey: first.input_key, image: { bytes: await plan.arrayBuffer(), mime: plan.httpMetadata?.contentType ?? "image/jpeg" },
+    jobs, each: isAdmin(u) ? 0 : 1, resolution: "1k", aspectRatio: first.params ? JSON.parse(first.params).aspectRatio ?? "4:3" : "4:3", batchId: b.batchId,
+  });
+  if ("error" in r) return c.json({ error: r.error }, r.status);
+  return c.json({ batchId: r.batchId, refId: ref?.id ?? null, items: r.items.map(({ label, ...x }) => ({ ...x, room: label })) });
 });
 
 // Material comparison: the same photo with 2–MAX_COMPARE materials on one surface, one generation each.

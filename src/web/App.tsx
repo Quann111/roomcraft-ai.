@@ -1,5 +1,6 @@
 import { Figure } from "./Figure";
 import { AiThinking } from "./AiThinking";
+import { PlanRun } from "./PlanRun";
 import { DownloadLink } from "./SaveToPhotos";
 import { ARCH } from "./icons";
 import { scenefor } from "./iso";
@@ -551,13 +552,13 @@ function LatestDesigns({ tool, refresh, styles: given, onDeleted }: { tool: stri
                   {!h.outputUrl && <AiThinking tile kind={isVideo(h) ? "video" : "image"} />}
                   {isChat(h) && !h.inputUrl && <Icon n="headset" />}
                   {isVideo(h) && <span style={{ width: 44, height: 44, borderRadius: 999, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.55)", color: "#fff", fontSize: 18 }}>▶</span>}
-                  {h.rooms && <span style={{ position: "absolute", right: 6, bottom: 6, padding: "2px 7px", borderRadius: 99, color: "#fff", background: "rgba(0,0,0,0.6)", fontSize: 10, fontWeight: 700 }}>{t(`${h.rooms.length} rooms`, `${h.rooms.length} phòng`)}</span>}
+                  {h.rooms && (() => { const n = new Set(h.rooms.map((r) => r.params?.roomType ?? r.id)).size; return <span style={{ position: "absolute", right: 6, bottom: 6, padding: "2px 7px", borderRadius: 99, color: "#fff", background: "rgba(0,0,0,0.6)", fontSize: 10, fontWeight: 700 }}>{t(`${n} rooms`, `${n} phòng`)}</span>; })()}
                 </div>
                 <div className="latest-body">
                   <div className="latest-meta">
                     <span><strong>{t("Tool", "Công cụ")}:</strong> {toolLabel(String(h.tool))}</span>
                     {h.params?.styleSlug && <span><strong>{t("Style", "Phong cách")}:</strong> {styleName(styles, h.params.styleSlug)}</span>}
-                    {h.rooms ? <span><strong>{t("Rooms", "Phòng")}:</strong> {h.rooms.map((r) => r.params?.roomType).filter(Boolean).map((x) => bi(x)).join(", ")}</span>
+                    {h.rooms ? <span><strong>{t("Rooms", "Phòng")}:</strong> {[...new Set(h.rooms.map((r) => r.params?.roomType).filter(Boolean))].map((x) => bi(x)).join(", ")}</span>
                       : h.params?.roomType && <span><strong>{t("Room", "Phòng")}:</strong> {bi(h.params.roomType)}</span>}
                     <span><strong>{t("Made", "Tạo lúc")}:</strong> {when(h.createdAt)}</span>
                   </div>
@@ -582,24 +583,8 @@ function LatestDesigns({ tool, refresh, styles: given, onDeleted }: { tool: stri
             <button className="close" onClick={() => setOpen(null)} aria-label={t("Close", "Đóng")}>×</button>
             {open.rooms ? <>
               <h3 style={{ marginTop: 0 }}>{bi("Business 3D Floorplan")} · {when(open.createdAt)}{open.params?.styleSlug ? ` · ${styleName(styles, open.params.styleSlug)}` : ""}</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 220px), 1fr))", gap: 10 }}>
-                {open.inputUrl && <figure style={{ margin: 0, minWidth: 0, border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden" }}>
-                  <a href={open.inputUrl} target="_blank" rel="noreferrer"><img src={open.inputUrl} alt={t("Floor plan", "Mặt bằng")} style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "contain", background: "#f4f1ea" }} /></a>
-                  <figcaption style={{ padding: "6px 8px", fontSize: 12 }}><b>{t("Floor plan", "Mặt bằng")}</b></figcaption>
-                </figure>}
-                {open.rooms.map((r: Hist) => (
-                  <figure key={r.id} style={{ margin: 0, minWidth: 0, border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden" }}>
-                    <div style={{ aspectRatio: "4 / 3", display: "grid", placeItems: "center", background: "#f4f1ea" }}>
-                      {r.outputUrl ? <a href={r.outputUrl} target="_blank" rel="noreferrer" style={{ display: "block", width: "100%", height: "100%" }}><img src={r.outputUrl} alt={r.params?.roomType ?? ""} loading="lazy" style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }} /></a>
-                        : r.status === "FAILED" ? <span className="helper">{t("Failed", "Lỗi")}</span> : <AiThinking tile />}
-                    </div>
-                    <figcaption style={{ display: "flex", justifyContent: "space-between", gap: 6, padding: "6px 8px", fontSize: 12 }}>
-                      <b style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.params?.roomType && bi(r.params.roomType)}</b>
-                      {r.outputUrl && <span style={{ display: "flex", gap: 8, flex: "0 0 auto" }}><DownloadLink url={r.outputUrl} name={resultFile(r.id, r.outputUrl)} style={{ padding: 0, border: 0, background: "none", color: "inherit", font: "inherit", textDecoration: "underline" }} phone={t("Save to Photos", "Lưu vào Ảnh")}>{t("Download", "Tải xuống")}</DownloadLink></span>}
-                    </figcaption>
-                  </figure>
-                ))}
-              </div>
+              {open.inputUrl && <a href={open.inputUrl} target="_blank" rel="noreferrer" style={{ display: "block", marginBottom: 12 }}><img src={open.inputUrl} alt={t("Floor plan", "Mặt bằng")} style={{ display: "block", width: "100%", maxHeight: 220, objectFit: "contain", background: "#f4f1ea", borderRadius: 8 }} /></a>}
+              {open.params?.batchId ? <PlanRun batchId={open.params.batchId} onChange={() => reload()} /> : <p className="helper">{t("This run has no room list.", "Lần render này không có danh sách phòng.")}</p>}
             </>
               : open.chat ? <><h3 style={{ marginTop: 0 }}>{t("Design Advisor", "Tư vấn thiết kế")}</h3>{open.inputUrl && <img src={open.inputUrl} alt="" style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 10, marginBottom: 12 }} />}<Transcript turns={open.chat} /></>
               : open.orient ? <OrientView photo={open.inputUrl} o={open.orient} id={open.id} params={open.params ?? {}} Compare={BeforeAfter} />
