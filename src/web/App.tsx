@@ -613,6 +613,13 @@ export function App() {
   const visible = TOOLS.filter((x) => (filter === "all" || x.cat === filter) && (!q || `${x.name} ${bi(x.name)}`.toLowerCase().includes(q.toLowerCase())));
   const open = (name: string) => navigate(`/app?m=${encodeURIComponent(name)}`);
   const home = () => navigate("/app");
+  // A filter tab jumps past the spotlight banner to the tool grid it filters.
+  const pickFilter = (k: string) => {
+    setFilter(k);
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // The grid's heading sits where it is whatever the filter shows, so there is no need to wait for the re-render.
+    document.getElementById("tools")?.scrollIntoView({ behavior: reduce ? "instant" : "smooth", block: "start" });
+  };
   const scrollTools = () => { if (active) home(); setTimeout(() => document.getElementById("tools")?.scrollIntoView({ behavior: "smooth" }), 60); };
 
   if (!loaded || !me) return <div className="sxapp" style={{ display: "grid", placeItems: "center" }}><p>…</p></div>;
@@ -654,7 +661,7 @@ export function App() {
             </section>
 
             <div className="chips" role="tablist">
-              {FILTERS.map(([k, en, vi]) => <button key={k} className={`chip ${filter === k ? "active" : ""}`} onClick={() => setFilter(k)}>{t(en, vi)}</button>)}
+              {FILTERS.map(([k, en, vi]) => <button key={k} className={`chip ${filter === k ? "active" : ""}`} onClick={() => pickFilter(k)}>{t(en, vi)}</button>)}
             </div>
 
             <section className="spotlight">
