@@ -17,7 +17,7 @@ export type Critique = {
 };
 export type Finder = { items: { name: string; category: string; description: string; query: string; localQuery: string; priceRange: string; box?: [number, number, number, number] }[] };
 type Gen = { id: string; status: string; error?: string; public?: boolean; inputUrl: string | null; outputUrl: string | null; critique?: Critique; finder?: Finder; orient?: Orient; params?: any };
-export type Preset = Partial<{ styleSlug: string; roomType: string; intervention: string; surface: string; material: string; weather: string; remove: string[]; angle: string; view: string; color: string; finish: string; description: string }>;
+export type Preset = Partial<{ styleSlug: string; roomType: string; intervention: string; surface: string; material: string; changes: Record<string, string>; weather: string; remove: string[]; angle: string; view: string; color: string; finish: string; description: string }>;
 
 export type ToolId =
   | "interior-redesign" | "interior-staging" | "interior-declutter" | "interior-sketch" | "interior-material"
@@ -382,7 +382,8 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     }, 4000);
   };
 
-  const run = async () => {
+  /** `o` overrides the tool and adds fields (Material Swap sends several surfaces at once this way); undefined fields drop out. */
+  const run = async (o?: { tool?: ToolId; body?: Record<string, unknown> }) => {
     if (!meta || !ready) return;
     setBusy(true); setErr(""); setGen(null);
     try {
@@ -399,7 +400,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
       const g = await j<{ id: string }>("/api/generate", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tool, inputKey: key, custom, resolution: res,
+          tool: o?.tool ?? tool, inputKey: key, custom, resolution: res,
           ...(cfg.scope && style ? { styleSlug: style } : {}),
           ...(cfg.text ? { description, aspectRatio: aspect } : prep ? { aspectRatio: prep.aspectRatio } : {}),
           ...(cfg.room && room ? { roomType: room } : {}),
@@ -417,6 +418,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
           ...(cfg.video ? { motion } : {}),
           ...(cfg.lighting ? { lighting } : {}),
           ...(cfg.orient ? { kind, facing, city } : {}),
+          ...(o?.body ?? {}),
         }),
       });
       onCreditsChange();
@@ -516,7 +518,7 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
           {Object.entries(RES_COST).map(([k, c]) => <option key={k} value={k}>{k.toUpperCase()} · {c} credit{c > 1 ? "s" : ""}</option>)}
         </select>}
         {err && <p className="text-sm text-red-600">{bi(err)}</p>}
-        <button disabled={!ready || busy} onClick={run} className="rounded bg-black py-3 text-white disabled:opacity-40">{busy ? bi("Generating… (1–2 min) · Đang tạo…") : preparing ? bi("Optimizing image… · Đang tối ưu ảnh…") : bi("Generate · Tạo thiết kế")}</button>
+        <button disabled={!ready || busy} onClick={() => run()} className="rounded bg-black py-3 text-white disabled:opacity-40">{busy ? bi("Generating… (1–2 min) · Đang tạo…") : preparing ? bi("Optimizing image… · Đang tối ưu ảnh…") : bi("Generate · Tạo thiết kế")}</button>
       </div>
       <div>
         {gen?.status === "SUCCESS" && gen.orient ? (

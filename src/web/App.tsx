@@ -128,6 +128,9 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
   // Material comparison (surface tools only): several materials on the same photo, side by side.
   const canCompare = !!(g.cfg.surface || g.cfg.floor);
   const [compare, setCompare] = useState(false);
+  // Material Swap: the material picked per surface; one pick runs that surface's engine, several run as one combined edit.
+  const [picks, setPicks] = useState<Record<string, string>>(() => preset?.changes ?? (preset?.surface && preset.material ? { [preset.surface]: preset.material } : {}));
+  const togglePickFor = (s: string, m: string) => setPicks((p) => { const n = { ...p }; if (n[s] === m) delete n[s]; else n[s] = m; return n; });
   const [picked, setPicked] = useState<string[]>([]);
   const cmp = useCompare(onCredits);
   useEffect(() => { setPicked([]); cmp.reset(); }, [g.surface, tool]);
@@ -185,9 +188,48 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
     <><h4>{t("Surface", "Bề mặt")}</h4>
       <div className="segmented">{Object.keys(meta.surfaces).map((s) => {
         const on = s === "floor" ? tool === "interior-floor" : tool === "interior-material" && s === g.surface;
-        return <button key={s} type="button" className={on ? "active" : ""} onClick={() => { if (s === "floor") setTool("interior-floor"); else { setTool("interior-material"); g.setSurface(s); } }}>{bi(s)}</button>;
-      })}</div></>
+        return <button key={s} type="button" className={on ? "active" : ""} onClick={() => { if (s === "floor") setTool("interior-floor"); else { setTool("interior-material"); g.setSurface(s); } }}>{bi(s)}{picks[s] ? " ✓" : ""}</button>;
+      })}</div>
+      {!comparing && Object.keys(picks).length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginTop: 8, fontSize: 12 }}>
+          <span style={{ color: "var(--stone)" }}>{t("Will change:", "Sẽ đổi:")}</span>
+          {Object.entries(picks).map(([s, m]) => (
+            <span key={s} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 4px 3px 8px", border: "1px solid var(--line)", borderRadius: 99, background: "var(--white)" }}>
+              <b>{bi(s)}</b> · {bi(m)}
+              <button type="button" aria-label={t("Remove", "Bỏ")} onClick={() => togglePickFor(s, m)} style={{ border: 0, background: "none", cursor: "pointer", padding: "0 4px", color: "var(--stone)" }}>×</button>
+            </span>
+          ))}
+        </div>
+      )}</>
   );
+  // Swatch grid for one surface (images in public/materials/<surface>/<slug>.jpg); picking toggles that surface's material.
+  const slug = (m: string) => m.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const swatches = (s: string) => (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))", gap: 8 }}>
+      {meta.surfaces[s].map((m) => {
+        const on = picks[s] === m;
+        return (
+          <button key={m} type="button" title={bi(m)} aria-pressed={on} onClick={() => togglePickFor(s, m)}
+            style={{ display: "block", minWidth: 0, padding: 0, borderRadius: 8, overflow: "hidden", background: "#fff", cursor: "pointer", textAlign: "left", border: "1px solid #e2ded6", outline: on ? "2px solid #1c1b19" : "none", outlineOffset: -1 }}>
+            <img src={`/materials/${s}/${slug(m)}.jpg`} alt="" loading="lazy" style={{ display: "block", width: "100%", aspectRatio: "1", objectFit: "cover" }} />
+            <span style={{ display: "block", padding: "4px", fontSize: 10, lineHeight: 1.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{bi(m)}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+  const pickedTile = !!picks.floor && !!meta.floorTiles?.some((x) => x.name === picks.floor);
+  // One pick runs that surface's own engine (floor -> Floor Editor with its tiles); several go to interior-material as one edit.
+  const runPicks = () => {
+    const e = Object.entries(picks);
+    if (!e.length) return;
+    const check = pickedTile && g.autoCheck ? { autoCheck: true } : { autoCheck: undefined };
+    if (e.length === 1) {
+      const [s, m] = e[0];
+      return g.run(s === "floor" ? { tool: "interior-floor", body: { surface: "floor", material: m, ...check } } : { tool: "interior-material", body: { surface: s, material: m, autoCheck: undefined } });
+    }
+    return g.run({ tool: "interior-material", body: { changes: picks, surface: undefined, material: undefined, ...check } });
+  };
   const list = <T,>(arr: T[], k: "room" | "style") => (showAll[k] ? arr : arr.slice(0, 8));
   const choice = (label: string, i: number, active: boolean, onClick: () => void, thumb?: string) => (
     <div key={label + i} className="choice-wrap">
@@ -254,6 +296,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
             ) : g.gen?.status === "SUCCESS" && g.gen.outputUrl ? (
               <>
                 <BeforeAfter before={g.gen.inputUrl} after={g.gen.outputUrl} />
+                {(g.gen as any).params?.skipped?.includes("floor") && <p className="helper" style={{ marginTop: 8 }}>{t("The floor was not changed: no bare floor is visible in this photo. The other surfaces were changed.", "Sàn không đổi vì ảnh không thấy rõ mặt sàn; các bề mặt khác đã được đổi.")}</p>}
                 {(() => {
                   const qa = (g.gen as any).params?.qa;
                   if (!qa) return null;
@@ -394,14 +437,14 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                     <div className="segmented">{Object.keys(meta.surfaces).map((s) => <button key={s} type="button" className={s === g.surface ? "active" : ""} onClick={() => g.setSurface(s)}>{bi(s)}</button>)}</div></>}
                     <h4>{comparing ? t("Materials to compare", "Vật liệu cần so sánh") : t("Material", "Vật liệu")}</h4>
                     {modeSwitch}
-                    {comparing ? pickGrid(meta.surfaces[g.surface]) : <select className="country" value={g.material} onChange={(e) => g.setMaterial(e.target.value)}>{meta.surfaces[g.surface].map((m) => <option key={m} value={m}>{bi(m)}</option>)}</select>}</>
+                    {comparing ? pickGrid(meta.surfaces[g.surface]) : merged ? swatches(g.surface) : <select className="country" value={g.material} onChange={(e) => g.setMaterial(e.target.value)}>{meta.surfaces[g.surface].map((m) => <option key={m} value={m}>{bi(m)}</option>)}</select>}</>
                 )}
                 {cfg.floor && (
                   <>{merged && surfaceTabs}<h4>{comparing ? t("Floors to compare", "Các loại sàn cần so sánh") : t("Flooring material", "Vật liệu sàn")}</h4>
                     {modeSwitch}
-                    {comparing ? pickGrid(meta.surfaces.floor) : <div className="segmented">{meta.surfaces.floor.map((m) => <button key={m} type="button" className={m === g.material ? "active" : ""} onClick={() => g.setMaterial(m)}>{bi(m)}</button>)}</div>}
-                    {comparing ? tileGrid((n) => picked.includes(n), togglePick) : tileGrid((n) => n === g.material, g.setMaterial)}
-                    {(comparing ? picked : [g.material]).some((n) => meta.floorTiles?.some((x) => x.name === n)) && (
+                    {comparing ? pickGrid(meta.surfaces.floor) : merged ? swatches("floor") : <div className="segmented">{meta.surfaces.floor.map((m) => <button key={m} type="button" className={m === g.material ? "active" : ""} onClick={() => g.setMaterial(m)}>{bi(m)}</button>)}</div>}
+                    {comparing ? tileGrid((n) => picked.includes(n), togglePick) : merged ? tileGrid((n) => picks.floor === n, (n) => togglePickFor("floor", n)) : tileGrid((n) => n === g.material, g.setMaterial)}
+                    {(comparing ? picked.some((n) => meta.floorTiles?.some((x) => x.name === n)) : merged ? pickedTile : meta.floorTiles?.some((x) => x.name === g.material)) && (
                       <label className="switch" style={{ display: "flex", marginTop: 10, alignItems: "flex-start", gap: 8 }}>
                         <input type="checkbox" checked={g.autoCheck} onChange={(e) => g.setAutoCheck(e.target.checked)} />
                         <span>{t("Auto-check the result: if a rug, person or object was lost, redo it once (no extra credit, about 15–60 s slower)", "Tự kiểm tra kết quả: nếu mất thảm, người hoặc đồ vật thì tự tạo lại 1 lần (không tốn thêm credit, chậm hơn khoảng 15–60 giây)")}</span>
@@ -451,7 +494,11 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
               <button className="generate-btn" disabled={!g.file || g.preparing > 0 || picked.length < 2 || cmp.busy} onClick={runCompare} style={!g.file || picked.length < 2 || cmp.busy ? { opacity: 0.5 } : undefined}>
                 <Icon n="spark" />{cmp.busy ? t("Rendering the comparison…", "Đang render so sánh…") : !g.file ? t("Upload an image first", "Hãy tải ảnh lên trước") : picked.length < 2 ? t("Pick at least 2 materials", "Hãy chọn ít nhất 2 vật liệu") : t(`Compare ${picked.length} materials · ${picked.length * cost} credits`, `So sánh ${picked.length} vật liệu · ${picked.length * cost} credit`)}
               </button>
-            </> : <button className="generate-btn" disabled={!g.ready || g.busy} onClick={g.run} style={!g.ready || g.busy ? { opacity: 0.5 } : undefined}>
+            </> : merged ? (
+              <button className="generate-btn" disabled={!g.ready || g.busy || !Object.keys(picks).length} onClick={runPicks} style={!g.ready || g.busy || !Object.keys(picks).length ? { opacity: 0.5 } : undefined}>
+                <Icon n="spark" />{g.busy ? t("Generating… (1–2 min)", "Đang tạo… (1–2 phút)") : g.preparing ? t("Optimizing image…", "Đang tối ưu ảnh…") : !g.file ? t("Upload an image first", "Hãy tải ảnh lên trước") : !Object.keys(picks).length ? t("Pick a material for at least one surface", "Hãy chọn vật liệu cho ít nhất một bề mặt") : Object.keys(picks).length > 1 ? t(`Change ${Object.keys(picks).length} surfaces in one image`, `Đổi ${Object.keys(picks).length} bề mặt trong một ảnh`) : t("Generate New Designs", "Tạo thiết kế mới")}
+              </button>
+            ) : <button className="generate-btn" disabled={!g.ready || g.busy} onClick={() => g.run()} style={!g.ready || g.busy ? { opacity: 0.5 } : undefined}>
               <Icon n="spark" />{g.busy ? t("Generating… (1–2 min)", "Đang tạo… (1–2 phút)") : g.preparing ? t("Optimizing image…", "Đang tối ưu ảnh…") : g.ready ? t("Generate New Designs", "Tạo thiết kế mới") : cfg.text ? t("Describe your space first", "Hãy mô tả không gian trước") : !g.file ? t("Upload an image first", "Hãy tải ảnh lên trước") : cfg.items && !g.items.length ? t("Add an item photo", "Hãy thêm ảnh đồ vật") : cfg.orient ? t("Pick the direction and the city", "Hãy chọn hướng và thành phố") : t("Add a style reference", "Hãy thêm ảnh tham khảo")}
             </button>}
           </div>
