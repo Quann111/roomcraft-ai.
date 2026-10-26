@@ -354,8 +354,9 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
   };
   const pick = (f?: File) => {
     if (!f) return;
-    // Floor Editor: VICOSTONE tiles run on a model that returns an exact supported frame, so the photo must already be in one.
-    prepare(f, (p) => { setFile(p.file); setPrep(p); setPreview(URL.createObjectURL(p.file)); }, !!cfg.floor);
+    // Floors (VICOSTONE tiles) run on a model that returns an exact supported frame, so the photo must already be in one; Material
+    // Swap's other surfaces share the card and the uploaded photo, so they get the same exact-ratio crop.
+    prepare(f, (p) => { setFile(p.file); setPrep(p); setPreview(URL.createObjectURL(p.file)); }, !!cfg.floor || !!cfg.surface);
   };
 
   const pickRef = (f?: File) => {

@@ -52,19 +52,14 @@ export const GUIDES: Record<string, Guide> = {
     tips: [["Generate several materials on the same photo to compare them side by side.", "Tạo nhiều vật liệu trên cùng một ảnh để so sánh cạnh nhau."]], credits: ONE_CREDIT, example: "material",
   },
   "Material Swap": {
-    what: ["Try a new floor, wall finish, countertop, cabinet or ceiling material on your own photo.", "Thử vật liệu sàn, tường, mặt bếp, tủ hoặc trần mới ngay trên ảnh của bạn."],
-    steps: [["Upload a photo of the room.", "Tải ảnh căn phòng lên."], ["Pick the surface, then the material.", "Chọn bề mặt rồi chọn vật liệu."], ["Press Generate.", "Bấm Tạo thiết kế."]],
-    tips: [["Make sure the surface you want to change is clearly visible.", "Đảm bảo bề mặt cần đổi hiện rõ trong ảnh."]], credits: ONE_CREDIT, example: "material",
+    what: ["Try a new floor (including VICOSTONE tiles), wall finish, countertop, cabinet or ceiling material on your own photo.", "Thử vật liệu sàn (kể cả gạch VICOSTONE), tường, mặt bếp, tủ hoặc trần mới ngay trên ảnh của bạn."],
+    steps: [["Upload a photo of the room.", "Tải ảnh căn phòng lên."], ["Pick the surface, then the material or a VICOSTONE tile.", "Chọn bề mặt rồi chọn vật liệu hoặc một mẫu gạch VICOSTONE."], ["Press Generate; furniture and rugs stay.", "Bấm Tạo thiết kế; nội thất và thảm giữ nguyên."]],
+    tips: [["Make sure the surface you want to change is clearly visible.", "Đảm bảo bề mặt cần đổi hiện rõ trong ảnh."], ["VICOSTONE tiles are laid as 120 × 120 cm polished slabs from the real swatch.", "Gạch VICOSTONE được lát khổ 120 × 120 cm, bóng kiếng, theo đúng ảnh mẫu gạch."], ["For floor photos with rugs or people, tick “Auto-check the result” so a lost rug or person is redone once at no extra credit.", "Ảnh sàn có thảm hoặc người thì bật “Tự kiểm tra kết quả” để AI tự tạo lại 1 lần nếu lỡ mất thảm hoặc người, không tốn thêm credit."]], credits: ONE_CREDIT, example: "material",
   },
   "Paint Visualizer": {
     what: ["Preview a new wall color before buying paint, inside or outside.", "Xem trước màu tường mới trước khi mua sơn, cả trong nhà lẫn ngoài nhà."],
     steps: [["Choose interior or exterior, then upload a photo.", "Chọn nội thất hoặc ngoại thất rồi tải ảnh lên."], ["Pick a preset color or enter your own color code, and a finish.", "Chọn màu có sẵn hoặc nhập mã màu riêng, và độ bóng."], ["Press Generate.", "Bấm Tạo thiết kế."]],
     tips: [["Daylight photos show the truest color.", "Ảnh chụp ban ngày cho màu sơn chính xác nhất."]], credits: ONE_CREDIT, example: "paint",
-  },
-  "Floor Editor": {
-    what: ["Replace the flooring in your photo to see how a new floor would look.", "Thay sàn trong ảnh để xem sàn mới trông thế nào."],
-    steps: [["Upload a photo where the floor is visible.", "Tải ảnh thấy rõ mặt sàn lên."], ["Pick a flooring material or a VICOSTONE tile.", "Chọn vật liệu sàn hoặc một mẫu gạch VICOSTONE."], ["Press Generate; furniture and rugs stay.", "Bấm Tạo thiết kế; nội thất và thảm giữ nguyên."]],
-    tips: [["Try oak, herringbone and stone on the same photo to compare.", "Thử gỗ sồi, xương cá và đá trên cùng một ảnh để so sánh."], ["VICOSTONE tiles are laid as 120 × 120 cm polished slabs from the real swatch.", "Gạch VICOSTONE được lát khổ 120 × 120 cm, bóng kiếng, theo đúng ảnh mẫu gạch."], ["For photos with rugs or people, tick “Auto-check the result” so a lost rug or person is redone once at no extra credit.", "Ảnh có thảm hoặc người thì bật “Tự kiểm tra kết quả” để AI tự tạo lại 1 lần nếu lỡ mất thảm hoặc người, không tốn thêm credit."]], credits: ONE_CREDIT, example: "floor",
   },
   "Furniture Removal": {
     what: ["Remove furniture, clutter or people, or empty the whole room.", "Xoá đồ đạc, đồ lộn xộn, người trong ảnh, hoặc dọn trống cả phòng."],

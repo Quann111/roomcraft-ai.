@@ -85,9 +85,8 @@ const TOOLS: ToolDef[] = [
   { name: "Colors & Textures", desc: "Customize colors and textures on design elements using presets or your own choices.", cat: "furnish", photo: "photo-1770970831074-6e88b6cc260b", icon: "swatch" },
   { name: "Furniture Removal", desc: "Effortlessly remove furniture to create a clean slate for new design ideas.", cat: "furnish", photo: "photo-1779119507174-377fd3d44785", icon: "remove", spaces: ["interior-declutter"] },
   { name: "Sky Colors", desc: "Adjust the sky's color and weather in your images for the perfect atmosphere.", cat: "redesign", photo: "photo-1544984243-ec57ea16fe25", icon: "sky", spaces: ["exterior-sky"] },
-  { name: "Material Swap", desc: "Replace materials on surfaces to explore different textures and finishes.", cat: "furnish", photo: "photo-1749212387838-c4c4e6e58348", icon: "material", spaces: ["interior-material"] },
+  { name: "Material Swap", desc: "Replace the floor, walls, countertops, cabinets or ceiling, including VICOSTONE floor tiles, to explore different textures and finishes.", cat: "furnish", photo: "photo-1749212387838-c4c4e6e58348", icon: "material", spaces: ["interior-floor", "interior-material"] },
   { name: "Paint Visualizer", desc: "Change wall colors using presets or custom colors for interiors and exteriors.", cat: "furnish", photo: "photo-1562259949-e8e7689d7828", icon: "roller", spaces: ["interior-paint", "exterior-paint"] },
-  { name: "Floor Editor", desc: "Replace the flooring in any image with custom materials to see how the new floor would look.", cat: "3d", photo: "photo-1761053130711-2515ef532bb5", icon: "floor", spaces: ["interior-floor"] },
   { name: "Furniture Finder", desc: "Identify and get purchase links for furniture in images and generated designs.", cat: "furnish", photo: "photo-1580480055273-228ff5388ef8", icon: "finder", spaces: ["interior-finder"] },
   { name: "Room Composer", desc: "Upload your room and elements, and our AI will compose it into a stylish, cohesive space.", cat: "furnish", photo: "photo-1674058924341-a79eed7e9a89", icon: "composer", spaces: ["interior-compose"] },
   { name: "Design Transfer", desc: "Recreate the style of inspiration images by applying their design style to a new space.", cat: "redesign", photo: "photo-1615529182904-14819c35db37", icon: "transfer", spaces: ["interior-transfer"] },
@@ -107,7 +106,7 @@ const SPACE_META: Record<string, { label: [string, string]; icon: string }> = {
 };
 const spaceOf = (id: ToolId) => (id.startsWith("interior") ? "interior" : id.startsWith("exterior") ? "exterior" : "garden");
 /** Tools folded into another one; old links and bookmarks open the tool that replaced them. */
-const MERGED: Record<string, string> = { "Beautiful Redesign": "Perfect Redesign" };
+const MERGED: Record<string, string> = { "Beautiful Redesign": "Perfect Redesign", "Floor Editor": "Material Swap" };
 const toolByName = (n: string) => TOOLS.find((x) => x.name === (MERGED[n] ?? n));
 const KIND: Record<string, string> = { redesign: "Redesign", staging: "Virtual Staging", declutter: "Declutter", material: "Material Swap", sketch: "Sketch to Render", sky: "Sky & Weather Swap" };
 const toolLabel = (id: string) => { const [sp, k] = id.split("-"); return `${bi(sp === "interior" ? "Interiors" : sp === "exterior" ? "Exteriors" : "Gardens")} · ${bi(KIND[k] ?? toolForId(id as ToolId)?.name ?? k)}`; };
@@ -118,7 +117,12 @@ const FILTERS: [string, string, string][] = [["all", "All tools", "Tất cả"],
 /* ---------- Workspace (real generation) ---------- */
 function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDef; initialTool?: ToolId; preset?: Preset; onCredits: () => void }) {
   const spaces = def.spaces!;
-  const [tool, setTool] = useState<ToolId>(initialTool && spaces.includes(initialTool) ? initialTool : spaces[0]);
+  // Material Swap runs floors on the Floor Editor engine; an older "floor" preset of interior-material opens there too.
+  const start = initialTool === "interior-material" && preset?.surface === "floor" && spaces.includes("interior-floor") ? "interior-floor" : initialTool;
+  const [tool, setTool] = useState<ToolId>(start && spaces.includes(start) ? start : spaces[0]);
+  // The interior/exterior/garden switcher only makes sense when the card's tools are for different kinds of space.
+  const spaceSwitch = new Set(spaces.map(spaceOf)).size > 1;
+
   const g = useGenerator(tool, preset, onCredits);
   // Material comparison (surface tools only): several materials on the same photo, side by side.
   const canCompare = !!(g.cfg.surface || g.cfg.floor);
@@ -174,6 +178,15 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
   };
 
   if (!meta) return <p className="helper" style={{ padding: 40 }}>{bi("Loading… · Đang tải…")}</p>;
+  // Merged Material Swap card: one row of surfaces; "floor" switches to the floor engine, the rest to interior-material.
+  const merged = spaces.includes("interior-floor") && spaces.includes("interior-material");
+  const surfaceTabs = (
+    <><h4>{t("Surface", "Bề mặt")}</h4>
+      <div className="segmented">{Object.keys(meta.surfaces).map((s) => {
+        const on = s === "floor" ? tool === "interior-floor" : tool === "interior-material" && s === g.surface;
+        return <button key={s} type="button" className={on ? "active" : ""} onClick={() => { if (s === "floor") setTool("interior-floor"); else { setTool("interior-material"); g.setSurface(s); } }}>{bi(s)}</button>;
+      })}</div></>
+  );
   const list = <T,>(arr: T[], k: "room" | "style") => (showAll[k] ? arr : arr.slice(0, 8));
   const choice = (label: string, i: number, active: boolean, onClick: () => void, thumb?: string) => (
     <div key={label + i} className="choice-wrap">
@@ -264,7 +277,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
 
         <div className="module-right">
           <div className="control-panel">
-            {spaces.length > 1 && (
+            {spaceSwitch && (
               <>
                 <h3>{t("Select what kind of space you are generating", "Chọn loại không gian bạn muốn thiết kế")}</h3>
                 <div className="space-choices">
@@ -376,14 +389,14 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                     ))}</>
                 )}
                 {cfg.surface && (
-                  <><h4>{t("Surface", "Bề mặt")}</h4>
-                    <div className="segmented">{Object.keys(meta.surfaces).map((s) => <button key={s} type="button" className={s === g.surface ? "active" : ""} onClick={() => g.setSurface(s)}>{bi(s)}</button>)}</div>
+                  <>{merged ? surfaceTabs : <><h4>{t("Surface", "Bề mặt")}</h4>
+                    <div className="segmented">{Object.keys(meta.surfaces).map((s) => <button key={s} type="button" className={s === g.surface ? "active" : ""} onClick={() => g.setSurface(s)}>{bi(s)}</button>)}</div></>}
                     <h4>{comparing ? t("Materials to compare", "Vật liệu cần so sánh") : t("Material", "Vật liệu")}</h4>
                     {modeSwitch}
                     {comparing ? pickGrid(meta.surfaces[g.surface]) : <select className="country" value={g.material} onChange={(e) => g.setMaterial(e.target.value)}>{meta.surfaces[g.surface].map((m) => <option key={m} value={m}>{bi(m)}</option>)}</select>}</>
                 )}
                 {cfg.floor && (
-                  <><h4>{comparing ? t("Floors to compare", "Các loại sàn cần so sánh") : t("Flooring material", "Vật liệu sàn")}</h4>
+                  <>{merged && surfaceTabs}<h4>{comparing ? t("Floors to compare", "Các loại sàn cần so sánh") : t("Flooring material", "Vật liệu sàn")}</h4>
                     {modeSwitch}
                     {comparing ? pickGrid(meta.surfaces.floor) : <div className="segmented">{meta.surfaces.floor.map((m) => <button key={m} type="button" className={m === g.material ? "active" : ""} onClick={() => g.setMaterial(m)}>{bi(m)}</button>)}</div>}
                     {comparing ? tileGrid((n) => picked.includes(n), togglePick) : tileGrid((n) => n === g.material, g.setMaterial)}
