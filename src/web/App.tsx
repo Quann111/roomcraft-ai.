@@ -470,10 +470,12 @@ type Card = Hist & { rooms?: Hist[] };
 const LATEST_PAGE = 24;
 const BIZPLAN = "interior-bizplan";
 
+/** Still being made, recently enough that the server will finish it (it settles jobs for 20 minutes, even with the page closed). */
+const pending = (h: Hist) => (h.status === "RUNNING" || h.status === "QUEUED") && Date.now() - h.createdAt < 20 * 60_000;
 function toCards(items: Hist[]): Card[] {
   const out: Card[] = [], runs = new Map<string, Card>();
   for (const h of items) {
-    if (h.tool !== BIZPLAN) { if (h.outputUrl) out.push(h); continue; }
+    if (h.tool !== BIZPLAN) { if (h.outputUrl || pending(h)) out.push(h); continue; }
     if (h.status === "FAILED") continue;
     const key = h.params?.batchId ?? h.id;
     const run = runs.get(key);
@@ -481,8 +483,8 @@ function toCards(items: Hist[]): Card[] {
     const card: Card = { ...h, rooms: [h] };
     runs.set(key, card); out.push(card);
   }
-  // A run shows once at least one room is rendered; its picture is the first finished room.
-  return out.filter((c) => !c.rooms || c.rooms.some((r) => r.outputUrl)).map((c) => (c.rooms ? { ...c, outputUrl: c.rooms.find((r) => r.outputUrl)!.outputUrl } : c));
+  // A run shows while a room is still rendering or once one is done; its picture is the first finished room.
+  return out.filter((c) => !c.rooms || c.rooms.some((r) => r.outputUrl || pending(r))).map((c) => (c.rooms ? { ...c, outputUrl: c.rooms.find((r) => r.outputUrl)?.outputUrl ?? null } : c));
 }
 
 /** `tool`: the page's tool, for the "this tool" filter. `refresh`: any value that changes when the page made or removed a design. */
@@ -513,6 +515,9 @@ function LatestDesigns({ tool, refresh, styles: given, onDeleted }: { tool: stri
     api<{ next: number | null; items: Hist[] }>(url(LATEST_PAGE, next)).then((d) => { const all = [...items, ...d.items]; loaded.current = all.length; setItems(all); setNext(d.next); }).catch((e: any) => say(e.message)).finally(() => setMore(false));
   };
   const cards = useMemo(() => toCards(items ?? []), [items]);
+  // While something is still being made (possibly started before the page was reopened), look again every 15 s.
+  const waiting = cards.some((c) => !c.outputUrl);
+  useEffect(() => { if (!waiting) return; const id = setTimeout(() => reload(), 15_000); return () => clearTimeout(id); }, [items, waiting]);
 
   const del = async (c: Card) => {
     const ids = c.rooms ? c.rooms.map((r) => r.id) : [c.id];
@@ -542,7 +547,8 @@ function LatestDesigns({ tool, refresh, styles: given, onDeleted }: { tool: stri
           <div className="latest-grid" style={{ marginTop: 15 }}>
             {cards.map((h, i) => (
               <article className="latest-card" key={h.id} style={{ ["--card-index" as any]: Math.min(i, 12) }}>
-                <div className="latest-image" style={isChat(h) && !h.inputUrl ? { display: "grid", placeItems: "center", background: "#f4f1ea" } : { backgroundImage: `url('${isTextResult(h) || isVideo(h) ? h.inputUrl : h.outputUrl}')`, ...(isVideo(h) ? { display: "grid", placeItems: "center" } : {}) }}>
+                <div className="latest-image" style={!h.outputUrl || (isChat(h) && !h.inputUrl) ? { display: "grid", placeItems: "center", background: "#f4f1ea" } : { backgroundImage: `url('${isTextResult(h) || isVideo(h) ? h.inputUrl : h.outputUrl}')`, ...(isVideo(h) ? { display: "grid", placeItems: "center" } : {}) }}>
+                  {!h.outputUrl && <AiThinking tile kind={isVideo(h) ? "video" : "image"} />}
                   {isChat(h) && !h.inputUrl && <Icon n="headset" />}
                   {isVideo(h) && <span style={{ width: 44, height: 44, borderRadius: 999, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.55)", color: "#fff", fontSize: 18 }}>▶</span>}
                   {h.rooms && <span style={{ position: "absolute", right: 6, bottom: 6, padding: "2px 7px", borderRadius: 99, color: "#fff", background: "rgba(0,0,0,0.6)", fontSize: 10, fontWeight: 700 }}>{t(`${h.rooms.length} rooms`, `${h.rooms.length} phòng`)}</span>}
@@ -556,10 +562,10 @@ function LatestDesigns({ tool, refresh, styles: given, onDeleted }: { tool: stri
                     <span><strong>{t("Made", "Tạo lúc")}:</strong> {when(h.createdAt)}</span>
                   </div>
                   <div className="latest-actions">
-                    {!h.rooms && !isTextResult(h) && <DownloadLink className="latest-action" title={t("Download", "Tải xuống")} url={h.outputUrl!} name={resultFile(h.id, h.outputUrl!)} phone={<Icon n="download" />}><Icon n="download" /></DownloadLink>}
-                    <button className="latest-action" title={t("Preview", "Xem trước")} onClick={() => preview(h)}><Icon n="eye" /></button>
+                    {h.outputUrl && !h.rooms && !isTextResult(h) && <DownloadLink className="latest-action" title={t("Download", "Tải xuống")} url={h.outputUrl!} name={resultFile(h.id, h.outputUrl!)} phone={<Icon n="download" />}><Icon n="download" /></DownloadLink>}
+                    {(h.outputUrl || h.rooms) && <button className="latest-action" title={t("Preview", "Xem trước")} onClick={() => preview(h)}><Icon n="eye" /></button>}
                     {!h.rooms && <button className="latest-action" title={t("Reuse settings", "Dùng lại cài đặt")} onClick={() => navigate(`/app?tool=${h.tool}&p=${encodeURIComponent(JSON.stringify(h.params ?? {}))}`)}><Icon n="edit" /></button>}
-                    {!h.rooms && !isTextResult(h) && !isVideo(h) && <button className="latest-action" title={h.public ? t("Unpublish", "Gỡ đăng") : t("Publish", "Đăng công khai")} onClick={() => publish(h)}><Icon n="globe" /></button>}
+                    {h.outputUrl && !h.rooms && !isTextResult(h) && !isVideo(h) && <button className="latest-action" title={h.public ? t("Unpublish", "Gỡ đăng") : t("Publish", "Đăng công khai")} onClick={() => publish(h)}><Icon n="globe" /></button>}
                     <button className="latest-action" title={t("Delete", "Xoá")} onClick={() => del(h)}><Icon n="trash" /></button>
                   </div>
                 </div>
