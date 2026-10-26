@@ -522,53 +522,61 @@ async function qaCheck(c: any, g: any, params: any, out: Img): Promise<{ done: f
   }
 }
 
+/**
+ * Brings a QUEUED/RUNNING generation up to date with RunningHub: on success stores the result (running the optional
+ * auto-check first), on an error or after 15 minutes marks it failed and refunds the credit. Called by the page while it
+ * polls and, once a minute, by the scheduled handler for jobs whose page was closed. `c` only needs env and executionCtx.
+ */
+async function settle(c: any, g: any) {
+  let pollError = "";
+  const r = await queryTask(c.env.RUNNINGHUB_API_KEY, g.rh_task_id, c.env.RUNNINGHUB_BASE).catch((e: Error) => { pollError = e.message; return null; });
+  if (r && g.rh_task_id && r.status !== "QUEUED" && r.status !== "RUNNING") {
+    const billed = r.usage?.thirdPartyConsumeMoney;
+    const params = JSON.parse(g.params), model = modelOf(g.tool, params);
+    later(c, recordCost(c.env.DB, { id: `task:${g.rh_task_id}`, kind: kindOf(model) === "video" ? "video" : "image", model, tool: g.tool, generationId: g.id, userId: g.user_id,
+      usd: billed != null && Number.isFinite(Number(billed)) ? Number(billed) : estimateUsd(g.tool, params, r.status), estimated: billed == null || !Number.isFinite(Number(billed)) }));
+  }
+  // status guard makes the refund happen exactly once even with concurrent polls
+  const fail = async (msg: string) => {
+    const upd = await c.env.DB.prepare("UPDATE generations SET status='FAILED', error=? WHERE id=? AND status IN ('QUEUED','RUNNING')").bind(msg, g.id).run();
+    if (upd.meta.changes) {
+      await c.env.DB.batch([
+        c.env.DB.prepare("UPDATE users SET credits=credits+? WHERE id=?").bind(g.cost, g.user_id),
+        c.env.DB.prepare("INSERT INTO credit_ledger (user_id,delta,reason,generation_id,created_at) VALUES (?,?,?,?,?)").bind(g.user_id, g.cost, "refund_failed", g.id, Date.now()),
+      ]);
+    }
+    g.status = "FAILED"; g.error = msg;
+  };
+  const expired = Date.now() - g.created_at > 15 * 60_000;
+  if (r?.status === "SUCCESS" && r.results?.[0]) {
+    const img = await fetch(r.results[0].url).catch(() => null);
+    if (img?.ok) {
+      const ext = r.results[0].outputType || "png";
+      const mime = ext === "mp4" ? "video/mp4" : `image/${ext === "jpg" ? "jpeg" : ext}`;
+      let bytes = await img.arrayBuffer();
+      const params = JSON.parse(g.params);
+      const check = params.autoCheck ? await qaCheck(c, g, params, { bytes, mime }) : { done: true as const };
+      if (check.done) {
+        if (check.bytes) bytes = check.bytes;
+        const key = `out/${g.user_id}/${g.id}.${ext}`;
+        await c.env.IMAGES.put(key, bytes, { httpMetadata: { contentType: mime } });
+        // Only the poll that still holds the current task finishes it, so a late poll cannot overwrite a newer redraw.
+        await c.env.DB.prepare("UPDATE generations SET status='SUCCESS', output_key=?, params=? WHERE id=? AND status IN ('QUEUED','RUNNING') AND rh_task_id=?").bind(key, JSON.stringify(check.params ?? params), g.id, g.rh_task_id).run();
+        g.status = "SUCCESS"; g.output_key = key; g.params = JSON.stringify(check.params ?? params);
+      }
+    } else if (expired) await fail("Could not download the result image · Không tải được ảnh kết quả");
+  } else if (r && r.status !== "QUEUED" && r.status !== "RUNNING" && r.status !== "SUCCESS") {
+    await fail(r.errorMessage || "RunningHub reported an error · RunningHub báo lỗi");
+  } else if (expired) {
+    await fail(pollError || "Timed out (15 minutes) · Hết thời gian chờ (15 phút)");
+  }
+}
+
 app.get("/api/generations/:id", requireAuth, async (c) => {
   const u = c.get("user");
   const g: any = await c.env.DB.prepare("SELECT * FROM generations WHERE id=? AND user_id=?").bind(c.req.param("id"), u.id).first();
   if (!g) return c.json({ error: "not found" }, 404);
-  if ((g.status === "RUNNING" || g.status === "QUEUED") && c.env.RUNNINGHUB_API_KEY) {
-    let pollError = "";
-    const r = await queryTask(c.env.RUNNINGHUB_API_KEY, g.rh_task_id, c.env.RUNNINGHUB_BASE).catch((e: Error) => { pollError = e.message; return null; });
-    if (r && g.rh_task_id && r.status !== "QUEUED" && r.status !== "RUNNING") {
-      const billed = r.usage?.thirdPartyConsumeMoney;
-      const params = JSON.parse(g.params), model = modelOf(g.tool, params);
-      later(c, recordCost(c.env.DB, { id: `task:${g.rh_task_id}`, kind: kindOf(model) === "video" ? "video" : "image", model, tool: g.tool, generationId: g.id, userId: g.user_id,
-        usd: billed != null && Number.isFinite(Number(billed)) ? Number(billed) : estimateUsd(g.tool, params, r.status), estimated: billed == null || !Number.isFinite(Number(billed)) }));
-    }
-    // status guard makes the refund happen exactly once even with concurrent polls
-    const fail = async (msg: string) => {
-      const upd = await c.env.DB.prepare("UPDATE generations SET status='FAILED', error=? WHERE id=? AND status IN ('QUEUED','RUNNING')").bind(msg, g.id).run();
-      if (upd.meta.changes) {
-        await c.env.DB.batch([
-          c.env.DB.prepare("UPDATE users SET credits=credits+? WHERE id=?").bind(g.cost, u.id),
-          c.env.DB.prepare("INSERT INTO credit_ledger (user_id,delta,reason,generation_id,created_at) VALUES (?,?,?,?,?)").bind(u.id, g.cost, "refund_failed", g.id, Date.now()),
-        ]);
-      }
-      g.status = "FAILED"; g.error = msg;
-    };
-    const expired = Date.now() - g.created_at > 15 * 60_000;
-    if (r?.status === "SUCCESS" && r.results?.[0]) {
-      const img = await fetch(r.results[0].url).catch(() => null);
-      if (img?.ok) {
-        const ext = r.results[0].outputType || "png";
-        const mime = ext === "mp4" ? "video/mp4" : `image/${ext === "jpg" ? "jpeg" : ext}`;
-        let bytes = await img.arrayBuffer();
-        const params = JSON.parse(g.params);
-        const check = params.autoCheck ? await qaCheck(c, g, params, { bytes, mime }) : { done: true as const };
-        if (check.done) {
-          if (check.bytes) bytes = check.bytes;
-          const key = `out/${u.id}/${g.id}.${ext}`;
-          await c.env.IMAGES.put(key, bytes, { httpMetadata: { contentType: mime } });
-          await c.env.DB.prepare("UPDATE generations SET status='SUCCESS', output_key=?, params=? WHERE id=?").bind(key, JSON.stringify(check.params ?? params), g.id).run();
-          g.status = "SUCCESS"; g.output_key = key; g.params = JSON.stringify(check.params ?? params);
-        }
-      } else if (expired) await fail("Could not download the result image · Không tải được ảnh kết quả");
-    } else if (r && r.status !== "QUEUED" && r.status !== "RUNNING" && r.status !== "SUCCESS") {
-      await fail(r.errorMessage || "RunningHub reported an error · RunningHub báo lỗi");
-    } else if (expired) {
-      await fail(pollError || "Timed out (15 minutes) · Hết thời gian chờ (15 phút)");
-    }
-  }
+  if ((g.status === "RUNNING" || g.status === "QUEUED") && c.env.RUNNINGHUB_API_KEY) await settle(c, g);
   // Written critiques and advisor transcripts are stored as JSON in place of an output image.
   const json: any = g.status === "SUCCESS" && String(g.output_key).endsWith(".json") ? await c.env.IMAGES.get(g.output_key).then((o) => o?.json()).catch(() => null) : undefined;
   return c.json({ id: g.id, tool: g.tool, params: JSON.parse(g.params), status: g.status, error: g.error, public: !!g.is_public, critique: g.tool === "interior-critique" ? json : undefined, finder: g.tool === "interior-finder" ? json : undefined, orient: g.tool === "exterior-orient" ? json : undefined, chat: g.tool === ADVISOR_TOOL ? json?.messages : undefined, inputUrl: g.input_key ? `/api/images/${g.input_key}` : null, outputUrl: g.output_key ? `/api/images/${g.output_key}` : null });
@@ -721,4 +729,22 @@ app.get("/api/public/:id/:kind", async (c) => {
   return new Response(obj.body, { headers: { "Content-Type": obj.httpMetadata?.contentType ?? "image/png", "Cache-Control": "public, max-age=3600" } });
 });
 
-export default app;
+/** Jobs started in the last 20 minutes and still open: anything older was already past the 15-minute limit. */
+const SETTLE_WINDOW = 20 * 60_000, SETTLE_BATCH = 8;
+/**
+ * Once a minute (wrangler "triggers.crons"): finish recent jobs nobody is polling because the page was closed, so the
+ * result still lands in the history and failures are refunded. Small batches keep each run under the subrequest limit.
+ */
+async function settleOpenJobs(env: Env, ctx: ExecutionContext) {
+  if (!env.RUNNINGHUB_API_KEY) return;
+  const { results } = await env.DB.prepare("SELECT * FROM generations WHERE status IN ('QUEUED','RUNNING') AND rh_task_id IS NOT NULL AND created_at>? ORDER BY created_at LIMIT ?")
+    .bind(Date.now() - SETTLE_WINDOW, SETTLE_BATCH).all<any>();
+  // tileSwatch resolves swatch paths against c.req.url; the ASSETS binding ignores the host.
+  const c = { env, executionCtx: ctx, get: () => undefined, req: { url: "https://assets.local/" } };
+  await Promise.allSettled(results.map((g) => settle(c, g)));
+}
+
+export default {
+  fetch: app.fetch,
+  scheduled: (_event, env, ctx) => ctx.waitUntil(settleOpenJobs(env, ctx)),
+} satisfies ExportedHandler<Env>;
