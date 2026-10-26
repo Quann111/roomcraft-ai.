@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { t } from "./i18n";
 
-// Loading state for AI jobs: "Analyzing" while the photo is read, then "Thinking", with a gold orb and a shimmer.
+// Loading state for AI jobs: "SOLYC Analyzing" while the photo is read, then "SOLYC Thinking", with the SOLYC mark inside a
+// spinning gold ring and a shimmer.
 // The small line under it cycles through what the AI is doing; `eta` is the usual wait for this kind of job.
 type Kind = "image" | "video" | "analysis";
 const ANALYZE_MS = 6000, STEP_MS = 4500;
@@ -28,9 +29,9 @@ export function AiThinking({ kind = "image", compact = false, tile = false }: { 
   return (
     <div className={`ai-thinking ${compact ? "compact" : ""} ${tile ? "tile" : ""}`} role="status" aria-live="polite">
       <style>{CSS}</style>
-      <span className="ai-orb" aria-hidden="true"><i /></span>
+      <span className="ai-orb" aria-hidden="true"><i><img src="/solyc/symbol-gold.svg" alt="" /></i></span>
       <div className="ai-copy">
-        <b className="ai-word">{thinking ? "Thinking" : "Analyzing"}<span className="ai-dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></b>
+        <b className="ai-word">SOLYC {thinking ? "Thinking" : "Analyzing"}<span className="ai-dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></b>
         <span className="ai-step" key={step[0]}>{t(...step)}</span>
         {!compact && !tile && <small className="ai-eta">{t(...ETA[kind])}</small>}
       </div>
@@ -41,13 +42,16 @@ export function AiThinking({ kind = "image", compact = false, tile = false }: { 
 const CSS = `
 .ai-thinking { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 36px 12px; text-align: center; }
 .ai-thinking.compact { flex-direction: row; gap: 12px; padding: 18px 12px; text-align: left; }
+/* Only the ring (::before) spins; the inner disc with the logo stays upright. */
 .ai-orb { position: relative; width: 58px; height: 58px; flex: 0 0 auto; border-radius: 50%;
-  background: conic-gradient(from 0deg, #B4873D, #F3E2BC, #8C6526, #E7C98C, #B4873D); filter: saturate(1.1);
-  box-shadow: 0 0 26px rgba(180, 135, 61, .45); animation: ai-spin 3.2s linear infinite, ai-pulse 2.4s ease-in-out infinite; }
+  box-shadow: 0 0 26px rgba(180, 135, 61, .45); animation: ai-pulse 2.4s ease-in-out infinite; }
+.ai-orb::before { content: ""; position: absolute; inset: 0; border-radius: 50%; filter: saturate(1.1);
+  background: conic-gradient(from 0deg, #B4873D, #F3E2BC, #8C6526, #E7C98C, #B4873D); animation: ai-spin 3.2s linear infinite; }
 .ai-thinking.compact .ai-orb { width: 34px; height: 34px; }
 .ai-thinking.tile { gap: 8px; padding: 10px 6px; } .ai-thinking.tile .ai-orb { width: 30px; height: 30px; } .ai-thinking.tile .ai-orb i { inset: 4px; }
 .ai-thinking.tile .ai-word { font-size: 13px; } .ai-thinking.tile .ai-step { font-size: 11px; }
-.ai-orb i { position: absolute; inset: 7px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff 0, #FBF6EC 38%, #F1E6CF 100%); }
+.ai-orb i { position: absolute; z-index: 1; inset: 7px; display: grid; place-items: center; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #2B2E31 0, #17191B 70%); }
+.ai-orb img { display: block; width: 72%; height: 72%; object-fit: contain; }
 .ai-thinking.compact .ai-orb i { inset: 5px; }
 .ai-copy { display: grid; gap: 3px; justify-items: inherit; }
 .ai-thinking:not(.compact) .ai-copy { justify-items: center; }
@@ -65,7 +69,7 @@ const CSS = `
 @keyframes ai-dot { 0%, 100% { opacity: .2; } 40% { opacity: 1; } }
 @keyframes ai-fade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
-  .ai-orb, .ai-word, .ai-dots i, .ai-step { animation: none; }
+  .ai-orb, .ai-orb::before, .ai-word, .ai-dots i, .ai-step { animation: none; }
   .ai-word { background: none; color: #17191B; }
 }
 `;
