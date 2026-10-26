@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AiThinking } from "./AiThinking";
 import { bi, getLang, t } from "./i18n";
-import { prepareImage, formatBytes, type PreparedImage } from "./imagePrep";
+import { prepareImage, formatBytes, isoFloor, type PreparedImage } from "./imagePrep";
 import { AdvisorChat } from "./AdvisorChat";
 import { BizPlan } from "./BizPlan";
 import { OrientView, DIRS, DIR_NAMES, type Orient } from "./OrientView";
@@ -386,8 +386,14 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     if (!meta || !ready) return;
     setBusy(true); setErr(""); setGen(null);
     try {
-      const upload = (f: File) => j<{ key: string }>("/api/upload", { method: "POST", headers: { "Content-Type": f.type }, body: f }).then((r) => r.key);
+      const upload = (f: Blob) => j<{ key: string }>("/api/upload", { method: "POST", headers: { "Content-Type": f.type }, body: f }).then((r) => r.key);
       const key = cfg.text || !file ? undefined : await upload(file);
+      // 2D -> 3D isometric: read the plan, then turn it to an isometric floor here, so the render keeps a true 3D angle.
+      // If either step fails the render still runs on the upright plan.
+      const isoKey = cfg.planView && view !== "top-down" && key && file
+        ? await j<{ crop: number[] | null; read: boolean }>("/api/floorplan/read", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ inputKey: key }) })
+          .then((r) => (r.read ? isoFloor(file, r.crop).then(upload) : undefined)).catch(() => undefined)
+        : undefined;
       const refKey = cfg.reference && refFile ? await upload(refFile) : undefined;
       const itemKeys = cfg.items ? await Promise.all(items.map((x) => upload(x.file))) : undefined;
       const g = await j<{ id: string }>("/api/generate", {
@@ -407,7 +413,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
           ...(cfg.llm ? { lang: getLang() } : {}),
           ...(cfg.weather ? { weather } : {}),
           ...(cfg.angle ? { angle } : {}),
-          ...(cfg.planView ? { view, ...(autoCheck ? { autoCheck: true } : {}) } : {}),
+          ...(cfg.planView ? { view, ...(isoKey ? { isoKey } : {}), ...(autoCheck ? { autoCheck: true } : {}) } : {}),
           ...(cfg.video ? { motion } : {}),
           ...(cfg.lighting ? { lighting } : {}),
           ...(cfg.orient ? { kind, facing, city } : {}),

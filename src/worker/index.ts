@@ -61,6 +61,13 @@ async function planRead(c: any, key: string): Promise<PlanFacts | null> {
   return Promise.race([call, new Promise<null>((r) => setTimeout(() => r(null), 60_000))]);
 }
 
+/** Plan readings are kept next to the upload, so the render reuses the reading the browser asked for to turn the plan. */
+const factsKey = (inputKey: string) => `facts/${inputKey}.json`;
+async function cachedPlanFacts(c: any, inputKey: string): Promise<PlanFacts | null> {
+  if (typeof inputKey !== "string" || !inputKey.startsWith(`in/${c.get("user").id}/`)) return null;
+  return c.env.IMAGES.get(factsKey(inputKey)).then((o: any) => o?.json()).then(cleanPlanFacts, () => null).catch(() => null);
+}
+
 const b64 = (buf: ArrayBuffer | Uint8Array) => btoa(String.fromCharCode(...new Uint8Array(buf as ArrayBuffer)));
 
 /** Fixed-window counter in D1. Returns false once `max` hits in the window are exceeded. */
@@ -240,8 +247,11 @@ app.post("/api/generate", requireAuth, async (c) => {
   if (scout && !scout.bare_floor_visible) return c.json({ error: NO_FLOOR }, 422);
   if (scout) prompt = buildPrompt(b.tool, { ...b, scout });
   const floorplan = b.tool === "interior-floorplan";
-  const plan = floorplan ? await planRead(c, b.inputKey) : null;
-  if (plan) prompt = buildPrompt(b.tool, { ...b, plan });
+  // The browser usually asked for the reading already (/api/floorplan/read) to turn the plan; reuse it, else read now.
+  const plan = floorplan ? await cachedPlanFacts(c, b.inputKey) ?? await planRead(c, b.inputKey) : null;
+  // Isometric view with the plan the browser turned to the isometric angle (image 1), the upright plan as image 2.
+  const iso = floorplan && plan && b.view !== "top-down" ? await ownImage(c, b.isoKey) : null;
+  if (plan) prompt = buildPrompt(b.tool, { ...b, plan, iso: !!iso });
 
   const video = VIDEO_TOOLS.includes(b.tool);
   const cost = isAdmin(u) ? 0 : video ? VIDEO_COST : RES_COST[resolution]; // admin: unlimited, no credits charged
@@ -263,7 +273,7 @@ app.post("/api/generate", requireAuth, async (c) => {
         .bind(id, u.id, b.tool, JSON.stringify({ roomType: b.roomType, lang: b.lang === "vi" ? "vi" : "en", kind: b.kind, facing: b.facing, city: b.city, resolution }), prompt, "SUCCESS", b.inputKey, outKey, cost, now).run();
       return c.json({ id, status: "SUCCESS" });
     }
-    const images = obj ? [obj, ...(ref ? [ref] : []), ...items.map((o) => o!)] : [];
+    const images = iso ? [iso, obj!] : obj ? [obj, ...(ref ? [ref] : []), ...items.map((o) => o!)] : [];
     const swatch = b.tool === "interior-floor" ? await tileSwatch(c, b.material) : null;
     const taskId = video
       ? await submitImageToVideo(c.env.RUNNINGHUB_API_KEY, { image: { bytes: await obj!.arrayBuffer(), mime: obj!.httpMetadata?.contentType ?? "image/jpeg" }, prompt, aspectRatio: ["9:16", "2:3", "3:4", "4:5"].includes(aspectRatio ?? "") ? "9:16" : "16:9" }, c.env.RUNNINGHUB_BASE)
@@ -271,15 +281,27 @@ app.post("/api/generate", requireAuth, async (c) => {
       ? await submitTextToImage(c.env.RUNNINGHUB_API_KEY, { prompt, aspectRatio: aspectRatio ?? "16:9", resolution }, c.env.RUNNINGHUB_BASE)
       : await submitImageToImage(c.env.RUNNINGHUB_API_KEY, {
         images: [...await Promise.all(images.map(async (o) => ({ bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" }))), ...(swatch ? [swatch] : [])],
-        prompt, aspectRatio: swatch || floorplan ? aspectRatio ?? "4:3" : aspectRatio, resolution, model: swatch ? TILE_EDIT : floorplan ? PLAN_EDIT : undefined,
+        prompt, aspectRatio: iso ? "16:9" : swatch || floorplan ? aspectRatio ?? "4:3" : aspectRatio, resolution, model: swatch ? TILE_EDIT : floorplan ? PLAN_EDIT : undefined,
       }, c.env.RUNNINGHUB_BASE);
     await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,rh_task_id,input_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: b.surface, material: b.material, weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, lighting: b.tool === "interior-lighting" ? b.lighting : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, scout: scout ?? undefined, plan: plan ?? undefined, engine: floorplan ? "gpt25" : undefined, autoCheck: (swatch || plan) && b.autoCheck === true ? true : undefined, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
+      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: b.surface, material: b.material, weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, lighting: b.tool === "interior-lighting" ? b.lighting : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, scout: scout ?? undefined, plan: plan ?? undefined, isoKey: iso ? b.isoKey : undefined, engine: floorplan ? "gpt25" : undefined, autoCheck: (swatch || plan) && b.autoCheck === true ? true : undefined, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
     return c.json({ id, status: "RUNNING" });
   } catch (e: any) {
     await refund("refund_submit_failed");
     return c.json({ error: `Could not submit request: ${e.message} · Không gửi được yêu cầu: ${e.message}` }, 502);
   }
+});
+
+// 2D -> 3D: read the plan (free) so the browser can crop and turn it to an isometric floor before the render.
+app.post("/api/floorplan/read", requireAuth, async (c) => {
+  const u = c.get("user");
+  const b = await c.req.json<any>().catch(() => ({}));
+  if (!c.env.RUNNINGHUB_API_KEY) return c.json({ error: "Server is missing RUNNINGHUB_API_KEY · Server chưa cấu hình RUNNINGHUB_API_KEY" }, 500);
+  if (typeof b.inputKey !== "string" || !b.inputKey.startsWith(`in/${u.id}/`)) return c.json({ error: "Invalid input image · Ảnh đầu vào không hợp lệ" }, 400);
+  if (!isAdmin(u) && !(await allow(c.env, `plan:${u.id}`, 3_600_000, 30))) return c.json({ error: "Limit is 30 plan scans per hour · Tối đa 30 lần đọc mặt bằng mỗi giờ" }, 429);
+  const facts = await cachedPlanFacts(c, b.inputKey) ?? await planRead(c, b.inputKey);
+  if (facts) await c.env.IMAGES.put(factsKey(b.inputKey), JSON.stringify(facts), { httpMetadata: { contentType: "application/json" } });
+  return c.json({ crop: facts?.crop ?? null, read: !!facts });
 });
 
 // ---------- Business 3D Floorplan: detect rooms, then one render per room ----------
@@ -537,7 +559,8 @@ async function checkFor(c: any, g: any, params: any): Promise<Check | null> {
     return swatch && { model: TILE_EDIT, inputs: async () => [plan, swatch], judge: (out) => ask(FLOOR_QA_PROMPT, [plan, out, swatch], (r) => floorQaVerdict(r, params.scout?.floor_closeup === true)) };
   }
   if (g.tool === "interior-floorplan" && params.plan) {
-    return { model: PLAN_EDIT, inputs: async () => [plan], judge: (out) => ask(planQaPrompt(params.plan), [plan, out], (r) => planQaVerdict(r, params.plan)) };
+    const iso = params.isoKey ? await c.env.IMAGES.get(params.isoKey).then((o: any) => o && imgOf(o)) : null;
+    return { model: PLAN_EDIT, inputs: async () => (iso ? [iso, plan] : [plan]), judge: (out) => ask(planQaPrompt(params.plan), [plan, out], (r) => planQaVerdict(r, params.plan)) };
   }
   if (g.tool === BIZPLAN_TOOL && params.room) {
     const crop = params.cropKey ? await c.env.IMAGES.get(params.cropKey).then((o: any) => o && imgOf(o)) : null;

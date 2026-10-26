@@ -119,6 +119,18 @@ const PLAN_VIEW_TEXT: Record<(typeof PLAN_VIEWS)[number], string> = {
   "top-down": "Show it like a photograph taken from a drone directly above a roofless home, with the walls extruded with realistic thickness and soft shadows, so the layout reads exactly like the plan.",
 };
 
+/**
+ * Isometric 2D -> 3D with a pre-turned plan: the browser crops the plan to the building, rotates it 45 degrees counter-clockwise
+ * and squashes it to 58% height, so the image model builds walls up from a floor that is already at a true isometric angle.
+ * Asked to turn an upright plan itself, it kept the plan flat and sheared the walls (an oblique view that looks warped).
+ */
+const ISO_TURNED = [
+  "This floor plan has already been turned to the camera: it is drawn as the floor of an isometric 3D view, rotated 45 degrees and foreshortened. Build the 3D model on exactly this floor: keep the floor outline in exactly the same place, angle and size in the image, and extrude every wall straight up to about 1.2 m (cut-away height) with visible thickness, so the vertical edges of walls are vertical lines in the image and parallel walls stay parallel.",
+  "Isometric parallel projection, no vanishing points, roofless, seen from above at the angle of the floor.",
+  "Positions given for the plan refer to the plan before it was turned: its top edge is now the upper-left edge of the floor in this image, its left edge the lower-left edge, its bottom edge the lower-right edge and its right edge the upper-right edge.",
+  "Image 2 is the same plan before it was turned, upright: read the room names and furniture symbols there, then build them on the turned floor of image 1. Every bedroom gets its bed; furnish each space only as its label says, never move the living room into another room's walls.",
+].join(" ");
+
 export const TOOL_IDS = [
   "interior-redesign", "interior-staging", "interior-declutter", "interior-sketch", "interior-material",
   "interior-paint", "interior-floor", "interior-transfer", "interior-text", "interior-floorplan", "interior-compose", "interior-critique", "interior-finder", "interior-video", "exterior-orient", "exterior-orient-render", "interior-lighting",
@@ -235,24 +247,26 @@ export const PLAN_READ_PROMPT = `This image is a 2D architectural floor plan (po
 Read the building itself, ignoring grid lines, axis bubbles, dimension lines, level marks, leader notes and the title.
 Reply with JSON only:
 {"footprint": {"length_m": number, "depth_m": number, "shape": "rectangle" | "L-shape" | "irregular", "notes": string},
+ "crop": [x0, y0, x1, y1],
  "long_axis": "horizontal" | "vertical",
  "spaces": [{"name": string, "kind": "room" | "bathroom" | "kitchen" | "stair" | "elevator" | "corridor" | "storage" | "parking" | "balcony" | "yard" | "garden" | "lightwell" | "other", "where": string, "size": string, "contents": string}],
  "absent": [string]}
 Rules:
 - footprint: the overall built outline including attached yards, porches and balconies, in metres taken from the outer dimension chains when present.
+- crop: the box around the building outline and its attached outdoor spaces only (no dimension chains, axis bubbles, legend, notes or title), as fractions 0-1 of the image width and height.
 - spaces: every space drawn on the plan, in order along the long axis from left to right (or top to bottom). "where": its position on the plan (e.g. "left end, full depth"). "size": width x depth in metres from the dimensions when readable, else an estimate. "contents": what is drawn inside (fixtures, furniture symbols, stair flights, doors, windows to the outside, water features).
 - Stairs (a row of treads with numbered steps or an arrow), elevator shafts (a box with an X or a car symbol, often labelled T.M or THANG MÁY) and light wells must be listed as their own spaces.
 - absent: common home spaces that are NOT on this plan (choose from kitchen, dining room, bedroom, bathroom, living room, laundry, garage), so a renderer does not invent them.
 Use the plan's own labels as names (keep Vietnamese labels, add an English gloss in brackets).`;
 const SPACE_KINDS = ["room", "bathroom", "kitchen", "stair", "elevator", "corridor", "storage", "parking", "balcony", "yard", "garden", "lightwell", "other"] as const;
-export type PlanFacts = { length: number; depth: number; shape: string; notes: string; vertical: boolean; spaces: { name: string; kind: string; where: string; size: string; contents: string }[]; absent: string[] };
+export type PlanFacts = { length: number; depth: number; shape: string; notes: string; vertical: boolean; crop?: number[]; spaces: { name: string; kind: string; where: string; size: string; contents: string }[]; absent: string[] };
 export function cleanPlanFacts(r: any): PlanFacts | null {
   const f = r?.footprint ?? {}, length = Number(f.length_m), depth = Number(f.depth_m);
   const spaces = (Array.isArray(r?.spaces) ? r.spaces : []).slice(0, 30).map((x: any) => ({
     name: short(x?.name, 60), kind: oneOf(SPACE_KINDS, x?.kind) ?? "other", where: short(x?.where, 160), size: short(x?.size, 40), contents: short(x?.contents, 240),
   })).filter((x: { name: string }) => x.name);
   if (!spaces.length || !(length > 0 && length < 500 && depth > 0 && depth < 500)) return null;
-  return { length, depth, shape: short(f.shape, 20), notes: short(f.notes, 200), vertical: r?.long_axis === "vertical", spaces,
+  return { length, depth, shape: short(f.shape, 20), notes: short(f.notes, 200), vertical: r?.long_axis === "vertical", crop: box(r?.crop), spaces,
     absent: (Array.isArray(r?.absent) ? r.absent : []).map((x: unknown) => short(x, 30)).filter(Boolean).slice(0, 8) };
 }
 function planFactLines(f: PlanFacts) {
@@ -636,9 +650,12 @@ export function buildPrompt(tool: string, p: any): string {
       if (LOCKED_PLAN_VIEWS.includes(p.view)) throw new Error("This view is coming soon · Góc nhìn này sắp ra mắt");
       const s = styleFor(p.styleSlug, "interior");
       return join(
-        `This image is a 2D architectural floor plan. Turn it into a photorealistic 3D rendering of the same floor plan, furnished in a ${s.name} interior style.`,
+        p.iso
+          // Naming the upright copy (image 2) up front made the model frame the result like it; it is only mentioned in ISO_TURNED.
+          ? `This image is a 2D architectural floor plan, shown at an isometric angle. Turn it into a photorealistic 3D rendering of the same floor plan, furnished in a ${s.name} interior style.`
+          : `This image is a 2D architectural floor plan. Turn it into a photorealistic 3D rendering of the same floor plan, furnished in a ${s.name} interior style.`,
         "The result is a picture of a real furnished home, not a drawing. Words on the plan only tell you what each room is for and are never drawn: every floor shows only real flooring, rugs and furniture, with no writing, numbers, dimension lines or symbols.",
-        PLAN_VIEW_TEXT[oneOf(PLAN_VIEWS, p.view) ?? "isometric"],
+        p.iso ? ISO_TURNED : PLAN_VIEW_TEXT[oneOf(PLAN_VIEWS, p.view) ?? "isometric"],
         ...(p.plan ? planFactLines(p.plan) : []),
         "Follow the plan exactly: the same outline, the same rooms in the same positions and proportions, and every wall, door opening and window where the plan shows it. Do not add, remove, merge or resize rooms.",
         p.plan ? "Furnish each space only for its labelled purpose, using the furniture and fixtures drawn on the plan, at realistic scale." : "Furnish each room for its purpose as shown by its label or fixtures (beds in bedrooms, sofa and coffee table in the living room, kitchen units, bathroom fixtures) at realistic scale, with matching floor materials per room.",

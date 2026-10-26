@@ -104,4 +104,29 @@ export async function prepareImage(file: File, o: { exactAspect?: boolean } = {}
   };
 }
 
+/**
+ * 2D -> 3D: turns a floor plan into the floor of an isometric view: crop to the building (`crop` as 0-1 fractions, plus 3%),
+ * rotate 45 degrees counter-clockwise, squash to 58% height, pad white to 16:9. The worker's prompt describes exactly this turn.
+ */
+export async function isoFloor(file: File, crop?: number[] | null): Promise<Blob> {
+  const img = await decode(file);
+  const iw = img.width, ih = img.height, m = 0.03;
+  const [x0, y0, x1, y1] = crop && crop.length === 4 ? crop : [0, 0, 1, 1];
+  const sx = Math.max(0, x0 - m) * iw, sy = Math.max(0, y0 - m) * ih, sw = Math.min(1, x1 + m) * iw - sx, sh = Math.min(1, y1 + m) * ih - sy;
+  const diag = (sw + sh) / Math.SQRT2, squash = 0.58;
+  let W = Math.max(diag, (diag * squash * 16) / 9) * 1.08;
+  const k = Math.min(1, 2048 / W); // keep the upload small
+  W = Math.round(W * k);
+  const H = Math.round((W * 9) / 16);
+  const canvas = document.createElement("canvas");
+  canvas.width = W; canvas.height = H;
+  const g = canvas.getContext("2d")!;
+  g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
+  g.translate(W / 2, H / 2 + H * 0.03);
+  g.scale(k, k * squash);
+  g.rotate(-Math.PI / 4);
+  g.drawImage(img as CanvasImageSource, sx, sy, sw, sh, -sw / 2, -sh / 2, sw, sh);
+  return new Promise((ok, fail) => canvas.toBlob((b) => (b ? ok(b) : fail(new Error("Could not prepare the plan · Không xử lý được mặt bằng"))), "image/jpeg", 0.92));
+}
+
 export const formatBytes = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
