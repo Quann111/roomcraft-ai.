@@ -19,12 +19,8 @@ export const GUIDES: Record<string, Guide> = {
     credits: ONE_CREDIT, example: "redesign",
   },
   "Perfect Redesign": {
-    what: ["A full redesign of your room in the style you choose, keeping its structure.", "Thiết kế lại toàn bộ căn phòng theo phong cách bạn chọn, giữ nguyên kết cấu."],
+    what: ["A full redesign of your room in the style you choose, with new furniture, colors and decor, keeping its structure.", "Thiết kế lại toàn bộ căn phòng theo phong cách bạn chọn, với nội thất, màu sắc và đồ trang trí mới, giữ nguyên kết cấu."],
     steps: REDESIGN_STEPS, tips: [PHOTO_TIP, ["Try 2–3 styles on the same photo to compare.", "Thử 2–3 phong cách trên cùng một ảnh để so sánh."]], credits: ONE_CREDIT, example: "redesign",
-  },
-  "Beautiful Redesign": {
-    what: ["Refresh the style of your room with new furniture, colors and decor.", "Làm mới phong cách căn phòng với nội thất, màu sắc và đồ trang trí mới."],
-    steps: REDESIGN_STEPS, tips: [PHOTO_TIP], credits: ONE_CREDIT, example: "redesign",
   },
   "Creative Redesign": {
     what: ["A bolder redesign: the AI may rearrange furniture for a fresh layout.", "Thiết kế lại táo bạo hơn: AI có thể sắp xếp lại nội thất để có bố cục mới."],

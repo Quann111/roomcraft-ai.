@@ -77,7 +77,6 @@ const REDESIGN: ToolId[] = ["interior-redesign", "exterior-redesign", "garden-re
 const TOOLS: ToolDef[] = [
   { name: "Magic Redesign", desc: "Type your request and instantly transform any detail from your space with our conversational AI.", cat: "redesign", photo: "photo-1600210492486-724fe5c67fb0", icon: "magic" },
   { name: "Perfect Redesign", desc: "Complete redesign of your home spaces with enhanced results, while preserving structural elements.", cat: "redesign", photo: "photo-1618221195710-dd6b41faaea6", icon: "redesign", spaces: REDESIGN, popular: true },
-  { name: "Beautiful Redesign", desc: "Change your room style and refresh your design using our AI model.", cat: "redesign", photo: "photo-1616486338812-3dadae4b4ace", icon: "frame", spaces: REDESIGN },
   { name: "Virtual Staging", desc: "Instantly stage spaces with realistic furniture and decor to visualize their potential.", cat: "staging", photo: "photo-1600607687939-ce8a6c25118c", icon: "sofa", spaces: ["interior-staging"], popular: true },
   { name: "Creative Redesign", desc: "Allow AI to rearrange furniture and adjust structures for an innovative new look.", cat: "redesign", photo: "photo-1783961859503-2f6cd85f6e87", icon: "palette" },
   { name: "Sketch to Render", desc: "Transform rough sketches into photorealistic renders for clear visualizations.", cat: "redesign", photo: "photo-1643569941917-95185f728355", icon: "sketch", spaces: ["interior-sketch", "exterior-sketch"] },
@@ -107,7 +106,9 @@ const SPACE_META: Record<string, { label: [string, string]; icon: string }> = {
   garden: { label: ["Garden", "Sân vườn"], icon: "garden" },
 };
 const spaceOf = (id: ToolId) => (id.startsWith("interior") ? "interior" : id.startsWith("exterior") ? "exterior" : "garden");
-const toolByName = (n: string) => TOOLS.find((x) => x.name === n);
+/** Tools folded into another one; old links and bookmarks open the tool that replaced them. */
+const MERGED: Record<string, string> = { "Beautiful Redesign": "Perfect Redesign" };
+const toolByName = (n: string) => TOOLS.find((x) => x.name === (MERGED[n] ?? n));
 const KIND: Record<string, string> = { redesign: "Redesign", staging: "Virtual Staging", declutter: "Declutter", material: "Material Swap", sketch: "Sketch to Render", sky: "Sky & Weather Swap" };
 const toolLabel = (id: string) => { const [sp, k] = id.split("-"); return `${bi(sp === "interior" ? "Interiors" : sp === "exterior" ? "Exteriors" : "Gardens")} · ${bi(KIND[k] ?? toolForId(id as ToolId)?.name ?? k)}`; };
 const styleName = (styles: { slug: string; name: string }[] | undefined, slug: string) => { const n = styles?.find((x) => x.slug === slug)?.name; return n ? bi(n) : slug; };
