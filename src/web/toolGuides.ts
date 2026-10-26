@@ -53,7 +53,7 @@ export const GUIDES: Record<string, Guide> = {
   },
   "Material Swap": {
     what: ["Try a new floor (including VICOSTONE tiles), wall finish, countertop, cabinet or ceiling material on your own photo.", "Thử vật liệu sàn (kể cả gạch VICOSTONE), tường, mặt bếp, tủ hoặc trần mới ngay trên ảnh của bạn."],
-    steps: [["Upload a photo of the room.", "Tải ảnh căn phòng lên."], ["Pick the surface, then the material or a VICOSTONE tile.", "Chọn bề mặt rồi chọn vật liệu hoặc một mẫu gạch VICOSTONE."], ["Press Generate; furniture and rugs stay.", "Bấm Tạo thiết kế; nội thất và thảm giữ nguyên."]],
+    steps: [["Upload a photo of the room.", "Tải ảnh căn phòng lên."], ["Pick a surface, then click a material swatch or a VICOSTONE tile; pick for several surfaces to change them all in one image.", "Chọn bề mặt rồi bấm ô vật liệu hoặc mẫu gạch VICOSTONE; chọn cho nhiều bề mặt để đổi tất cả trong một ảnh."], ["Press Generate; furniture and rugs stay.", "Bấm Tạo thiết kế; nội thất và thảm giữ nguyên."]],
     tips: [["Make sure the surface you want to change is clearly visible.", "Đảm bảo bề mặt cần đổi hiện rõ trong ảnh."], ["VICOSTONE tiles are laid as 120 × 120 cm polished slabs from the real swatch.", "Gạch VICOSTONE được lát khổ 120 × 120 cm, bóng kiếng, theo đúng ảnh mẫu gạch."], ["For floor photos with rugs or people, tick “Auto-check the result” so a lost rug or person is redone once at no extra credit.", "Ảnh sàn có thảm hoặc người thì bật “Tự kiểm tra kết quả” để AI tự tạo lại 1 lần nếu lỡ mất thảm hoặc người, không tốn thêm credit."]], credits: ONE_CREDIT, example: "material",
   },
   "Paint Visualizer": {

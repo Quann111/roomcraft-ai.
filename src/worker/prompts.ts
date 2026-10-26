@@ -100,6 +100,59 @@ const WALL_LOOK: Record<string, string> = {
   "Zellige tile": "glossy handmade zellige tiles in soft white with uneven glazed surfaces, slight color variation and thin grout lines",
   "Microcement": "seamless grey microcement with a smooth trowelled texture and subtle cloudy variation",
 };
+/** Looks for the other surfaces, used when several surfaces change in one edit (a bare name gave faint changes). */
+const SURFACE_LOOK: Record<string, Record<string, string>> = {
+  floor: {
+    "Oak hardwood": "wide-plank natural oak hardwood with visible grain, matte finish", "Walnut hardwood": "dark walnut hardwood planks with rich brown grain",
+    "Herringbone parquet": "light oak parquet laid in a herringbone pattern", "Polished concrete": "smooth polished grey concrete with a soft sheen",
+    "Porcelain tile": "large pale grey porcelain tiles with thin grout lines", Marble: "polished white marble slabs with soft grey veining",
+    Terrazzo: "speckled cream terrazzo with small multicoloured chips", "Natural stone": "honed beige natural stone slabs with subtle variation",
+    "Luxury vinyl plank": "light grey-oak luxury vinyl planks with a realistic wood look",
+  },
+  countertops: {
+    "White quartz": "bright white quartz with a subtle sparkle", "Carrara marble": "white Carrara marble with soft grey veining", "Black granite": "polished black granite with fine speckles",
+    "Butcher block": "warm oiled oak butcher block with visible strips", Concrete: "smooth grey concrete with a matte sealed finish", Soapstone: "dark charcoal soapstone with faint pale veins",
+    Terrazzo: "speckled cream terrazzo with small multicoloured chips",
+  },
+  cabinets: {
+    "White shaker": "white shaker-style doors with a recessed panel", "Walnut slab": "flat walnut-veneer slab doors with rich grain", "Matte black": "flat matte black doors with slim handles",
+    "Sage green": "sage green painted shaker doors", "Navy blue": "deep navy blue painted doors with brass handles", "Natural oak": "flat natural oak doors with visible grain",
+    "Two-tone": "natural oak upper doors with deep navy blue lower doors",
+  },
+  ceiling: {
+    "White painted": "smooth flat white painted ceiling", "Wood plank": "warm natural wood plank ceiling running along the room", "Exposed beams": "dark weathered timber plank ceiling with heavy exposed beams",
+    Coffered: "warm wood coffered ceiling with a grid of recessed square panels", Shiplap: "white painted shiplap boards", "Tin tile": "pressed silver tin tiles with an embossed pattern",
+  },
+};
+const SURFACE_NAME: Record<string, string> = { floor: "floor", walls: "walls", countertops: "countertops and kitchen worktops", cabinets: "cabinet doors and drawer fronts", ceiling: "ceiling" };
+/** 2-5 surfaces changed in one edit, e.g. {floor: "Oak hardwood", walls: "Limewash plaster"}; the floor may be a VICOSTONE tile. */
+export function cleanChanges(v: unknown, min = 2): Record<string, string> | null {
+  if (!v || typeof v !== "object") return null;
+  const out: Record<string, string> = {};
+  for (const [k, m] of Object.entries(v as Record<string, unknown>)) {
+    if (!(k in SURFACES) || typeof m !== "string") return null;
+    if (!(SURFACES[k].includes(m) || (k === "floor" && floorTile(m)))) return null;
+    out[k] = m;
+  }
+  const n = Object.keys(out).length;
+  return n >= min && n <= 5 ? out : null;
+}
+function multiSurfacePrompt(p: any) {
+  const c: Record<string, string> = p.changes;
+  const tile = floorTile(c.floor);
+  const look = (k: string, m: string) => (k === "walls" ? WALL_LOOK[m] : SURFACE_LOOK[k]?.[m]) ?? m;
+  const lines = Object.entries(c).map(([k, m]) => k === "floor" && tile
+    ? `the floor: ${TILE_BRAND} ${tile.code} porcelain tiles exactly like the swatch in the second image (${tile.look}), large-format ${TILE_SIZE} polished slabs in a straight grid with thin grout joints, each tile about 1.2 m wide`
+    : `the ${SURFACE_NAME[k]}: ${look(k, m)}`);
+  return [
+    "This is an in-place edit of the first image: change only these surfaces, all in one picture, and nothing else:", lines.map((l, i) => `${i + 1}) ${l}.`).join(" "),
+    "Cover each listed surface fully and evenly so the new finish is clearly visible, with its real texture at the correct scale and perspective. Every surface that is not listed stays exactly as it is.",
+    tile && floorScoutLines(p.scout),
+    "Keep every person, animal, piece of furniture, rug, appliance, window, door, light and object exactly in place, and keep the exact camera framing and crop. Rugs and mats lying on the floor are not floor: keep them as they are.",
+    "Match the original lighting, shadows and reflections so the new materials look naturally lit.", custom(p), STRUCTURE_LOCK,
+  ].filter(Boolean).join(" ");
+}
+
 export const PAINT_COLORS: { name: string; hex: string }[] = [
   { name: "Warm white", hex: "#F2EDE4" }, { name: "Soft greige", hex: "#CFC6B8" }, { name: "Sage green", hex: "#A8B5A0" },
   { name: "Dusty blue", hex: "#8FA3B5" }, { name: "Navy", hex: "#2E3A55" }, { name: "Terracotta", hex: "#C46A4A" },
@@ -526,6 +579,10 @@ export function buildPrompt(tool: string, p: any): string {
         "Strictly retain the layout, proportions, perspective and placement of every element in the sketch.", custom(p), "High quality interior photography.");
     }
     case "interior-material": {
+      if (p.changes) {
+        if (!cleanChanges(p.changes, 1)) throw new Error("Pick materials for 2 to 5 surfaces · Chọn vật liệu cho 2 đến 5 bề mặt");
+        return multiSurfacePrompt(p);
+      }
       const surface = oneOf(Object.keys(SURFACES), p.surface);
       if (!surface) throw new Error("Pick a surface to change · Chọn bề mặt cần đổi");
       if (!SURFACES[surface].includes(p.material)) throw new Error("Invalid material · Vật liệu không hợp lệ");

@@ -4,7 +4,7 @@ import { TILE_EDIT, PLAN_EDIT, submitImageToImage, submitTextToImage, submitImag
 import { CITIES, DIRECTIONS } from "./solar";
 import { FLOOR_TILES, floorTile } from "./floorTiles";
 import { recordCost, llmUsd, modelOf, kindOf, estimateUsd, parseCsv, rhTime } from "./costs";
-import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, LOCKED_PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, COMPARE_TOOLS, MAX_COMPARE, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, FLOOR_SCOUT_PROMPT, cleanFloorScout, type FloorScout, FLOOR_QA_PROMPT, floorQaVerdict, floorRetryNote, type FloorQa, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt, PLAN_READ_PROMPT, cleanPlanFacts, type PlanFacts, PALETTE_PROMPT, cleanPalette, roomRedoLines, planQaPrompt, planQaVerdict, roomQaPrompt, roomQaVerdict, type PlanRoom } from "./prompts";
+import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, LOCKED_PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, COMPARE_TOOLS, MAX_COMPARE, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, FLOOR_SCOUT_PROMPT, cleanFloorScout, type FloorScout, FLOOR_QA_PROMPT, floorQaVerdict, floorRetryNote, type FloorQa, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt, PLAN_READ_PROMPT, cleanPlanFacts, type PlanFacts, cleanChanges, PALETTE_PROMPT, cleanPalette, roomRedoLines, planQaPrompt, planQaVerdict, roomQaPrompt, roomQaVerdict, type PlanRoom } from "./prompts";
 
 type Env = { DB: D1Database; IMAGES: R2Bucket; ASSETS: Fetcher; DAILY_CREDITS: string; OPEN_ACCESS?: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
 type User = { id: string; email: string; credits: number; credits_refilled_at: number };
@@ -242,9 +242,20 @@ app.post("/api/generate", requireAuth, async (c) => {
   if (needsItems && !b.itemKeys.every((k: unknown) => typeof k === "string" && k.startsWith(`in/${u.id}/`))) return c.json({ error: "Invalid item image · Ảnh đồ vật không hợp lệ" }, 400);
   const items = needsItems ? await Promise.all((b.itemKeys as string[]).map((k) => c.env.IMAGES.get(k))) : [];
   if (items.some((o) => !o)) return c.json({ error: "Item image not found · Không tìm thấy ảnh đồ vật" }, 400);
+  // Several surfaces in one Material Swap edit; a VICOSTONE floor among them is handled like Floor Editor's tiles.
+  const changes = b.tool === "interior-material" && b.changes ? cleanChanges(b.changes) : null;
+  if (changes) b.changes = changes;
+  const tileMaterial = b.tool === "interior-floor" ? b.material : changes?.floor;
   // VICOSTONE tiles: read the photo first (before charging) so the edit knows what to keep, and refuse photos without floor.
-  const scout = b.tool === "interior-floor" && floorTile(b.material) ? await floorScout(c, b.inputKey) : null;
-  if (scout && !scout.bare_floor_visible) return c.json({ error: NO_FLOOR }, 422);
+  let scout = floorTile(tileMaterial) && (b.tool === "interior-floor" || changes) ? await floorScout(c, b.inputKey) : null;
+  // No bare floor: a lone tile edit is refused; a combined edit skips the floor and changes the other surfaces.
+  const skipped: string[] = [];
+  if (scout && !scout.bare_floor_visible) {
+    if (!changes) return c.json({ error: NO_FLOOR }, 422);
+    delete changes.floor; skipped.push("floor"); scout = null;
+    prompt = buildPrompt(b.tool, b); // rebuilt without the floor
+  }
+  const tileUsed = changes ? changes.floor : tileMaterial;
   if (scout) prompt = buildPrompt(b.tool, { ...b, scout });
   const floorplan = b.tool === "interior-floorplan";
   // The browser usually asked for the reading already (/api/floorplan/read) to turn the plan; reuse it, else read now.
@@ -274,17 +285,17 @@ app.post("/api/generate", requireAuth, async (c) => {
       return c.json({ id, status: "SUCCESS" });
     }
     const images = iso ? [iso, obj!] : obj ? [obj, ...(ref ? [ref] : []), ...items.map((o) => o!)] : [];
-    const swatch = b.tool === "interior-floor" ? await tileSwatch(c, b.material) : null;
+    const swatch = b.tool === "interior-floor" || changes ? await tileSwatch(c, tileUsed) : null;
     const taskId = video
       ? await submitImageToVideo(c.env.RUNNINGHUB_API_KEY, { image: { bytes: await obj!.arrayBuffer(), mime: obj!.httpMetadata?.contentType ?? "image/jpeg" }, prompt, aspectRatio: ["9:16", "2:3", "3:4", "4:5"].includes(aspectRatio ?? "") ? "9:16" : "16:9" }, c.env.RUNNINGHUB_BASE)
       : textOnly
       ? await submitTextToImage(c.env.RUNNINGHUB_API_KEY, { prompt, aspectRatio: aspectRatio ?? "16:9", resolution }, c.env.RUNNINGHUB_BASE)
       : await submitImageToImage(c.env.RUNNINGHUB_API_KEY, {
         images: [...await Promise.all(images.map(async (o) => ({ bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" }))), ...(swatch ? [swatch] : [])],
-        prompt, aspectRatio: iso ? "16:9" : swatch || floorplan ? aspectRatio ?? "4:3" : aspectRatio, resolution, model: swatch ? TILE_EDIT : floorplan ? PLAN_EDIT : undefined,
+        prompt, aspectRatio: iso ? "16:9" : swatch || floorplan || changes ? aspectRatio ?? "4:3" : aspectRatio, resolution, model: swatch || changes ? TILE_EDIT : floorplan ? PLAN_EDIT : undefined,
       }, c.env.RUNNINGHUB_BASE);
     await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,rh_task_id,input_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: b.surface, material: b.material, weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, lighting: b.tool === "interior-lighting" ? b.lighting : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, scout: scout ?? undefined, plan: plan ?? undefined, isoKey: iso ? b.isoKey : undefined, engine: floorplan ? "gpt25" : undefined, autoCheck: (swatch || plan) && b.autoCheck === true ? true : undefined, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
+      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: changes ? undefined : b.surface, material: changes ? undefined : b.material, changes: changes ?? undefined, skipped: skipped.length ? skipped : undefined, weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, lighting: b.tool === "interior-lighting" ? b.lighting : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, scout: scout ?? undefined, plan: plan ?? undefined, isoKey: iso ? b.isoKey : undefined, engine: floorplan || changes ? "gpt25" : undefined, autoCheck: (swatch || plan) && b.autoCheck === true ? true : undefined, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
     return c.json({ id, status: "RUNNING" });
   } catch (e: any) {
     await refund("refund_submit_failed");
@@ -554,8 +565,9 @@ async function checkFor(c: any, g: any, params: any): Promise<Check | null> {
     const call = chatJson(c.env.RUNNINGHUB_API_KEY, { model: CRITIQUE_MODEL, prompt, images, onUsage: llmCost(c, g.tool, g.id, g.user_id) }).then(verdict, () => null);
     return Promise.race([call, new Promise<null>((r) => setTimeout(() => r(null), 45_000))]);
   };
-  if (g.tool === "interior-floor") {
-    const swatch = await tileSwatch(c, params.material).catch(() => null);
+  const tileMaterial = g.tool === "interior-floor" ? params.material : params.changes?.floor;
+  if (g.tool === "interior-floor" || (g.tool === "interior-material" && floorTile(tileMaterial))) {
+    const swatch = await tileSwatch(c, tileMaterial).catch(() => null);
     return swatch && { model: TILE_EDIT, inputs: async () => [plan, swatch], judge: (out) => ask(FLOOR_QA_PROMPT, [plan, out, swatch], (r) => floorQaVerdict(r, params.scout?.floor_closeup === true)) };
   }
   if (g.tool === "interior-floorplan" && params.plan) {
