@@ -807,9 +807,15 @@ export function App() {
             {/* Every ready tool as a text button on a dark band, slid open by the "All tools" tab. */}
             <div id="all-tools" className={`all-tools ${allOpen && filter === "all" ? "open" : ""}`} inert={!(allOpen && filter === "all")}>
               <nav aria-label={t("All tools", "Tất cả công cụ")}>
-                {TOOLS.filter((x) => x.spaces).map((x) => (
-                  <button key={x.name} type="button" className="all-tool" title={bi(x.desc)} onClick={() => open(x.name)}>{bi(x.name)}</button>
-                ))}
+                {FILTERS.filter(([k]) => k !== "all").map(([k, en, vi]) => {
+                  const list = TOOLS.filter((x) => x.spaces && x.cat === k);
+                  return list.length ? (
+                    <div key={k} className="all-group">
+                      <h3>{t(en, vi)}<span>{list.length}</span></h3>
+                      {list.map((x) => <button key={x.name} type="button" className="all-tool" title={bi(x.desc)} onClick={() => open(x.name)}>{bi(x.name)}</button>)}
+                    </div>
+                  ) : null;
+                })}
               </nav>
             </div>
 
