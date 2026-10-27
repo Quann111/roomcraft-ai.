@@ -164,24 +164,34 @@ export const WEATHER = ["Golden hour", "Clear blue sky", "Sunset glow", "Overcas
 export const REMOVE = ["furniture", "clutter", "people", "everything (empty room)"];
 export const ANGLES = ["front", "side", "back"];
 /** Camera views for turning a 2D floor plan into a 3D render. */
-export const PLAN_VIEWS = ["isometric", "top-down"] as const;
+export const PLAN_VIEWS = ["perspective", "top-down"] as const;
 /** Views shown but not offered yet: top-down sometimes copies the plan's labels into the render. */
 export const LOCKED_PLAN_VIEWS: readonly string[] = ["top-down"];
 const PLAN_VIEW_TEXT: Record<(typeof PLAN_VIEWS)[number], string> = {
-  isometric: "Show it like a photograph of a roofless architectural scale model taken diagonally from outside one corner, with the camera only about 30 degrees above the ground, in true 3D perspective. The outer and inner wall faces (cut at about 1.2 m height) and the height of the furniture are clearly visible.",
+  perspective: "Show it like a photograph of a roofless architectural scale model taken diagonally from outside one corner, with the camera only about 30 degrees above the ground, in true 3D perspective. The outer and inner wall faces (cut at about 1.2 m height) and the height of the furniture are clearly visible.",
   "top-down": "Show it like a photograph taken from a drone directly above a roofless home, with the walls extruded with realistic thickness and soft shadows, so the layout reads exactly like the plan.",
 };
 
 /**
- * Isometric 2D -> 3D with a pre-turned plan: the browser crops the plan to the building, rotates it 45 degrees counter-clockwise
- * and squashes it to 58% height, so the image model builds walls up from a floor that is already at a true isometric angle.
- * Asked to turn an upright plan itself, it kept the plan flat and sheared the walls (an oblique view that looks warped).
+ * 2D -> 3D in true perspective: the browser projects the plan through a real camera (front, about 42 degrees above the ground)
+ * twice, dark on the floor and light blue at the 1.2 m wall tops, so the image model builds each wall between its two copies and
+ * every wall follows one vanishing point. Asked to turn an upright plan itself, it kept the plan flat and sheared the walls.
  */
-const ISO_TURNED = [
-  "This floor plan has already been turned to the camera: it is drawn as the floor of an isometric 3D view, rotated 45 degrees and foreshortened. Build the 3D model on exactly this floor: keep the floor outline in exactly the same place, angle and size in the image, and extrude every wall straight up to about 1.2 m (cut-away height) with visible thickness, so the vertical edges of walls are vertical lines in the image and parallel walls stay parallel.",
-  "Isometric parallel projection, no vanishing points, roofless, seen from above at the angle of the floor.",
-  "Positions given for the plan refer to the plan before it was turned: its top edge is now the upper-left edge of the floor in this image, its left edge the lower-left edge, its bottom edge the lower-right edge and its right edge the upper-right edge.",
-  "Image 2 is the same plan before it was turned, upright: read the room names and furniture symbols there, then build them on the turned floor of image 1. Every bedroom gets its bed; furnish each space only as its label says, never move the living room into another room's walls.",
+const PERSPECTIVE_GUIDE = [
+  "Image 1 shows this floor plan already placed in a real 3D perspective by a camera outside the building, looking down at about 42 degrees from the front, so parallel lines converge to one vanishing point.",
+  "The plan is drawn twice: the dark copy lies on the ground (floor level) and the light blue copy is the same plan lifted to the wall tops at 1.2 m. Build the 3D cut-away model exactly on these guides: every wall stands on its dark line on the floor and its top edge is exactly on the matching light blue line, so the walls rise straight and vertical between the two copies with visible thickness.",
+  "Keep the floor and the guides' outline in exactly the same place and size; do not change the camera. Then remove both guide drawings completely: the final image shows only the built model, real floors and furniture, no lines, no blue copy.",
+  "Positions given for the plan: plan top = far side, bottom = near side.",
+  "Image 2 is the same plan upright: read room names and furniture symbols there and build them on the floor of image 1. Every bedroom gets its bed; furnish each space only as its label says, never move the living room into another room's walls.",
+].join(" ");
+
+/**
+ * Second pass for 2D -> 3D (Gemini flash): fresher light and colour on the GPT render without touching its geometry. Tested on
+ * 7 plans, it kept about 96% of the wall edges in place; giving it a look reference made it redraw the layout, so it gets none.
+ */
+export const PLAN_POLISH_PROMPT = [
+  "Edit this image in place. It is a 3D cut-away rendering of a home. Keep EXACTLY the same camera, framing, perspective and vanishing points, every wall in exactly the same place, length and height, every door opening, window, stair, bathroom fixture, kitchen counter and piece of furniture in exactly the same place and size. Do not add, remove, move or resize anything; do not add any text.",
+  "Only improve the rendering quality and light: bright, airy, high-key daylight like a premium real-estate marketing render, soft natural sunlight coming through the windows with gentle soft shadows, clean bright white walls, fresh natural colours, crisp realistic materials (wood grain, fabric, stone), subtle ambient occlusion, a clean light background, no dark or grey corners.",
 ].join(" ");
 
 export const TOOL_IDS = [
@@ -335,7 +345,7 @@ function planFactLines(f: PlanFacts) {
 }
 
 /** Optional check after a 2D -> 3D render: which plan spaces are missing, invented or misplaced. */
-export const planQaPrompt = (f: PlanFacts) => `You are a strict QA reviewer. Image 1 is a 2D floor plan, image 2 is a 3D rendering of it (an isometric model view, which may be seen from any corner; mentally rotate it).
+export const planQaPrompt = (f: PlanFacts) => `You are a strict QA reviewer. Image 1 is a 2D floor plan, image 2 is a 3D rendering of it (a perspective model view, which may be seen from any side; mentally rotate it).
 The plan has these spaces:
 ${f.spaces.map((s, i) => `${i + 1}. ${gloss(s.name)} (${s.kind}): ${s.where}, ${s.size}`).join("\n")}
 Footprint ${f.length} m x ${f.depth} m.${f.absent.length ? ` The plan has no ${f.absent.join(", no ")}.` : ""}
@@ -707,12 +717,12 @@ export function buildPrompt(tool: string, p: any): string {
       if (LOCKED_PLAN_VIEWS.includes(p.view)) throw new Error("This view is coming soon · Góc nhìn này sắp ra mắt");
       const s = styleFor(p.styleSlug, "interior");
       return join(
-        p.iso
-          // Naming the upright copy (image 2) up front made the model frame the result like it; it is only mentioned in ISO_TURNED.
-          ? `This image is a 2D architectural floor plan, shown at an isometric angle. Turn it into a photorealistic 3D rendering of the same floor plan, furnished in a ${s.name} interior style.`
+        p.guide
+          // Naming the upright copy (image 2) up front made the model frame the result like it; it is only mentioned in PERSPECTIVE_GUIDE.
+          ? `This image is a 2D architectural floor plan, laid out in perspective. Turn it into a photorealistic 3D rendering of the same floor plan, furnished in a ${s.name} interior style.`
           : `This image is a 2D architectural floor plan. Turn it into a photorealistic 3D rendering of the same floor plan, furnished in a ${s.name} interior style.`,
         "The result is a picture of a real furnished home, not a drawing. Words on the plan only tell you what each room is for and are never drawn: every floor shows only real flooring, rugs and furniture, with no writing, numbers, dimension lines or symbols.",
-        p.iso ? ISO_TURNED : PLAN_VIEW_TEXT[oneOf(PLAN_VIEWS, p.view) ?? "isometric"],
+        p.guide ? PERSPECTIVE_GUIDE : PLAN_VIEW_TEXT[oneOf(PLAN_VIEWS, p.view) ?? "perspective"],
         ...(p.plan ? planFactLines(p.plan) : []),
         "Follow the plan exactly: the same outline, the same rooms in the same positions and proportions, and every wall, door opening and window where the plan shows it. Do not add, remove, merge or resize rooms.",
         p.plan ? "Furnish each space only for its labelled purpose, using the furniture and fixtures drawn on the plan, at realistic scale." : "Furnish each room for its purpose as shown by its label or fixtures (beds in bedrooms, sofa and coffee table in the living room, kitchen units, bathroom fixtures) at realistic scale, with matching floor materials per room.",

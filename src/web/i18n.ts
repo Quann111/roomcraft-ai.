@@ -25,7 +25,7 @@ const VI: Record<string, string> = {
   "Fresh snow": "Tuyết mới", "Misty morning": "Sáng sương mù", "Dramatic storm clouds": "Mây bão kịch tính",
   furniture: "Đồ nội thất", clutter: "Đồ lộn xộn", people: "Người", "everything (empty room)": "Tất cả (phòng trống)",
   front: "Mặt trước", side: "Mặt bên", back: "Mặt sau",
-  isometric: "Phối cảnh 3D (45°)", "top-down": "Nhìn từ trên xuống",
+  perspective: "Phối cảnh 3D", "top-down": "Nhìn từ trên xuống",
   // intervention
   "very-low": "Rất thấp", low: "Thấp", medium: "Vừa", high: "Cao", extreme: "Tối đa",
   // paint colors & finishes

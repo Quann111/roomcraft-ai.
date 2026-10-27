@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AiThinking } from "./AiThinking";
 import { bi, getLang, t } from "./i18n";
-import { prepareImage, formatBytes, isoFloor, type PreparedImage } from "./imagePrep";
+import { prepareImage, formatBytes, perspGuide, type PreparedImage } from "./imagePrep";
 import { AdvisorChat } from "./AdvisorChat";
 import { BizPlan } from "./BizPlan";
 import { OrientView, DIRS, DIR_NAMES, type Orient } from "./OrientView";
@@ -288,7 +288,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
   const [autoCheck, setAutoCheck] = useState(false); // VICOSTONE tiles and 2D -> 3D plans: optional post-check with one retry, off by default
   const [weather, setWeather] = useState("");
   const [angle, setAngle] = useState("front");
-  const [view, setView] = useState("isometric");
+  const [view, setView] = useState("perspective");
   const [motion, setMotion] = useState("push-in");
   const [lighting, setLighting] = useState("golden-hour");
   const [kind, setKind] = useState<"plan" | "facade">("plan");
@@ -389,11 +389,11 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     try {
       const upload = (f: Blob) => j<{ key: string }>("/api/upload", { method: "POST", headers: { "Content-Type": f.type }, body: f }).then((r) => r.key);
       const key = cfg.text || !file ? undefined : await upload(file);
-      // 2D -> 3D isometric: read the plan, then turn it to an isometric floor here, so the render keeps a true 3D angle.
-      // If either step fails the render still runs on the upright plan.
-      const isoKey = cfg.planView && view !== "top-down" && key && file
-        ? await j<{ crop: number[] | null; read: boolean }>("/api/floorplan/read", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ inputKey: key }) })
-          .then((r) => (r.read ? isoFloor(file, r.crop).then(upload) : undefined)).catch(() => undefined)
+      // 2D -> 3D: read the plan, then project it here through a real camera (floor + wall-top guide), so the render keeps
+      // one true perspective. If either step fails the render still runs on the upright plan.
+      const guideKey = cfg.planView && view !== "top-down" && key && file
+        ? await j<{ crop: number[] | null; read: boolean; longM?: number }>("/api/floorplan/read", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ inputKey: key }) })
+          .then((r) => (r.read ? perspGuide(file, r.crop, r.longM ?? 0).then(upload) : undefined)).catch(() => undefined)
         : undefined;
       const refKey = cfg.reference && refFile ? await upload(refFile) : undefined;
       const itemKeys = cfg.items ? await Promise.all(items.map((x) => upload(x.file))) : undefined;
@@ -414,7 +414,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
           ...(cfg.llm ? { lang: getLang() } : {}),
           ...(cfg.weather ? { weather } : {}),
           ...(cfg.angle ? { angle } : {}),
-          ...(cfg.planView ? { view, ...(isoKey ? { isoKey } : {}), ...(autoCheck ? { autoCheck: true } : {}) } : {}),
+          ...(cfg.planView ? { view, ...(guideKey ? { guideKey } : {}), ...(autoCheck ? { autoCheck: true } : {}) } : {}),
           ...(cfg.video ? { motion } : {}),
           ...(cfg.lighting ? { lighting } : {}),
           ...(cfg.orient ? { kind, facing, city } : {}),
