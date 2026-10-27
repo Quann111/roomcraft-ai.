@@ -791,6 +791,13 @@ export function App() {
               <QuickOpen onOpen={open} />
             </div>
 
+            {/* Always-on quick access: every ready tool of the current tab as a small button, no scrolling to the grid needed. */}
+            <nav className="quick-grid" aria-label={t("Quick access", "Truy cập nhanh")}>
+              {TOOLS.filter((x) => x.spaces && (filter === "all" || x.cat === filter)).map((x) => (
+                <button key={x.name} type="button" className="quick-tool" title={bi(x.desc)} onClick={() => open(x.name)}><Icon n={x.icon} /><span>{bi(x.name)}</span></button>
+              ))}
+            </nav>
+
             <section className="spotlight">
               <div className="spotlight-copy"><p className="eyebrow">{bi("Perfect Redesign")}</p><h2>{t("Bring your next space to life with AI.", "Biến không gian tiếp theo của bạn thành hiện thực bằng AI.")}</h2><p>{t("Upload a photo, pick a style and let AI redesign it while keeping your walls, windows and layout.", "Tải ảnh, chọn phong cách và để AI thiết kế lại trong khi giữ nguyên tường, cửa sổ và bố cục.")}</p><button className="primary-btn" onClick={() => open("Perfect Redesign")}>{t("Start Now", "Bắt đầu ngay")} <span>→</span></button></div>
               <div className="spotlight-art"><span className="spotlight-tag">{t("AI Redesign", "Thiết kế lại bằng AI")}</span></div>

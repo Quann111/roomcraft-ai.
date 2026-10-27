@@ -99,6 +99,12 @@
     .chip { white-space: nowrap; padding: 9px 16px; color: var(--stone); border: 1px solid var(--line); border-radius: var(--radius); background: var(--white); transition: .18s ease; }
     .chip:hover { color: var(--ink); border-color: var(--gold); }
     @media (max-width: 600px) { .qo-wide { display: none; } } /* phones: the quick-open button shows only its icon so the tabs keep room */
+    .quick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: -12px 0 24px; }
+    .quick-tool { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--ink); background: var(--white); font-size: 12px; text-align: left; cursor: pointer; transition: border-color .18s ease, background .18s ease; }
+    .quick-tool:hover, .quick-tool:focus-visible { border-color: var(--gold); background: var(--ivory); }
+    .quick-tool .icon-svg { flex: 0 0 auto; width: 16px; height: 16px; color: var(--gold); }
+    .quick-tool span { min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.25; } /* long names wrap to two lines */
+    @media (max-width: 600px) { .quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .quick-tool span { -webkit-line-clamp: 3; } }
     .chip.active { color: var(--white); border-color: var(--ink); background: var(--ink); }
 
     .spotlight {
