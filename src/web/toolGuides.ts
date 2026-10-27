@@ -109,7 +109,7 @@ export const GUIDES: Record<string, Guide> = {
   },
   "3D Floorplan": {
     what: ["Turn a 2D floor plan into a furnished 3D view of the whole home.", "Biến mặt bằng 2D thành ảnh 3D có nội thất của cả căn nhà."],
-    steps: [["Upload the floor plan.", "Tải mặt bằng lên."], ["Pick a style; the 45° perspective view is used.", "Chọn phong cách; ảnh dùng góc phối cảnh 45°."], ["Press Generate.", "Bấm Tạo thiết kế."]],
+    steps: [["Upload the floor plan.", "Tải mặt bằng lên."], ["Pick a style; the result is a true perspective view with one vanishing point.", "Chọn phong cách; ảnh ra phối cảnh thật, có điểm tụ."], ["Press Generate.", "Bấm Tạo thiết kế."]],
     tips: [["The top-down view is coming soon.", "Góc nhìn từ trên xuống sắp ra mắt."], ["Plans with clear walls and room labels give the most faithful layout.", "Mặt bằng có nét tường rõ và tên phòng cho bố cục sát nhất."]], credits: ONE_CREDIT, example: "floorplan",
   },
   "Video Generation": {

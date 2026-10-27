@@ -104,29 +104,79 @@ export async function prepareImage(file: File, o: { exactAspect?: boolean } = {}
   };
 }
 
+/** Solves for PIL-style perspective coefficients mapping output points `dst` back to input points `src` (4 pairs). */
+function homography(src: number[][], dst: number[][]): number[] {
+  const A: number[][] = [];
+  dst.forEach(([x, y], i) => {
+    const [u, v] = src[i];
+    A.push([x, y, 1, 0, 0, 0, -u * x, -u * y, u], [0, 0, 0, x, y, 1, -v * x, -v * y, v]);
+  });
+  for (let c = 0; c < 8; c++) {
+    let p = c;
+    for (let r = c + 1; r < 8; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+    [A[c], A[p]] = [A[p], A[c]];
+    for (let r = 0; r < 8; r++) if (r !== c) { const f = A[r][c] / A[c][c]; for (let k = c; k < 9; k++) A[r][k] -= f * A[c][k]; }
+  }
+  return A.map((row, i) => row[8] / row[i]);
+}
+
+/** Pinhole camera outside the building, `pitch` degrees above the ground, looking at its centre from the near (bottom) side. */
+function camera(w: number, h: number, pitch = 42, fov = 40) {
+  const t = Math.tan((fov * Math.PI) / 360), dist = (1.25 * Math.hypot(w, h)) / (2 * t), a = (pitch * Math.PI) / 180;
+  const cy = -dist * Math.cos(a), cz = dist * Math.sin(a);
+  // forward points at the centre; right is +X; up = right x forward
+  const fwd = [0, -cy / dist, -cz / dist], up = [0, -fwd[2], fwd[1]];
+  return (X: number, Y: number, Z: number): [number, number] => {
+    const p = [X, Y - cy, Z - cz], z = p[1] * fwd[1] + p[2] * fwd[2];
+    return [p[0] / t / z, -(p[1] * up[1] + p[2] * up[2]) / t / z];
+  };
+}
+
 /**
- * 2D -> 3D: turns a floor plan into the floor of an isometric view: crop to the building (`crop` as 0-1 fractions, plus 3%),
- * rotate 45 degrees counter-clockwise, squash to 58% height, pad white to 16:9. The worker's prompt describes exactly this turn.
+ * 2D -> 3D in true one-point perspective: the plan (cropped to the building, `crop` as 0-1 fractions plus 2%) is projected by a
+ * real camera twice, dark on the floor and light blue at the wall tops (1.2 m, from the footprint's long side `longM` in metres),
+ * on a white 16:9 canvas. The image model builds each wall between its two copies, so every wall follows the same vanishing point.
  */
-export async function isoFloor(file: File, crop?: number[] | null): Promise<Blob> {
+export async function perspGuide(file: File, crop: number[] | null | undefined, longM: number): Promise<Blob> {
   const img = await decode(file);
-  const iw = img.width, ih = img.height, m = 0.03;
+  const iw = img.width, ih = img.height, m = 0.02;
   const [x0, y0, x1, y1] = crop && crop.length === 4 ? crop : [0, 0, 1, 1];
   const sx = Math.max(0, x0 - m) * iw, sy = Math.max(0, y0 - m) * ih, sw = Math.min(1, x1 + m) * iw - sx, sh = Math.min(1, y1 + m) * ih - sy;
-  const diag = (sw + sh) / Math.SQRT2, squash = 0.58;
-  let W = Math.max(diag, (diag * squash * 16) / 9) * 1.08;
-  const k = Math.min(1, 2048 / W); // keep the upload small
-  W = Math.round(W * k);
-  const H = Math.round((W * 9) / 16);
+  const k = Math.min(1, 1600 / Math.max(sw, sh)), w = Math.max(1, Math.round(sw * k)), h = Math.max(1, Math.round(sh * k));
+  const src = document.createElement("canvas");
+  src.width = w; src.height = h;
+  const sg = src.getContext("2d")!;
+  sg.fillStyle = "#fff"; sg.fillRect(0, 0, w, h);
+  sg.drawImage(img as CanvasImageSource, sx, sy, sw, sh, 0, 0, w, h);
+  const plan = sg.getImageData(0, 0, w, h).data;
+  // metres per pixel from the long side; plan top = far side
+  const s = (longM > 0 ? longM : 12) / Math.max(w, h), wall = 1.2;
+  const proj = camera(w * s, h * s);
+  const corners = [[0, 0], [w, 0], [w, h], [0, h]];
+  const at = (z: number) => corners.map(([u, v]) => proj((u - w / 2) * s, (h / 2 - v) * s, z));
+  const top = at(wall), floor = at(0), all = [...top, ...floor];
+  const xs = all.map((p) => p[0]), ys = all.map((p) => p[1]);
+  const W = 1600, H = 900, f = 0.86 * Math.min(W / (Math.max(...xs) - Math.min(...xs)), H / (Math.max(...ys) - Math.min(...ys)));
+  const ox = W / 2 - (f * (Math.max(...xs) + Math.min(...xs))) / 2, oy = H / 2 - (f * (Math.max(...ys) + Math.min(...ys))) / 2;
+  const out = new ImageData(W, H);
+  out.data.fill(255);
+  for (const [pts, blue] of [[top, true], [floor, false]] as const) {
+    const [a, b, c, d, e, g2, p, q] = homography(corners, pts.map(([x, y]) => [ox + f * x, oy + f * y]));
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const n = p * x + q * y + 1, u = (a * x + b * y + c) / n, v = (d * x + e * y + g2) / n;
+      if (u < 0 || v < 0 || u >= w || v >= h) continue;
+      const i = ((v | 0) * w + (u | 0)) * 4, o = (y * W + x) * 4;
+      for (let ch = 0; ch < 3; ch++) {
+        let val = plan[i + ch];
+        if (blue) { const l = (plan[i] * 299 + plan[i + 1] * 587 + plan[i + 2] * 114) / 1000, tint = [90, 150, 220][ch]; val = 0.75 * (tint + ((255 - tint) * l) / 255) + 64; }
+        if (val < out.data[o + ch]) out.data[o + ch] = val;
+      }
+    }
+  }
   const canvas = document.createElement("canvas");
   canvas.width = W; canvas.height = H;
-  const g = canvas.getContext("2d")!;
-  g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
-  g.translate(W / 2, H / 2 + H * 0.03);
-  g.scale(k, k * squash);
-  g.rotate(-Math.PI / 4);
-  g.drawImage(img as CanvasImageSource, sx, sy, sw, sh, -sw / 2, -sh / 2, sw, sh);
-  return new Promise((ok, fail) => canvas.toBlob((b) => (b ? ok(b) : fail(new Error("Could not prepare the plan · Không xử lý được mặt bằng"))), "image/jpeg", 0.92));
+  canvas.getContext("2d")!.putImageData(out, 0, 0);
+  return new Promise((ok, fail) => canvas.toBlob((b2) => (b2 ? ok(b2) : fail(new Error("Could not prepare the plan · Không xử lý được mặt bằng"))), "image/jpeg", 0.9));
 }
 
 export const formatBytes = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);

@@ -4,7 +4,7 @@ import { TILE_EDIT, PLAN_EDIT, submitImageToImage, submitTextToImage, submitImag
 import { CITIES, DIRECTIONS } from "./solar";
 import { FLOOR_TILES, floorTile } from "./floorTiles";
 import { recordCost, llmUsd, modelOf, kindOf, estimateUsd, parseCsv, rhTime } from "./costs";
-import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, LOCKED_PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, COMPARE_TOOLS, MAX_COMPARE, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, FLOOR_SCOUT_PROMPT, cleanFloorScout, type FloorScout, FLOOR_QA_PROMPT, floorQaVerdict, floorRetryNote, type FloorQa, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt, PLAN_READ_PROMPT, cleanPlanFacts, type PlanFacts, cleanChanges, PALETTE_PROMPT, cleanPalette, roomRedoLines, planQaPrompt, planQaVerdict, roomQaPrompt, roomQaVerdict, type PlanRoom } from "./prompts";
+import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, LOCKED_PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, COMPARE_TOOLS, MAX_COMPARE, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, FLOOR_SCOUT_PROMPT, cleanFloorScout, type FloorScout, FLOOR_QA_PROMPT, floorQaVerdict, floorRetryNote, type FloorQa, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt, PLAN_READ_PROMPT, PLAN_POLISH_PROMPT, cleanPlanFacts, type PlanFacts, cleanChanges, PALETTE_PROMPT, cleanPalette, roomRedoLines, planQaPrompt, planQaVerdict, roomQaPrompt, roomQaVerdict, type PlanRoom } from "./prompts";
 
 type Env = { DB: D1Database; IMAGES: R2Bucket; ASSETS: Fetcher; DAILY_CREDITS: string; OPEN_ACCESS?: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
 type User = { id: string; email: string; credits: number; credits_refilled_at: number };
@@ -270,9 +270,9 @@ app.post("/api/generate", requireAuth, async (c) => {
   const floorplan = b.tool === "interior-floorplan";
   // The browser usually asked for the reading already (/api/floorplan/read) to turn the plan; reuse it, else read now.
   const plan = floorplan ? await cachedPlanFacts(c, b.inputKey) ?? await planRead(c, b.inputKey) : null;
-  // Isometric view with the plan the browser turned to the isometric angle (image 1), the upright plan as image 2.
-  const iso = floorplan && plan && b.view !== "top-down" ? await ownImage(c, b.isoKey) : null;
-  if (plan) prompt = buildPrompt(b.tool, { ...b, plan, iso: !!iso });
+  // Perspective view: the camera wall guide the browser drew (image 1), the upright plan as image 2.
+  const guide = floorplan && plan && b.view !== "top-down" ? await ownImage(c, b.guideKey) : null;
+  if (plan) prompt = buildPrompt(b.tool, { ...b, plan, guide: !!guide });
 
   const video = VIDEO_TOOLS.includes(b.tool);
   const cost = isAdmin(u) ? 0 : video ? VIDEO_COST : RES_COST[resolution]; // admin: unlimited, no credits charged
@@ -294,7 +294,7 @@ app.post("/api/generate", requireAuth, async (c) => {
         .bind(id, u.id, b.tool, JSON.stringify({ roomType: b.roomType, lang: b.lang === "vi" ? "vi" : "en", kind: b.kind, facing: b.facing, city: b.city, resolution }), prompt, "SUCCESS", b.inputKey, outKey, cost, now).run();
       return c.json({ id, status: "SUCCESS" });
     }
-    const images = iso ? [iso, obj!] : obj ? [obj, ...(ref ? [ref] : []), ...items.map((o) => o!)] : [];
+    const images = guide ? [guide, obj!] : obj ? [obj, ...(ref ? [ref] : []), ...items.map((o) => o!)] : [];
     const swatch = b.tool === "interior-floor" || changes ? await tileSwatch(c, tileUsed) : null;
     const taskId = video
       ? await submitImageToVideo(c.env.RUNNINGHUB_API_KEY, { image: { bytes: await obj!.arrayBuffer(), mime: obj!.httpMetadata?.contentType ?? "image/jpeg" }, prompt, aspectRatio: ["9:16", "2:3", "3:4", "4:5"].includes(aspectRatio ?? "") ? "9:16" : "16:9" }, c.env.RUNNINGHUB_BASE)
@@ -302,10 +302,10 @@ app.post("/api/generate", requireAuth, async (c) => {
       ? await submitTextToImage(c.env.RUNNINGHUB_API_KEY, { prompt, aspectRatio: aspectRatio ?? "16:9", resolution }, c.env.RUNNINGHUB_BASE)
       : await submitImageToImage(c.env.RUNNINGHUB_API_KEY, {
         images: [...await Promise.all(images.map(async (o) => ({ bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" }))), ...(swatch ? [swatch] : [])],
-        prompt, aspectRatio: iso ? "16:9" : swatch || floorplan || changes ? aspectRatio ?? "4:3" : aspectRatio, resolution, model: swatch || changes ? TILE_EDIT : floorplan ? PLAN_EDIT : undefined,
+        prompt, aspectRatio: guide ? "16:9" : swatch || floorplan || changes ? aspectRatio ?? "4:3" : aspectRatio, resolution, model: swatch || changes ? TILE_EDIT : floorplan ? PLAN_EDIT : undefined,
       }, c.env.RUNNINGHUB_BASE);
     await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,rh_task_id,input_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: changes ? undefined : b.surface, material: changes ? undefined : b.material, changes: changes ?? undefined, skipped: skipped.length ? skipped : undefined, ...(fromRun ? { ...fromRun, planRoom: true } : {}), weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, lighting: b.tool === "interior-lighting" ? b.lighting : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, scout: scout ?? undefined, plan: plan ?? undefined, isoKey: iso ? b.isoKey : undefined, engine: floorplan || changes ? "gpt25" : undefined, autoCheck: (swatch || plan) && b.autoCheck === true ? true : undefined, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
+      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: changes ? undefined : b.surface, material: changes ? undefined : b.material, changes: changes ?? undefined, skipped: skipped.length ? skipped : undefined, ...(fromRun ? { ...fromRun, planRoom: true } : {}), weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, lighting: b.tool === "interior-lighting" ? b.lighting : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, scout: scout ?? undefined, plan: plan ?? undefined, guideKey: guide ? b.guideKey : undefined, polish: guide ? true : undefined, engine: floorplan || changes ? "gpt25" : undefined, autoCheck: (swatch || plan) && b.autoCheck === true ? true : undefined, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
     return c.json({ id, status: "RUNNING" });
   } catch (e: any) {
     await refund("refund_submit_failed");
@@ -313,7 +313,7 @@ app.post("/api/generate", requireAuth, async (c) => {
   }
 });
 
-// 2D -> 3D: read the plan (free) so the browser can crop and turn it to an isometric floor before the render.
+// 2D -> 3D: read the plan (free) so the browser can crop it and project it through a camera before the render.
 app.post("/api/floorplan/read", requireAuth, async (c) => {
   const u = c.get("user");
   const b = await c.req.json<any>().catch(() => ({}));
@@ -322,7 +322,7 @@ app.post("/api/floorplan/read", requireAuth, async (c) => {
   if (!isAdmin(u) && !(await allow(c.env, `plan:${u.id}`, 3_600_000, 30))) return c.json({ error: "Limit is 30 plan scans per hour · Tối đa 30 lần đọc mặt bằng mỗi giờ" }, 429);
   const facts = await cachedPlanFacts(c, b.inputKey) ?? await planRead(c, b.inputKey);
   if (facts) await c.env.IMAGES.put(factsKey(b.inputKey), JSON.stringify(facts), { httpMetadata: { contentType: "application/json" } });
-  return c.json({ crop: facts?.crop ?? null, read: !!facts });
+  return c.json({ crop: facts?.crop ?? null, read: !!facts, longM: facts ? Math.max(facts.length, facts.depth) : undefined });
 });
 
 // ---------- Business 3D Floorplan: detect rooms, then one render per room ----------
@@ -582,8 +582,9 @@ async function checkFor(c: any, g: any, params: any): Promise<Check | null> {
     return swatch && { model: TILE_EDIT, inputs: async () => [plan, swatch], judge: (out) => ask(FLOOR_QA_PROMPT, [plan, out, swatch], (r) => floorQaVerdict(r, params.scout?.floor_closeup === true)) };
   }
   if (g.tool === "interior-floorplan" && params.plan) {
-    const iso = params.isoKey ? await c.env.IMAGES.get(params.isoKey).then((o: any) => o && imgOf(o)) : null;
-    return { model: PLAN_EDIT, inputs: async () => (iso ? [iso, plan] : [plan]), judge: (out) => ask(planQaPrompt(params.plan), [plan, out], (r) => planQaVerdict(r, params.plan)) };
+    const guideKey = params.guideKey ?? params.isoKey;
+    const guide = guideKey ? await c.env.IMAGES.get(guideKey).then((o: any) => o && imgOf(o)) : null;
+    return { model: PLAN_EDIT, inputs: async () => (guide ? [guide, plan] : [plan]), judge: (out) => ask(planQaPrompt(params.plan), [plan, out], (r) => planQaVerdict(r, params.plan)) };
   }
   if (g.tool === BIZPLAN_TOOL && params.room) {
     const crop = params.cropKey ? await c.env.IMAGES.get(params.cropKey).then((o: any) => o && imgOf(o)) : null;
@@ -621,12 +622,33 @@ async function qaCheck(c: any, g: any, params: any, out: Img): Promise<{ done: f
   try {
     await c.env.IMAGES.put(`out/${g.user_id}/${g.id}-try1`, out.bytes, { httpMetadata: { contentType: out.mime } });
     const task = await submitImageToImage(c.env.RUNNINGHUB_API_KEY, {
-      images: await check.inputs(), prompt: `${g.prompt} ${floorRetryNote(verdict.problems)}`, aspectRatio: params.aspectRatio ?? "4:3", resolution: params.resolution ?? "1k", model: check.model,
+      images: await check.inputs(), prompt: `${g.prompt} ${floorRetryNote(verdict.problems)}`, aspectRatio: params.guideKey || params.isoKey ? "16:9" : params.aspectRatio ?? "4:3", resolution: params.resolution ?? "1k", model: check.model,
     }, c.env.RUNNINGHUB_BASE);
     await c.env.DB.prepare("UPDATE generations SET rh_task_id=?, params=? WHERE id=?").bind(task, JSON.stringify(next), g.id).run();
     return { done: false };
   } catch {
     return { done: true, params: { ...next, qa: { ...qa, retryFailed: true } } };
+  }
+}
+
+/**
+ * 2D -> 3D second pass: the accepted GPT render goes to Gemini flash for fresher light (PLAN_POLISH_PROMPT). The GPT image is
+ * kept as a draft so a failed or late polish still finishes with it. Returns true when the polish is running.
+ */
+async function startPolish(c: any, g: any, params: any, out: Img): Promise<boolean> {
+  // One poll starts it; a concurrent poll sees the claim and waits.
+  const claim = await c.env.DB.prepare("UPDATE generations SET params=json_set(params,'$.polishLock',?) WHERE id=? AND coalesce(json_extract(params,'$.polishLock'),'')<>?")
+    .bind(g.rh_task_id, g.id, g.rh_task_id).run();
+  if (!claim.meta.changes) return true;
+  try {
+    const draft = `out/${g.user_id}/${g.id}-draft`;
+    await c.env.IMAGES.put(draft, out.bytes, { httpMetadata: { contentType: out.mime } });
+    const task = await submitImageToImage(c.env.RUNNINGHUB_API_KEY, { images: [out], prompt: PLAN_POLISH_PROMPT, aspectRatio: "16:9", resolution: params.resolution ?? "1k" }, c.env.RUNNINGHUB_BASE);
+    await c.env.DB.prepare("UPDATE generations SET rh_task_id=?, params=? WHERE id=? AND status IN ('QUEUED','RUNNING')")
+      .bind(task, JSON.stringify({ ...params, polishTask: task, draftKey: draft, draftMime: out.mime }), g.id).run();
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -640,7 +662,7 @@ async function settle(c: any, g: any) {
   const r = await queryTask(c.env.RUNNINGHUB_API_KEY, g.rh_task_id, c.env.RUNNINGHUB_BASE).catch((e: Error) => { pollError = e.message; return null; });
   if (r && g.rh_task_id && r.status !== "QUEUED" && r.status !== "RUNNING") {
     const billed = r.usage?.thirdPartyConsumeMoney;
-    const params = JSON.parse(g.params), model = modelOf(g.tool, params);
+    const p0 = JSON.parse(g.params), params = p0.polishTask === g.rh_task_id ? { ...p0, engine: undefined } : p0, model = modelOf(g.tool, params);
     later(c, recordCost(c.env.DB, { id: `task:${g.rh_task_id}`, kind: kindOf(model) === "video" ? "video" : "image", model, tool: g.tool, generationId: g.id, userId: g.user_id,
       usd: billed != null && Number.isFinite(Number(billed)) ? Number(billed) : estimateUsd(g.tool, params, r.status), estimated: billed == null || !Number.isFinite(Number(billed)) }));
   }
@@ -656,27 +678,44 @@ async function settle(c: any, g: any) {
     g.status = "FAILED"; g.error = msg;
   };
   const expired = Date.now() - g.created_at > 15 * 60_000;
+  const p = JSON.parse(g.params), polishing = !!p.polishTask && p.polishTask === g.rh_task_id;
+  // Stores the result and marks the job done; only the poll that still holds the current task does, so a late poll cannot
+  // overwrite a newer redraw.
+  const finish = async (bytes: ArrayBuffer, mime: string, ext: string, params: any) => {
+    const key = `out/${g.user_id}/${g.id}.${ext}`;
+    await c.env.IMAGES.put(key, bytes, { httpMetadata: { contentType: mime } });
+    await c.env.DB.prepare("UPDATE generations SET status='SUCCESS', output_key=?, params=? WHERE id=? AND status IN ('QUEUED','RUNNING') AND rh_task_id=?").bind(key, JSON.stringify(params), g.id, g.rh_task_id).run();
+    if (params.draftKey) await c.env.IMAGES.delete(params.draftKey);
+    g.status = "SUCCESS"; g.output_key = key; g.params = JSON.stringify(params);
+  };
+  // A polish that fails or runs late finishes with the GPT render it started from.
+  const keepDraft = async () => {
+    const d = await c.env.IMAGES.get(p.draftKey).catch(() => null);
+    if (!d) return false;
+    const mime = p.draftMime ?? "image/png";
+    await finish(await d.arrayBuffer(), mime, mime === "image/jpeg" ? "jpg" : mime.split("/")[1] ?? "png", { ...p, polishFailed: true });
+    return true;
+  };
   if (r?.status === "SUCCESS" && r.results?.[0]) {
     const img = await fetch(r.results[0].url).catch(() => null);
     if (img?.ok) {
       const ext = r.results[0].outputType || "png";
       const mime = ext === "mp4" ? "video/mp4" : `image/${ext === "jpg" ? "jpeg" : ext}`;
       let bytes = await img.arrayBuffer();
-      const params = JSON.parse(g.params);
-      const check = params.autoCheck ? await qaCheck(c, g, params, { bytes, mime }) : { done: true as const };
+      const check = p.autoCheck && !polishing ? await qaCheck(c, g, p, { bytes, mime }) : { done: true as const };
       if (check.done) {
         if (check.bytes) bytes = check.bytes;
-        const key = `out/${g.user_id}/${g.id}.${ext}`;
-        await c.env.IMAGES.put(key, bytes, { httpMetadata: { contentType: mime } });
-        // Only the poll that still holds the current task finishes it, so a late poll cannot overwrite a newer redraw.
-        await c.env.DB.prepare("UPDATE generations SET status='SUCCESS', output_key=?, params=? WHERE id=? AND status IN ('QUEUED','RUNNING') AND rh_task_id=?").bind(key, JSON.stringify(check.params ?? params), g.id, g.rh_task_id).run();
-        g.status = "SUCCESS"; g.output_key = key; g.params = JSON.stringify(check.params ?? params);
+        const params = check.params ?? p;
+        if (params.polish && !polishing && await startPolish(c, g, params, { bytes, mime })) return;
+        await finish(bytes, mime, ext, params);
       }
-    } else if (expired) await fail("Could not download the result image · Không tải được ảnh kết quả");
+    } else if (expired) {
+      if (!(polishing && await keepDraft())) await fail("Could not download the result image · Không tải được ảnh kết quả");
+    }
   } else if (r && r.status !== "QUEUED" && r.status !== "RUNNING" && r.status !== "SUCCESS") {
-    await fail(r.errorMessage || "RunningHub reported an error · RunningHub báo lỗi");
+    if (!(polishing && await keepDraft())) await fail(r.errorMessage || "RunningHub reported an error · RunningHub báo lỗi");
   } else if (expired) {
-    await fail(pollError || "Timed out (15 minutes) · Hết thời gian chờ (15 phút)");
+    if (!(polishing && await keepDraft())) await fail(pollError || "Timed out (15 minutes) · Hết thời gian chờ (15 phút)");
   }
 }
 
