@@ -646,6 +646,77 @@ function LatestDesigns({ tool, refresh, styles: given, onDeleted }: { tool: stri
   );
 }
 
+/* ---------- Quick open (home page): every tool by group, with search; Ctrl+K, Cmd+K or "/" opens it ---------- */
+function QuickOpen({ onOpen }: { onOpen: (name: string) => void }) {
+  const [show, setShow] = useState(false);
+  const [q, setQ] = useState("");
+  const [at, setAt] = useState(0);
+  const box = React.useRef<HTMLDivElement>(null);
+  const input = React.useRef<HTMLInputElement>(null);
+  const norm = (x: string) => x.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d");
+  // Groups in the tabs' order; search matches the English and Vietnamese names and descriptions, accents optional.
+  const groups = FILTERS.filter(([k]) => k !== "all").map(([k, en, vi]) => ({ key: k, label: t(en, vi),
+    tools: TOOLS.filter((x) => x.cat === k && (!q || norm(`${x.name} ${bi(x.name)} ${x.desc} ${bi(x.desc)}`).includes(norm(q.trim())))) })).filter((g) => g.tools.length);
+  const flat = groups.flatMap((g) => g.tools);
+  const ready = (x: ToolDef) => !!x.spaces;
+  const go = (x?: ToolDef) => { if (!x || !ready(x)) return; setShow(false); onOpen(x.name); };
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target as HTMLElement)?.tagName) || (e.target as HTMLElement)?.isContentEditable;
+      if ((e.key.toLowerCase() === "k" && (e.ctrlKey || e.metaKey)) || (e.key === "/" && !typing)) { e.preventDefault(); setShow(true); }
+    };
+    addEventListener("keydown", key);
+    return () => removeEventListener("keydown", key);
+  }, []);
+  useEffect(() => {
+    if (!show) return;
+    setQ(""); setAt(0); setTimeout(() => input.current?.focus(), 0);
+    const out = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setShow(false); };
+    addEventListener("mousedown", out);
+    return () => removeEventListener("mousedown", out);
+  }, [show]);
+  useEffect(() => { box.current?.querySelector(`[data-i="${at}"]`)?.scrollIntoView({ block: "nearest" }); }, [at]);
+  const mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+  let i = -1;
+  return (
+    <div ref={box} style={{ position: "relative", flex: "0 0 auto" }}>
+      <button type="button" className="chip" aria-haspopup="listbox" aria-expanded={show} aria-label={t("Quick open a tool", "Mở nhanh công cụ")} title={t("Quick open a tool", "Mở nhanh công cụ")} onClick={() => setShow((v) => !v)} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+        <Icon n="search" /><span className="qo-wide">{t("Quick open", "Mở nhanh")}</span><kbd className="qo-wide" style={{ fontSize: 10, padding: "1px 5px", border: "1px solid var(--line)", borderRadius: 4, color: "var(--stone)", fontFamily: "inherit" }}>{mac ? "⌘K" : "Ctrl K"}</kbd>
+      </button>
+      {show && (
+        <div style={{ position: "absolute", zIndex: 60, top: "calc(100% + 6px)", right: 0, width: "min(460px, calc(100vw - 32px))", maxHeight: "min(70vh, 560px)", display: "flex", flexDirection: "column", border: "1px solid var(--line)", borderRadius: 10, background: "var(--white)", boxShadow: "0 18px 40px rgba(0,0,0,.18)", overflow: "hidden" }}>
+          <input ref={input} value={q} onChange={(e) => { setQ(e.target.value); setAt(0); }} placeholder={t("Type a tool name… (Enter opens it)", "Gõ tên công cụ… (Enter để mở)")} aria-label={t("Search tools", "Tìm công cụ")}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowDown") { e.preventDefault(); setAt((a) => Math.min(flat.length - 1, a + 1)); }
+              else if (e.key === "ArrowUp") { e.preventDefault(); setAt((a) => Math.max(0, a - 1)); }
+              else if (e.key === "Enter") { e.preventDefault(); go(flat[at]); }
+              else if (e.key === "Escape") setShow(false);
+            }}
+            style={{ padding: "12px 14px", border: 0, borderBottom: "1px solid var(--line)", font: "inherit", fontSize: 14, outline: "none" }} />
+          <div role="listbox" style={{ overflowY: "auto", padding: "6px 0" }}>
+            {!flat.length && <p className="helper" style={{ padding: "8px 14px", margin: 0 }}>{t("No tools match.", "Không có công cụ phù hợp.")}</p>}
+            {groups.map((g) => (
+              <div key={g.key}>
+                <div style={{ padding: "8px 14px 4px", fontSize: 10, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--stone)" }}>{g.label}</div>
+                {g.tools.map((x) => {
+                  i++; const n = i, on = n === at, ok = ready(x);
+                  return (
+                    <button key={x.name} type="button" role="option" aria-selected={on} aria-disabled={!ok} data-i={n} onMouseEnter={() => setAt(n)} onClick={() => go(x)}
+                      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 14px", border: 0, textAlign: "left", font: "inherit", fontSize: 13, cursor: ok ? "pointer" : "default", background: on ? "var(--ivory-2, #f4f1ea)" : "transparent", color: "var(--ink)", opacity: ok ? 1 : 0.5 }}>
+                      <Icon n={x.icon} /><span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{bi(x.name)}</span>
+                      {!ok && <span style={{ fontSize: 10, color: "var(--stone)" }}>{t("Coming soon", "Sắp ra mắt")}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ---------- App shell ---------- */
 export function App() {
   const { me, loaded, reload, logout } = useAuth();
@@ -713,8 +784,11 @@ export function App() {
               <div style={{ flex: "1 1 300px" }}><p className="eyebrow">SOLYC Gen Labs / {t("Material Intelligence", "Trí tuệ vật liệu")}</p><h1>{t("Design what’s", "Thiết kế những")} <span>{t("possible.", "khả thể mới.")}</span></h1><p>{t("Design new possibilities. Pick a group of tools below.", "Thiết kế những khả thể mới. Chọn một nhóm công cụ bên dưới.")}</p></div>
             </section>
 
-            <div className="chips" role="tablist">
-              {FILTERS.map(([k, en, vi]) => <button key={k} className={`chip ${filter === k ? "active" : ""}`} onClick={() => pickFilter(k)}>{t(en, vi)}</button>)}
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 24 }}>
+              <div className="chips" role="tablist" style={{ flex: "1 1 auto", minWidth: 0, marginBottom: 0 }}>
+                {FILTERS.map(([k, en, vi]) => <button key={k} className={`chip ${filter === k ? "active" : ""}`} onClick={() => pickFilter(k)}>{t(en, vi)}</button>)}
+              </div>
+              <QuickOpen onOpen={open} />
             </div>
 
             <section className="spotlight">
