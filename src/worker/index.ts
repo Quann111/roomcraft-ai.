@@ -213,7 +213,17 @@ app.post("/api/generate", requireAuth, async (c) => {
   const b = await c.req.json<any>().catch(() => ({}));
   if (!c.env.RUNNINGHUB_API_KEY) return c.json({ error: "Server is missing RUNNINGHUB_API_KEY · Server chưa cấu hình RUNNINGHUB_API_KEY" }, 500);
   const textOnly = TEXT_TOOLS.includes(b.tool);
-  if (!textOnly && (typeof b.inputKey !== "string" || !b.inputKey.startsWith(`in/${u.id}/`))) return c.json({ error: "Invalid input image · Ảnh đầu vào không hợp lệ" }, 400);
+  // A material edit of a room in a Business 3D Floorplan run: the room's render is the input and the result joins that run
+  // as a new version of the room (it keeps the room's plan facts, so a later redraw still works).
+  let fromRun: any = null;
+  if (b.planRun && (b.tool === "interior-material" || b.tool === "interior-floor")) {
+    const src: any = await c.env.DB.prepare("SELECT params,output_key FROM generations WHERE id=? AND user_id=? AND status='SUCCESS' AND output_key IS NOT NULL").bind(String(b.planRun.id ?? ""), u.id).first();
+    const sp = src ? JSON.parse(src.params) : null;
+    if (!sp || !sp.batchId || sp.batchId !== b.planRun.batchId) return c.json({ error: "Room not found · Không tìm thấy phòng" }, 404);
+    fromRun = { batchId: sp.batchId, roomType: sp.roomType, room: sp.room, cropKey: sp.cropKey, home: sp.home, styleSlug: sp.styleSlug, editOf: String(b.planRun.id) };
+    b.inputKey = src.output_key;
+  }
+  if (!textOnly && (typeof b.inputKey !== "string" || !(b.inputKey.startsWith(`in/${u.id}/`) || (fromRun && b.inputKey.startsWith(`out/${u.id}/`))))) return c.json({ error: "Invalid input image · Ảnh đầu vào không hợp lệ" }, 400);
   if (!isAdmin(u) && !(await allow(c.env, `gen:${u.id}`, 3_600_000, 20))) return c.json({ error: "Limit is 20 generations per hour · Tối đa 20 lượt tạo mỗi giờ" }, 429);
   const busy = await c.env.DB.prepare("SELECT COUNT(*) n FROM generations WHERE user_id=? AND status IN ('QUEUED','RUNNING') AND created_at>?").bind(u.id, Date.now() - 600_000).first<{ n: number }>();
   if ((busy?.n ?? 0) >= 3) return c.json({ error: "3 images are already processing, wait for them to finish · Đang có 3 ảnh xử lý, hãy chờ xong rồi tạo tiếp" }, 429);
@@ -295,7 +305,7 @@ app.post("/api/generate", requireAuth, async (c) => {
         prompt, aspectRatio: iso ? "16:9" : swatch || floorplan || changes ? aspectRatio ?? "4:3" : aspectRatio, resolution, model: swatch || changes ? TILE_EDIT : floorplan ? PLAN_EDIT : undefined,
       }, c.env.RUNNINGHUB_BASE);
     await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,rh_task_id,input_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: changes ? undefined : b.surface, material: changes ? undefined : b.material, changes: changes ?? undefined, skipped: skipped.length ? skipped : undefined, weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, lighting: b.tool === "interior-lighting" ? b.lighting : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, scout: scout ?? undefined, plan: plan ?? undefined, isoKey: iso ? b.isoKey : undefined, engine: floorplan || changes ? "gpt25" : undefined, autoCheck: (swatch || plan) && b.autoCheck === true ? true : undefined, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
+      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: changes ? undefined : b.surface, material: changes ? undefined : b.material, changes: changes ?? undefined, skipped: skipped.length ? skipped : undefined, ...(fromRun ? { ...fromRun, planRoom: true } : {}), weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, lighting: b.tool === "interior-lighting" ? b.lighting : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, scout: scout ?? undefined, plan: plan ?? undefined, isoKey: iso ? b.isoKey : undefined, engine: floorplan || changes ? "gpt25" : undefined, autoCheck: (swatch || plan) && b.autoCheck === true ? true : undefined, color: b.color, finish: b.finish, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
     return c.json({ id, status: "RUNNING" });
   } catch (e: any) {
     await refund("refund_submit_failed");
@@ -402,8 +412,9 @@ app.post("/api/bizplan/render", requireAuth, async (c) => {
 // ---------- Business 3D Floorplan: one run (all rooms and their redraws) and redrawing chosen rooms ----------
 async function runRows(c: any, batchId: string): Promise<any[]> {
   const r = await c.env.DB.prepare(
-    "SELECT id,params,status,error,input_key,output_key,created_at FROM generations WHERE user_id=? AND tool=? AND json_extract(params,'$.batchId')=? ORDER BY created_at",
-  ).bind(c.get("user").id, BIZPLAN_TOOL, batchId).all();
+    // Renders, redraws and material edits of the run (edits are other tools, so the batch id alone selects the run).
+    "SELECT id,tool,params,status,error,input_key,output_key,created_at FROM generations WHERE user_id=? AND json_extract(params,'$.batchId')=? AND (tool=? OR json_extract(params,'$.planRoom')=1) ORDER BY created_at",
+  ).bind(c.get("user").id, batchId, BIZPLAN_TOOL).all();
   return r.results;
 }
 
