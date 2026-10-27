@@ -98,6 +98,7 @@
     .chips::-webkit-scrollbar { display: none; }
     .chip { white-space: nowrap; padding: 9px 16px; color: var(--stone); border: 1px solid var(--line); border-radius: var(--radius); background: var(--white); transition: .18s ease; }
     .chip:hover { color: var(--ink); border-color: var(--gold); }
+    @media (max-width: 600px) { .qo-wide { display: none; } } /* phones: the quick-open button shows only its icon so the tabs keep room */
     .chip.active { color: var(--white); border-color: var(--ink); background: var(--ink); }
 
     .spotlight {
