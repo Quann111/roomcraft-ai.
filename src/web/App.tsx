@@ -523,16 +523,17 @@ const pending = (h: Hist) => (h.status === "RUNNING" || h.status === "QUEUED") &
 function toCards(items: Hist[]): Card[] {
   const out: Card[] = [], runs = new Map<string, Card>();
   for (const h of items) {
-    if (h.tool !== BIZPLAN) { if (h.outputUrl || pending(h)) out.push(h); continue; }
+    if (h.tool !== BIZPLAN && !h.params?.planRoom) { if (h.outputUrl || pending(h)) out.push(h); continue; } // material edits of a run's room join that run
     if (h.status === "FAILED") continue;
     const key = h.params?.batchId ?? h.id;
     const run = runs.get(key);
     if (run) { run.rooms!.push(h); continue; }
-    const card: Card = { ...h, rooms: [h] };
+    const card: Card = { ...h, tool: BIZPLAN, rooms: [h] }; // the newest row may be a material edit; the card is the run
     runs.set(key, card); out.push(card);
   }
   // A run shows while a room is still rendering or once one is done; its picture is the first finished room.
-  return out.filter((c) => !c.rooms || c.rooms.some((r) => r.outputUrl || pending(r))).map((c) => (c.rooms ? { ...c, outputUrl: c.rooms.find((r) => r.outputUrl)?.outputUrl ?? null } : c));
+  // The plan image (preview header) comes from a floor plan render of the run, not from an edit's input (a room photo).
+  return out.filter((c) => !c.rooms || c.rooms.some((r) => r.outputUrl || pending(r))).map((c) => (c.rooms ? { ...c, inputUrl: c.rooms.find((r) => r.tool === BIZPLAN)?.inputUrl ?? c.inputUrl, outputUrl: c.rooms.find((r) => r.outputUrl)?.outputUrl ?? null } : c));
 }
 
 /** `tool`: the page's tool, for the "this tool" filter. `refresh`: any value that changes when the page made or removed a design. */

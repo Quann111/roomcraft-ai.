@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AiThinking } from "./AiThinking";
 import { DownloadLink } from "./SaveToPhotos";
+import { RoomMaterials } from "./RoomMaterials";
 import { bi, t } from "./i18n";
 
 type Row = { id: string; params: any; status: string; error?: string | null; createdAt: number; outputUrl: string | null };
@@ -21,6 +22,7 @@ export function PlanRun({ batchId, onChange }: { batchId: string; onChange?: () 
   const [autoCheck, setAutoCheck] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [editing, setEditing] = useState<{ id: string; name: string; url: string } | null>(null); // room open in the material window
   const timer = useRef<number | undefined>(undefined);
 
   const load = () => fetch(`/api/bizplan/run/${batchId}`).then((r) => r.json() as Promise<any>).then((d) => setRows(d.items ?? [])).catch(() => setRows((x) => x ?? []));
@@ -100,6 +102,8 @@ export function PlanRun({ batchId, onChange }: { batchId: string; onChange?: () 
                   <b style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 14 }}>{room.name}</b>
                   {done(r) && <DownloadLink url={r.outputUrl!} name={`${room.name}.png`} style={link} phone={t("Save to Photos", "Lưu vào Ảnh")}>{t("Download", "Tải xuống")}</DownloadLink>}
                 </div>
+                {done(r) && <button type="button" style={{ ...link, justifySelf: "start" }} onClick={() => setEditing({ id: r.id, name: room.name, url: r.outputUrl! })}>{t("Change materials", "Đổi vật liệu")}</button>}
+                {r.params?.changes || r.params?.material ? <span style={{ fontSize: 12, opacity: 0.7 }}>{t("Materials", "Vật liệu")}: {Object.entries(r.params.changes ?? { [r.params.surface ?? "floor"]: r.params.material }).map(([s, m]) => `${bi(s)} · ${bi(String(m))}`).join(", ")}</span> : null}
                 {r.params?.note && <span style={{ fontSize: 12, opacity: 0.7 }}>{t("Note", "Ghi chú")}: {r.params.note}</span>}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                   <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: open(r) ? "default" : "pointer", opacity: open(r) ? 0.5 : 1 }}>
@@ -126,6 +130,7 @@ export function PlanRun({ batchId, onChange }: { batchId: string; onChange?: () 
         </div>
       )}
       {err && <p style={{ margin: 0, color: "#b3261e", fontSize: 13 }}>{bi(err)}</p>}
+      {editing && <RoomMaterials batchId={batchId} room={editing} onClose={() => setEditing(null)} onStarted={() => { setShown((s) => { const n = { ...s }; delete n[editing.name]; return n; }); load(); onChange?.(); }} />}
     </div>
   );
 }
