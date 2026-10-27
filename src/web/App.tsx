@@ -723,6 +723,7 @@ export function App() {
   const { search } = useLocation();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all");
+  const [allOpen, setAllOpen] = useState(false);
   const [lang, setL] = useState(getLang());
   const [made, setMade] = useState(0);
 
@@ -737,14 +738,26 @@ export function App() {
   const visible = TOOLS.filter((x) => (filter === "all" || x.cat === filter) && (!q || `${x.name} ${bi(x.name)}`.toLowerCase().includes(q.toLowerCase())));
   const open = (name: string) => navigate(`/app?m=${encodeURIComponent(name)}`);
   const home = () => navigate("/app");
-  // A filter tab jumps past the spotlight banner to the tool grid it filters.
+  const reduce = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // "All tools" slides the list of every tool open under the tabs (a second click closes it); the other tabs jump past the
+  // spotlight banner to the card grid they filter.
   const pickFilter = (k: string) => {
     setFilter(k);
-    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (k === "all") {
+      const open = !(filter === "all" && allOpen);
+      setAllOpen(open);
+      if (open) document.getElementById("tool-tabs")?.scrollIntoView({ behavior: reduce() ? "instant" : "smooth", block: "start" });
+      return;
+    }
+    setAllOpen(false);
     // The grid's heading sits where it is whatever the filter shows, so there is no need to wait for the re-render.
-    document.getElementById("tools")?.scrollIntoView({ behavior: reduce ? "instant" : "smooth", block: "start" });
+    document.getElementById("tools")?.scrollIntoView({ behavior: reduce() ? "instant" : "smooth", block: "start" });
   };
-  const scrollTools = () => { if (active) home(); setTimeout(() => document.getElementById("tools")?.scrollIntoView({ behavior: "smooth" }), 60); };
+  const scrollTools = () => {
+    if (active) home();
+    setFilter("all"); setAllOpen(true);
+    setTimeout(() => document.getElementById("tool-tabs")?.scrollIntoView({ behavior: reduce() ? "instant" : "smooth", block: "start" }), 60);
+  };
 
   if (!loaded || !me) return <div className="sxapp" style={{ display: "grid", placeItems: "center" }}><p>…</p></div>;
   const initials = me.email.slice(0, 2).toUpperCase();
@@ -784,19 +797,21 @@ export function App() {
               <div style={{ flex: "1 1 300px" }}><p className="eyebrow">SOLYC Gen Labs / {t("Material Intelligence", "Trí tuệ vật liệu")}</p><h1>{t("Design what’s", "Thiết kế những")} <span>{t("possible.", "khả thể mới.")}</span></h1><p>{t("Design new possibilities. Pick a group of tools below.", "Thiết kế những khả thể mới. Chọn một nhóm công cụ bên dưới.")}</p></div>
             </section>
 
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 24 }}>
+            <div id="tool-tabs" style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 24 }}>
               <div className="chips" role="tablist" style={{ flex: "1 1 auto", minWidth: 0, marginBottom: 0 }}>
-                {FILTERS.map(([k, en, vi]) => <button key={k} className={`chip ${filter === k ? "active" : ""}`} onClick={() => pickFilter(k)}>{t(en, vi)}</button>)}
+                {FILTERS.map(([k, en, vi]) => <button key={k} className={`chip ${filter === k ? "active" : ""}`} aria-expanded={k === "all" ? allOpen : undefined} aria-controls={k === "all" ? "all-tools" : undefined} onClick={() => pickFilter(k)}>{t(en, vi)}</button>)}
               </div>
               <QuickOpen onOpen={open} />
             </div>
 
-            {/* Always-on quick access: every ready tool of the current tab as a small button, no scrolling to the grid needed. */}
-            <nav className="quick-grid" aria-label={t("Quick access", "Truy cập nhanh")}>
-              {TOOLS.filter((x) => x.spaces && (filter === "all" || x.cat === filter)).map((x) => (
-                <button key={x.name} type="button" className="quick-tool" title={bi(x.desc)} onClick={() => open(x.name)}><Icon n={x.icon} /><span>{bi(x.name)}</span></button>
-              ))}
-            </nav>
+            {/* Every ready tool as a text button on a dark band, slid open by the "All tools" tab. */}
+            <div id="all-tools" className={`all-tools ${allOpen && filter === "all" ? "open" : ""}`} inert={!(allOpen && filter === "all")}>
+              <nav aria-label={t("All tools", "Tất cả công cụ")}>
+                {TOOLS.filter((x) => x.spaces).map((x) => (
+                  <button key={x.name} type="button" className="all-tool" title={bi(x.desc)} onClick={() => open(x.name)}>{bi(x.name)}</button>
+                ))}
+              </nav>
+            </div>
 
             <section className="spotlight">
               <div className="spotlight-copy"><p className="eyebrow">{bi("Perfect Redesign")}</p><h2>{t("Bring your next space to life with AI.", "Biến không gian tiếp theo của bạn thành hiện thực bằng AI.")}</h2><p>{t("Upload a photo, pick a style and let AI redesign it while keeping your walls, windows and layout.", "Tải ảnh, chọn phong cách và để AI thiết kế lại trong khi giữ nguyên tường, cửa sổ và bố cục.")}</p><button className="primary-btn" onClick={() => open("Perfect Redesign")}>{t("Start Now", "Bắt đầu ngay")} <span>→</span></button></div>
