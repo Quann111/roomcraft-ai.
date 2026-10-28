@@ -3,7 +3,6 @@ import { Link, navigate } from "./router";
 import { t, bi } from "./i18n";
 import { FAQ, PERSONAS } from "./data";
 import { Studio, studioUrl } from "./Studio";
-import { PromptLibrary } from "./PromptLibrary";
 import { PricingTable } from "./Pricing";
 import { api, useAuth } from "./auth";
 import type { Preset, ToolId } from "./GeneratePanel";
@@ -258,7 +257,6 @@ export function Home() {
         </div>
       </section>
 
-      {me && <PromptLibrary onUse={(tool, styleSlug) => navigate(studioUrl(tool as ToolId, { styleSlug }))} />}
       <Gallery />
 
       <section className="faq" id="faq">

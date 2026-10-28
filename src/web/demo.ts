@@ -1,5 +1,16 @@
 // Offline demo backend: only installed when the single-file export is opened via file://.
-import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, WEATHER, REMOVE, ANGLES } from "../worker/prompts";
+// It must not import ../worker/prompts: anything imported from there ships in the browser bundle, prompts included.
+const STYLES = [
+  { slug: "scandinavia", name: "Scandinavian", scope: "interior" }, { slug: "modern", name: "Modern", scope: "interior" },
+  { slug: "japandi", name: "Japandi", scope: "interior" }, { slug: "industrial", name: "Industrial", scope: "interior" },
+  { slug: "contemporary", name: "Contemporary", scope: "interior" }, { slug: "eclectic", name: "Eclectic", scope: "interior" },
+];
+const ROOM_TYPES = ["Living room", "Bedroom", "Bathroom", "Kitchen", "Dining room", "Home office"];
+const INTERVENTION = ["very-low", "low", "medium", "high", "extreme"];
+const SURFACES = { floor: ["Oak hardwood", "Marble", "Porcelain tile"], walls: ["Warm white paint", "Limewash plaster"], ceiling: ["White painted", "Wood plank"] };
+const WEATHER = ["Golden hour", "Clear blue sky", "Overcast"];
+const REMOVE = ["furniture", "clutter", "people", "everything (empty room)"];
+const ANGLES = ["front", "side", "back"];
 
 const json = (d: unknown, status = 200) => new Response(JSON.stringify(d), { status, headers: { "Content-Type": "application/json" } });
 const svg = (a: string, b: string, label: string) =>
@@ -29,7 +40,6 @@ async function handle(url: string, init?: RequestInit): Promise<Response> {
   if (path === "/api/auth/logout") { user = null; return json({ ok: true }); }
   if (!user) return json({ error: "Chưa đăng nhập (bản demo)" }, 401);
   if (path === "/api/me") return json({ ...user, nextRefillAt: Date.now() + DAY });
-  if (path === "/api/prompts") return json({ prompts: STYLES.map(({ slug, name, scope, prompt }) => ({ slug, name, scope, prompt })) });
   if (path === "/api/upload") {
     const blob = init!.body as Blob;
     pendingImg = await new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.readAsDataURL(blob); });
