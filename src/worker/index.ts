@@ -195,7 +195,6 @@ const RES = ["1k", "2k", "4k"] as const;
 const RES_COST: Record<string, number> = { "1k": 1, "2k": 2, "4k": 3 };
 
 app.get("/api/styles", (c) => c.json({ styles: STYLES.map(({ slug, name, scope, img, photo }) => ({ slug, name, scope, thumb: img ? `https://drive.google.com/thumbnail?id=${img}&sz=w600` : photo ? `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=600&q=80` : undefined })), roomTypes: ROOM_TYPES, intervention: INTERVENTION, surfaces: SURFACES, paints: PAINT_COLORS, finishes: PAINT_FINISHES, weather: WEATHER, remove: REMOVE, angles: ANGLES, planViews: PLAN_VIEWS, lockedPlanViews: LOCKED_PLAN_VIEWS, floorTiles: FLOOR_TILES.map(({ code, name, swatch, room }) => ({ code, name, thumb: swatch.replace(".jpg", "-thumb.jpg"), room: room ? swatch.replace(".jpg", "-room.jpg") : undefined })), budgets: BUDGETS, motions: MOTIONS, lighting: LIGHTING, cities: CITIES.map((c) => c.name), directions: DIRECTIONS }));
-app.get("/api/prompts", requireAuth, (c) => c.json({ prompts: STYLES.map(({ slug, name, scope, prompt }) => ({ slug, name, scope, prompt })) }));
 
 app.post("/api/upload", requireAuth, async (c) => {
   const mime = (c.req.header("content-type") ?? "").split(";")[0];
