@@ -1,7 +1,7 @@
 # RoomCraft AI (SOLYC Gen Labs) — Tài liệu chuyển giao
 
 Cập nhật: **2026-10-30**. Code: `main` @ `9936e27` (PR #64), repo [Quann111/roomcraft-ai.](https://github.com/Quann111/roomcraft-ai.) (private).
-Production: https://roomcraft-ai.quann111.workers.dev, đang chạy bản PR #61. **PR #62–#64 đã merge nhưng chưa deploy.**
+Production: https://roomcraft-ai.quann111.workers.dev, đang chạy `main` @ `656da3b` (PR #65), version `a0fac34b`, deploy 2026-10-30.
 
 Tài liệu dành cho người hoặc coding agent mới nhận phần **tính năng AI và giao diện của chúng**. Phần web chung, đăng nhập và bảo mật toàn site do người khác phụ trách.
 
@@ -219,7 +219,6 @@ CLOUDFLARE_ACCOUNT_ID=6a959e87aaf889d75de1f587de9f89cb npx wrangler deploy
 
 ## 9. Việc còn dở và R&D
 
-- **Chưa deploy:** PR #62 (3 nhóm), #63 (5 mức độ bóng), #64 (lớp nổi đổi vật liệu).
 - **Cần xác nhận:** người yêu cầu đã thấy camera mới của Mặt bằng 3D (PR #58, đã deploy 27/10) chưa. Nếu ý họ là ảnh từng phòng của bản doanh nghiệp thì phần đó chưa đổi camera.
 - **R&D 1: thư viện vật liệu, tìm vật liệu tương đương từ ảnh mẫu.**
   - Hướng đề xuất:
@@ -233,6 +232,11 @@ CLOUDFLARE_ACCOUNT_ID=6a959e87aaf889d75de1f587de9f89cb npx wrangler deploy
   - Sai số dự kiến 10–20% khi đọc từ ảnh. Cần thử trên 5–7 bản vẽ có số đo thật trước khi làm.
   - Muốn chính xác thì đầu vào nên là file vector, hoặc cho người dùng sửa số.
 - **Bản 2 điểm tụ** cho Mặt bằng 3D: GPT chưa theo khung ổn định.
+- **Ảnh 360 từ ảnh phẳng** (đã thử 30/10, tạm dừng):
+  - Tạo ảnh 21:9 bằng Nano Banana Pro. Ảnh 21:9 phủ 360° ngang và khoảng ±77° dọc, độn 2 chỏm trên dưới thành 2:1.
+  - Khoảng 1/3 ảnh có đường nối lệch; sửa bằng flash ở dải nối.
+  - Phần phía sau camera là AI tự vẽ thêm.
+  - GPT Image 2.5 trên RunningHub không nhận tỉ lệ 2:1 (tối đa 21:9, trường `size` bị bỏ qua). Không dùng GPT Image 2.
 
 ## 10. Lịch sử PR gần đây
 
@@ -251,4 +255,4 @@ CLOUDFLARE_ACCOUNT_ID=6a959e87aaf889d75de1f587de9f89cb npx wrangler deploy
 | #56–60 | 27/10 | Mở nhanh (Ctrl+K), khung "Tất cả công cụ" |
 | #58 | 27/10 | Mặt bằng 3D: phối cảnh thật + Gemini đánh bóng |
 | #61 | 28/10 | Bỏ Thư viện prompt; prompt không còn trong file JS |
-| #62–64 | 30/10 | 3 nhóm; 5 mức độ bóng; lớp nổi đổi vật liệu (**chưa deploy**) |
+| #62–64 | 30/10 | 3 nhóm; 5 mức độ bóng; lớp nổi đổi vật liệu |
