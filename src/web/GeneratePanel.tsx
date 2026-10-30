@@ -556,9 +556,10 @@ export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId;
       {history.length > 0 && (
         <div className="md:col-span-2">
           <h3 className="mb-2 font-semibold">{bi("History · Lịch sử")}</h3>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {/* One row; older results scroll sideways. */}
+          <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollSnapType: "x proximity" }}>
             {history.filter((h) => h.outputUrl && !isChat(h)).map((h) => (
-              <button key={h.id} onClick={() => (isTextResult(h) ? j<Gen>(`/api/generations/${h.id}`).then(setGen).catch(() => {}) : setGen({ id: h.id, status: "SUCCESS", public: h.public, inputUrl: h.inputUrl, outputUrl: h.outputUrl }))} className="overflow-hidden rounded-lg border">
+              <button key={h.id} onClick={() => (isTextResult(h) ? j<Gen>(`/api/generations/${h.id}`).then(setGen).catch(() => {}) : setGen({ id: h.id, status: "SUCCESS", public: h.public, inputUrl: h.inputUrl, outputUrl: h.outputUrl }))} className="overflow-hidden rounded-lg border" style={{ flex: "0 0 clamp(120px, 22%, 180px)", scrollSnapAlign: "start" }}>
                 <img src={isTextResult(h) || isVideo(h) ? h.inputUrl : h.outputUrl} loading="lazy" className="aspect-square w-full object-cover" alt={h.tool} />
               </button>
             ))}
