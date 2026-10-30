@@ -124,10 +124,19 @@ export function Home() {
     ["Customize", "Tùy chỉnh", "Try 200+ looks, swap one piece or the whole room. Structure stays locked.", "Thử 200+ phong cách, đổi một món hoặc cả phòng. Cấu trúc luôn được khóa."],
     ["Done", "Hoàn tất", "In 30 seconds you're looking at the finished space. Download it or share it.", "Sau 30 giây bạn có không gian hoàn chỉnh. Tải về hoặc chia sẻ."],
   ];
-  const options: { n: [string, string]; h: [string, string]; p: [string, string]; pills: [string[], string[]]; hl?: boolean }[] = [
-    { n: ["Option 1", "Lựa chọn 1"], h: ["Hire an interior designer", "Thuê nhà thiết kế nội thất"], p: ["Weeks finding the right pro, $3,296 or more, and no guarantee the result matches your vision.", "Mất nhiều tuần tìm người phù hợp, từ 80 triệu đồng, và không đảm bảo kết quả như ý."], pills: [["Looks polished", "Costs a fortune"], ["Đẹp", "Rất tốn kém"]] },
-    { n: ["Option 2", "Lựa chọn 2"], h: ["Do it yourself", "Tự làm"], p: ["Generic AI makes things up: clipped furniture, walls and windows that were never there.", "AI tổng quát tự bịa: nội thất lỗi, tường và cửa sổ không có thật."], pills: [["Cheap", "Glitchy results"], ["Rẻ", "Kết quả lỗi"]] },
-    { n: ["Option 3 · Best choice", "Lựa chọn 3 · Tốt nhất"], h: ["Use SOLYC Gen Labs", "Dùng SOLYC Gen Labs"], p: ["Upload a photo, pick a style, click. A photoreal redesign of your actual room in 30 seconds.", "Tải ảnh, chọn phong cách, bấm. Thiết kế chân thực cho căn phòng thật trong 30 giây."], pills: [["Keeps your room", "Video tours"], ["Giữ nguyên phòng", "Video tour"]], hl: true },
+  // Option 3's longer selling points read as a short checklist under its pills.
+  const options: { n: [string, string]; h: [string, string]; p: [string, string]; pills: [string[], string[]]; list?: [string[], string[]]; hl?: boolean }[] = [
+    { n: ["Option 1", "Lựa chọn 1"], h: ["Work with a design firm", "Hợp tác với đơn vị thiết kế"],
+      p: ["In-depth design work, suited to projects with a flexible budget and timeline. Typical cost from about $3,300.", "Giải pháp thiết kế chuyên sâu, phù hợp với dự án có ngân sách và thời gian triển khai linh hoạt. Chi phí tham khảo từ 80 triệu đồng."],
+      pills: [["In-depth design", "Large investment"], ["Thiết kế chuyên sâu", "Đầu tư lớn"]] },
+    { n: ["Option 2", "Lựa chọn 2"], h: ["Design it yourself with generic AI", "Tự thiết kế với AI phổ thông"],
+      p: ["Fast and low-cost, but the images may not reflect the real structure and features of your space, because they are not tuned with expert DNA.", "Nhanh chóng và tiết kiệm chi phí, nhưng hình ảnh tạo ra có thể chưa phản ánh chính xác kết cấu và đặc điểm của không gian thực tế. Do không được tối ưu bởi DNA chuyên gia."],
+      pills: [["Low cost", "Needs accuracy checks"], ["Chi phí thấp", "Cần kiểm tra tính chính xác"]] },
+    { n: ["Option 3", "Lựa chọn 3"], h: ["SOLYC SPACES", "SOLYC SPACES"],
+      p: ["Optimised by the expert big-data layer of SOLYC SPACES. From a photo of your real room, explore interior options in the style you choose in just 30 seconds.", "Được tối ưu bởi NDA lớp chuyên gia dữ liệu lớn của SOLYC SPACES. Từ ảnh chụp căn phòng thực tế, khám phá phương án nội thất theo phong cách bạn lựa chọn chỉ trong 30 giây."],
+      pills: [["True to your real space", "Video tour experience"], ["Bám sát không gian thực", "Trải nghiệm video tour"]],
+      list: [["From the floor plan to a fully finished apartment, on the material systems of partner brands.", "Purchase orders bundled and connected to installation contractors."],
+        ["Triển khai từ bản vẽ mặt bằng và hoàn thiện toàn bộ thiết kế căn hộ trên hệ thống vật liệu của các nhãn hàng cung cấp.", "Đóng gói đơn mua và kết nối đơn vị thi công lắp đặt."]], hl: true },
   ];
   return (
     <div>
@@ -238,12 +247,13 @@ export function Home() {
 
       <section className="options">
         <div className="container">
-          <div className="section-center"><p className="eyebrow">{t("A clear choice for every project", "Lựa chọn rõ ràng cho mọi dự án")}</p><h2 className="section-title">{t("You've really got", "Thực ra bạn chỉ có")} <span>{t("just 3 options.", "3 lựa chọn.")}</span></h2></div>
+          <div className="section-center"><p className="eyebrow">{t("The right solution for every design need", "Giải pháp phù hợp cho từng nhu cầu thiết kế")}</p><h2 className="section-title">{t("Three ways to shape a space.", "Ba cách kiến tạo không gian.")} <span>{t("One best choice for your project.", "Một lựa chọn tối ưu cho dự án của bạn.")}</span></h2></div>
           <div className="option-grid">
             {options.map((o) => (
               <article key={o.h[0]} className={`option-card${o.hl ? " highlight" : ""}`} style={{ minHeight: 0 }}>
                 <div className="option-num">{pick(...o.n)}</div><h3>{pick(...o.h)}</h3><p>{pick(...o.p)}</p>
                 <div className="option-pills">{o.pills[l].map((x) => <span key={x}>{x}</span>)}</div>
+                {o.list && <ul className="option-list">{o.list[l].map((x) => <li key={x}>{x}</li>)}</ul>}
               </article>
             ))}
           </div>

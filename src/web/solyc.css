@@ -255,6 +255,9 @@
     .option-card p { min-height: 86px; margin: 0; color: var(--muted); font-size: 13px; }
     .option-pills { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 19px; }
     .option-pills span { padding: 6px 9px; border: 1px solid var(--line); border-radius: 2px; color: var(--muted); background: var(--ivory); font-size: 11px; }
+    .option-list { display: grid; gap: 8px; margin: 16px 0 0; padding: 0; list-style: none; }
+    .option-list li { position: relative; padding-left: 20px; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+    .option-list li::before { position: absolute; left: 0; top: 0; content: "✓"; color: var(--gold-deep); font-weight: 700; }
     .option-card img { width: 100%; height: 125px; margin-top: 22px; border-radius: 2px; object-fit: cover; background: var(--ivory-2); }
     .stats-strip { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 56px; color: var(--muted); }
     .stats-strip strong { color: var(--gold-deep); font-size: 24px; }
