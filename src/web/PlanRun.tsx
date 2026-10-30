@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AiThinking } from "./AiThinking";
 import { DownloadLink } from "./SaveToPhotos";
-import { RoomMaterials } from "./RoomMaterials";
+import { RoomMaterials, type RunRow } from "./RoomMaterials";
 import { bi, t } from "./i18n";
 
-type Row = { id: string; params: any; status: string; error?: string | null; createdAt: number; outputUrl: string | null };
+type Row = RunRow;
 type Room = { name: string; versions: Row[] };
 const ink = "#1c1b19", line = "rgba(0,0,0,0.12)";
 const link: React.CSSProperties = { padding: 0, border: 0, background: "none", color: "inherit", font: "inherit", textDecoration: "underline", cursor: "pointer" };
@@ -22,7 +22,7 @@ export function PlanRun({ batchId, onChange }: { batchId: string; onChange?: () 
   const [autoCheck, setAutoCheck] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [editing, setEditing] = useState<{ id: string; name: string; url: string } | null>(null); // room open in the material window
+  const [editing, setEditing] = useState<string | null>(null); // room open in the material window (by name)
   const timer = useRef<number | undefined>(undefined);
 
   const load = () => fetch(`/api/bizplan/run/${batchId}`).then((r) => r.json() as Promise<any>).then((d) => setRows(d.items ?? [])).catch(() => setRows((x) => x ?? []));
@@ -86,7 +86,7 @@ export function PlanRun({ batchId, onChange }: { batchId: string; onChange?: () 
           return (
             <figure key={room.name} style={{ margin: 0, minWidth: 0, border: `1px solid ${ticked ? ink : line}`, borderRadius: 12, overflow: "hidden", background: "#fff" }}>
               <div style={{ position: "relative", aspectRatio: "4 / 3", display: "grid", placeItems: "center", background: "#f4f1ea" }}>
-                {done(r) ? <a href={r.outputUrl!} target="_blank" rel="noreferrer" style={{ display: "block", width: "100%", height: "100%" }}><img src={r.outputUrl!} alt={room.name} loading="lazy" style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }} /></a>
+                {done(r) ? <button type="button" onClick={() => setEditing(room.name)} title={t("Open large and change materials", "Xem lớn và đổi vật liệu")} style={{ display: "block", width: "100%", height: "100%", padding: 0, border: 0, background: "none", cursor: "zoom-in" }}><img src={r.outputUrl!} alt={room.name} loading="lazy" style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }} /></button>
                   : r.status === "FAILED" ? <span style={{ fontSize: 13, opacity: 0.7, padding: 10, textAlign: "center" }}>{`${t("Failed (credit refunded)", "Lỗi (đã hoàn credit)")}${r.error ? ` · ${bi(r.error)}` : ""}`}</span> : <AiThinking tile />}
                 {isRef && <span style={{ position: "absolute", top: 6, left: 6, padding: "2px 7px", borderRadius: 99, background: "var(--gold, #c9a24b)", color: ink, fontSize: 11, fontWeight: 700 }}>★ {t("Reference", "Ảnh mẫu")}</span>}
                 {v.length > 1 && (
@@ -102,7 +102,7 @@ export function PlanRun({ batchId, onChange }: { batchId: string; onChange?: () 
                   <b style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 14 }}>{room.name}</b>
                   {done(r) && <DownloadLink url={r.outputUrl!} name={`${room.name}.png`} style={link} phone={t("Save to Photos", "Lưu vào Ảnh")}>{t("Download", "Tải xuống")}</DownloadLink>}
                 </div>
-                {done(r) && <button type="button" style={{ ...link, justifySelf: "start" }} onClick={() => setEditing({ id: r.id, name: room.name, url: r.outputUrl! })}>{t("Change materials", "Đổi vật liệu")}</button>}
+                {done(r) && <button type="button" style={{ ...link, justifySelf: "start" }} onClick={() => setEditing(room.name)}>{t("Change materials", "Đổi vật liệu")}</button>}
                 {r.params?.changes || r.params?.material ? <span style={{ fontSize: 12, opacity: 0.7 }}>{t("Materials", "Vật liệu")}: {Object.entries(r.params.changes ?? { [r.params.surface ?? "floor"]: r.params.material }).map(([s, m]) => `${bi(s)} · ${bi(String(m))}`).join(", ")}</span> : null}
                 {r.params?.note && <span style={{ fontSize: 12, opacity: 0.7 }}>{t("Note", "Ghi chú")}: {r.params.note}</span>}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
@@ -130,7 +130,10 @@ export function PlanRun({ batchId, onChange }: { batchId: string; onChange?: () 
         </div>
       )}
       {err && <p style={{ margin: 0, color: "#b3261e", fontSize: 13 }}>{bi(err)}</p>}
-      {editing && <RoomMaterials batchId={batchId} room={editing} onClose={() => setEditing(null)} onStarted={() => { setShown((s) => { const n = { ...s }; delete n[editing.name]; return n; }); load(); onChange?.(); }} />}
+      {editing && rooms.some((x) => x.name === editing) && (
+        <RoomMaterials batchId={batchId} name={editing} versions={rooms.find((x) => x.name === editing)!.versions} onClose={() => setEditing(null)}
+          onStarted={() => { setShown((s) => { const n = { ...s }; delete n[editing]; return n; }); load(); onChange?.(); }} />
+      )}
     </div>
   );
 }
