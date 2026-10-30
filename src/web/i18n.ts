@@ -31,7 +31,7 @@ const VI: Record<string, string> = {
   // paint colors & finishes
   "Warm white": "Trắng ấm", "Soft greige": "Xám be", "Dusty blue": "Xanh xám", Navy: "Xanh navy", Terracotta: "Đất nung",
   Charcoal: "Xám than", "Blush pink": "Hồng phấn", Olive: "Xanh ô liu", "Butter yellow": "Vàng bơ", "Forest green": "Xanh rừng", "Soft black": "Đen dịu",
-  matte: "Mờ", eggshell: "Bóng nhẹ", satin: "Bán bóng", gloss: "Bóng",
+  matte: "Mờ", textured: "Nhám", satin: "Bóng nhẹ", "semi-gloss": "Bán bóng", gloss: "Bóng",
   // styles (interior, from Excel)
   Scandinavia: "Bắc Âu", "Urban Modern": "Hiện đại đô thị", Eclectic: "Chiết trung", Japandi: "Japandi (Nhật–Bắc Âu)", Industrial: "Công nghiệp",
   Contemporary: "Đương đại", Modern: "Hiện đại", Transitional: "Chuyển tiếp", Mediterranean: "Địa Trung Hải", Ikea: "Phong cách Ikea",

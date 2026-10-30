@@ -4,6 +4,7 @@ import { PlanRun } from "./PlanRun";
 import { DownloadLink } from "./SaveToPhotos";
 import { ARCH } from "./icons";
 import { scenefor } from "./iso";
+import { FinishPicker } from "./FinishPicker";
 import React, { useEffect, useMemo, useState } from "react";
 import "./sxapp.css";
 import { navigate, useLocation, Link } from "./router";
@@ -132,6 +133,9 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
   // Material Swap: the material picked per surface; one pick runs that surface's engine, several run as one combined edit.
   const [picks, setPicks] = useState<Record<string, string>>(() => preset?.changes ?? (preset?.surface && preset.material ? { [preset.surface]: preset.material } : {}));
   const togglePickFor = (s: string, m: string) => setPicks((p) => { const n = { ...p }; if (n[s] === m) delete n[s]; else n[s] = m; return n; });
+  // Optional sheen per picked surface (Mờ … Bóng); unset keeps the material's natural finish.
+  const [finishes, setFinishes] = useState<Record<string, string>>(() => preset?.finishes ?? (preset?.surface && preset.finish ? { [preset.surface]: preset.finish } : {}));
+  const setFinishFor = (s: string, f?: string) => setFinishes((p) => { const n = { ...p }; if (f) n[s] = f; else delete n[s]; return n; });
   const [picked, setPicked] = useState<string[]>([]);
   const cmp = useCompare(onCredits);
   useEffect(() => { setPicked([]); cmp.reset(); }, [g.surface, tool]);
@@ -183,6 +187,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
   };
 
   if (!meta) return <p className="helper" style={{ padding: 40 }}>{bi("Loading… · Đang tải…")}</p>;
+  const isTile = (m: string) => !!meta.floorTiles?.some((x) => x.name === m);
   // Merged Material Swap card: one row of surfaces; "floor" switches to the floor engine, the rest to interior-material.
   const merged = spaces.includes("interior-floor") && spaces.includes("interior-material");
   const surfaceTabs = (
@@ -196,7 +201,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
           <span style={{ color: "var(--stone)" }}>{t("Will change:", "Sẽ đổi:")}</span>
           {Object.entries(picks).map(([s, m]) => (
             <span key={s} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 4px 3px 8px", border: "1px solid var(--line)", borderRadius: 99, background: "var(--white)" }}>
-              <b>{bi(s)}</b> · {bi(m)}
+              <b>{bi(s)}</b> · {bi(m)}{finishes[s] && !isTile(m) ? ` · ${bi(finishes[s])}` : ""}
               <button type="button" aria-label={t("Remove", "Bỏ")} onClick={() => togglePickFor(s, m)} style={{ border: 0, background: "none", cursor: "pointer", padding: "0 4px", color: "var(--stone)" }}>×</button>
             </span>
           ))}
@@ -219,7 +224,12 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
       })}
     </div>
   );
-  const pickedTile = !!picks.floor && !!meta.floorTiles?.some((x) => x.name === picks.floor);
+  const pickedTile = !!picks.floor && isTile(picks.floor);
+  // Sheen for the surface being edited, once a material (not a VICOSTONE tile, which comes polished) is picked for it.
+  const finishRow = (s: string) => picks[s] && !isTile(picks[s]) ? (
+    <><h4>{t("Finish", "Độ bóng")} · {bi(s)}</h4><FinishPicker optional value={finishes[s]} onChange={(f) => setFinishFor(s, f)} /></>
+  ) : null;
+  const chosenFinishes = () => Object.fromEntries(Object.entries(finishes).filter(([s]) => picks[s] && !isTile(picks[s])));
   // One pick runs that surface's own engine (floor -> Floor Editor with its tiles); several go to interior-material as one edit.
   const runPicks = () => {
     const e = Object.entries(picks);
@@ -227,9 +237,10 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
     const check = pickedTile && g.autoCheck ? { autoCheck: true } : { autoCheck: undefined };
     if (e.length === 1) {
       const [s, m] = e[0];
-      return g.run(s === "floor" ? { tool: "interior-floor", body: { surface: "floor", material: m, ...check } } : { tool: "interior-material", body: { surface: s, material: m, autoCheck: undefined } });
+      const finish = isTile(m) ? undefined : finishes[s];
+      return g.run(s === "floor" ? { tool: "interior-floor", body: { surface: "floor", material: m, finish, ...check } } : { tool: "interior-material", body: { surface: s, material: m, finish, autoCheck: undefined } });
     }
-    return g.run({ tool: "interior-material", body: { changes: picks, surface: undefined, material: undefined, ...check } });
+    return g.run({ tool: "interior-material", body: { changes: picks, finishes: chosenFinishes(), surface: undefined, material: undefined, finish: undefined, ...check } });
   };
   const list = <T,>(arr: T[], k: "room" | "style") => (showAll[k] ? arr : arr.slice(0, 8));
   const choice = (label: string, i: number, active: boolean, onClick: () => void, thumb?: string) => (
@@ -438,13 +449,15 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                     <div className="segmented">{Object.keys(meta.surfaces).map((s) => <button key={s} type="button" className={s === g.surface ? "active" : ""} onClick={() => g.setSurface(s)}>{bi(s)}</button>)}</div></>}
                     <h4>{comparing ? t("Materials to compare", "Vật liệu cần so sánh") : t("Material", "Vật liệu")}</h4>
                     {modeSwitch}
-                    {comparing ? pickGrid(meta.surfaces[g.surface]) : merged ? swatches(g.surface) : <select className="country" value={g.material} onChange={(e) => g.setMaterial(e.target.value)}>{meta.surfaces[g.surface].map((m) => <option key={m} value={m}>{bi(m)}</option>)}</select>}</>
+                    {comparing ? pickGrid(meta.surfaces[g.surface]) : merged ? swatches(g.surface) : <select className="country" value={g.material} onChange={(e) => g.setMaterial(e.target.value)}>{meta.surfaces[g.surface].map((m) => <option key={m} value={m}>{bi(m)}</option>)}</select>}
+                    {merged && !comparing && finishRow(g.surface)}</>
                 )}
                 {cfg.floor && (
                   <>{merged && surfaceTabs}<h4>{comparing ? t("Floors to compare", "Các loại sàn cần so sánh") : t("Flooring material", "Vật liệu sàn")}</h4>
                     {modeSwitch}
                     {comparing ? pickGrid(meta.surfaces.floor) : merged ? swatches("floor") : <div className="segmented">{meta.surfaces.floor.map((m) => <button key={m} type="button" className={m === g.material ? "active" : ""} onClick={() => g.setMaterial(m)}>{bi(m)}</button>)}</div>}
                     {comparing ? tileGrid((n) => picked.includes(n), togglePick) : merged ? tileGrid((n) => picks.floor === n, (n) => togglePickFor("floor", n)) : tileGrid((n) => n === g.material, g.setMaterial)}
+                    {merged && !comparing && finishRow("floor")}
                     {(comparing ? picked.some((n) => meta.floorTiles?.some((x) => x.name === n)) : merged ? pickedTile : meta.floorTiles?.some((x) => x.name === g.material)) && (
                       <label className="switch" style={{ display: "flex", marginTop: 10, alignItems: "flex-start", gap: 8 }}>
                         <input type="checkbox" checked={g.autoCheck} onChange={(e) => g.setAutoCheck(e.target.checked)} />
@@ -466,7 +479,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                       </label>
                     </div>
                     <h4>{t("Finish", "Độ bóng")}</h4>
-                    <div className="segmented" style={{ textTransform: "capitalize" }}>{meta.finishes.map((f) => <button key={f} type="button" className={f === g.paintFinish ? "active" : ""} onClick={() => g.setPaintFinish(f)}>{bi(f)}</button>)}</div></>
+                    <FinishPicker value={g.paintFinish} onChange={(f) => f && g.setPaintFinish(f)} /></>
                 )}
                 {cfg.intervention && (
                   <><h4>{t("AI Intervention", "Mức can thiệp AI")}</h4>

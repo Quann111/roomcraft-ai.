@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { bi, t } from "./i18n";
+import { FinishPicker } from "./FinishPicker";
 
 type Meta = { surfaces: Record<string, string[]>; floorTiles?: { name: string; code: string; thumb: string }[] };
 const ink = "#1c1b19", line = "rgba(0,0,0,0.12)";
@@ -15,6 +16,7 @@ export function RoomMaterials({ batchId, room, onClose, onStarted }: { batchId: 
   const [meta, setMeta] = useState<Meta | null>(null);
   const [surface, setSurface] = useState("floor");
   const [picks, setPicks] = useState<Record<string, string>>({});
+  const [finishes, setFinishes] = useState<Record<string, string>>({});
   const [autoCheck, setAutoCheck] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -23,12 +25,15 @@ export function RoomMaterials({ batchId, room, onClose, onStarted }: { batchId: 
 
   const toggle = (s: string, m: string) => setPicks((p) => { const n = { ...p }; if (n[s] === m) delete n[s]; else n[s] = m; return n; });
   const entries = Object.entries(picks);
-  const tile = !!picks.floor && !!meta?.floorTiles?.some((x) => x.name === picks.floor);
+  const isTile = (m?: string) => !!m && !!meta?.floorTiles?.some((x) => x.name === m);
+  const tile = isTile(picks.floor);
+  // Sheen only for picked surfaces that are not VICOSTONE tiles (those come polished).
+  const fin = Object.fromEntries(Object.entries(finishes).filter(([s]) => picks[s] && !isTile(picks[s])));
   const run = async () => {
     setBusy(true); setErr("");
     try {
       const [s, m] = entries[0];
-      const body = entries.length > 1 ? { tool: "interior-material", changes: picks } : s === "floor" ? { tool: "interior-floor", surface: "floor", material: m } : { tool: "interior-material", surface: s, material: m };
+      const body = entries.length > 1 ? { tool: "interior-material", changes: picks, finishes: fin } : s === "floor" ? { tool: "interior-floor", surface: "floor", material: m, finish: fin.floor } : { tool: "interior-material", surface: s, material: m, finish: fin[s] };
       const r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...body, planRun: { batchId, id: room.id }, resolution: "1k", aspectRatio: "4:3", ...(tile && autoCheck ? { autoCheck: true } : {}) }) });
       const d: any = await r.json().catch(() => ({}));
@@ -66,7 +71,7 @@ export function RoomMaterials({ batchId, room, onClose, onStarted }: { batchId: 
               <span style={{ opacity: 0.7 }}>{t("Will change:", "Sẽ đổi:")}</span>
               {entries.map(([s, m]) => (
                 <span key={s} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 4px 3px 8px", border: `1px solid ${line}`, borderRadius: 99 }}>
-                  <b>{bi(s)}</b> · {bi(m)}<button type="button" aria-label={t("Remove", "Bỏ")} onClick={() => toggle(s, m)} style={{ border: 0, background: "none", cursor: "pointer", padding: "0 4px", opacity: 0.6 }}>×</button>
+                  <b>{bi(s)}</b> · {bi(m)}{fin[s] ? ` · ${bi(fin[s])}` : ""}<button type="button" aria-label={t("Remove", "Bỏ")} onClick={() => toggle(s, m)} style={{ border: 0, background: "none", cursor: "pointer", padding: "0 4px", opacity: 0.6 }}>×</button>
                 </span>
               ))}
             </div>
@@ -75,6 +80,10 @@ export function RoomMaterials({ batchId, room, onClose, onStarted }: { batchId: 
           {surface === "floor" && !!meta.floorTiles?.length && <>
             <b style={{ fontSize: 13 }}>{t("VICOSTONE tiles · 120 × 120 cm, polished", "Gạch VICOSTONE · 120 × 120 cm, bóng kiếng")}</b>
             <div style={grid}>{meta.floorTiles.map((x) => cell(x.name, x.code, x.thumb, picks.floor === x.name, () => toggle("floor", x.name)))}</div>
+          </>}
+          {picks[surface] && !isTile(picks[surface]) && <>
+            <b style={{ fontSize: 13 }}>{t("Finish", "Độ bóng")} · {bi(surface)}</b>
+            <FinishPicker optional value={finishes[surface]} onChange={(f) => setFinishes((p) => { const n = { ...p }; if (f) n[surface] = f; else delete n[surface]; return n; })} />
           </>}
           {tile && (
             <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13 }}>

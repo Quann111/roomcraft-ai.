@@ -17,7 +17,7 @@ export type Critique = {
 };
 export type Finder = { items: { name: string; category: string; description: string; query: string; localQuery: string; priceRange: string; box?: [number, number, number, number] }[] };
 type Gen = { id: string; status: string; error?: string; public?: boolean; inputUrl: string | null; outputUrl: string | null; critique?: Critique; finder?: Finder; orient?: Orient; params?: any };
-export type Preset = Partial<{ styleSlug: string; roomType: string; intervention: string; surface: string; material: string; changes: Record<string, string>; weather: string; remove: string[]; angle: string; view: string; color: string; finish: string; description: string }>;
+export type Preset = Partial<{ styleSlug: string; roomType: string; intervention: string; surface: string; material: string; changes: Record<string, string>; finishes: Record<string, string>; weather: string; remove: string[]; angle: string; view: string; color: string; finish: string; description: string }>;
 
 export type ToolId =
   | "interior-redesign" | "interior-staging" | "interior-declutter" | "interior-sketch" | "interior-material"
