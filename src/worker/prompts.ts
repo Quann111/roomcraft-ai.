@@ -140,7 +140,8 @@ export function cleanChanges(v: unknown, min = 2): Record<string, string> | null
 function multiSurfacePrompt(p: any) {
   const c: Record<string, string> = p.changes;
   const tile = floorTile(c.floor);
-  const look = (k: string, m: string) => (k === "walls" ? WALL_LOOK[m] : SURFACE_LOOK[k]?.[m]) ?? m;
+  const fin = cleanFinishes(p.finishes, c) ?? {};
+  const look = (k: string, m: string) => withFinish((k === "walls" ? WALL_LOOK[m] : SURFACE_LOOK[k]?.[m]) ?? m, fin[k]);
   const lines = Object.entries(c).map(([k, m]) => k === "floor" && tile
     ? `the floor: ${TILE_BRAND} ${tile.code} porcelain tiles exactly like the swatch in the second image (${tile.look}), large-format ${TILE_SIZE} polished slabs in a straight grid with thin grout joints, each tile about 1.2 m wide`
     : `the ${SURFACE_NAME[k]}: ${look(k, m)}`);
@@ -159,7 +160,32 @@ export const PAINT_COLORS: { name: string; hex: string }[] = [
   { name: "Charcoal", hex: "#3C3F42" }, { name: "Blush pink", hex: "#E6C3C0" }, { name: "Olive", hex: "#7A7A4E" },
   { name: "Butter yellow", hex: "#EFD9A0" }, { name: "Forest green", hex: "#2F4A3A" }, { name: "Soft black", hex: "#1E1E1E" },
 ];
-export const PAINT_FINISHES = ["matte", "eggshell", "satin", "gloss"] as const;
+/** One sheen scale for paint and every Material Swap surface: Mờ, Nhám, Bóng nhẹ, Bán bóng, Bóng. */
+export const FINISHES = ["matte", "textured", "satin", "semi-gloss", "gloss"] as const;
+export type Finish = (typeof FINISHES)[number];
+export const PAINT_FINISHES = FINISHES;
+// Each level says how light behaves on the surface; a bare word ("satin") changed little in the render.
+const FINISH_LOOK: Record<Finish, string> = {
+  matte: "a completely matte finish with no sheen at all: soft, flat and chalky, no highlights and no reflections",
+  textured: "a rough textured finish like honed stone or sand-textured paint: a clearly grainy, slightly bumpy surface with fine relief you can see, completely without shine or reflections",
+  satin: "a satin finish with a gentle sheen: one soft, broad, diffuse highlight where the light falls, a little brighter than matte, but no reflections of objects",
+  "semi-gloss": "a semi-gloss finish: clearly shiny, with bright soft highlights and blurred reflections of windows and lights",
+  gloss: "a high-gloss finish like polished stone or lacquer: very shiny, with crisp bright highlights and clear reflections of windows and lights",
+};
+const OLD_FINISH: Record<string, Finish> = { eggshell: "satin" };
+export const finishOf = (v: unknown): Finish | null => oneOf(FINISHES, v) ?? OLD_FINISH[String(v)] ?? null;
+/** Optional sheen per changed surface, e.g. {floor: "satin"}; VICOSTONE tiles keep their own polished finish. */
+export function cleanFinishes(v: unknown, changes: Record<string, string>): Partial<Record<string, Finish>> | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const out: Partial<Record<string, Finish>> = {};
+  for (const [k, f] of Object.entries(v as Record<string, unknown>)) {
+    const ok = finishOf(f);
+    if (ok && k in changes && !(k === "floor" && floorTile(changes[k]))) out[k] = ok;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+// A chosen sheen replaces the sheen some looks name ("matte finish"), so the two never contradict.
+const withFinish = (look: string, f?: Finish | null) => (f ? `${look.replace(/,? (with )?a? ?matte( sealed)? finish/, "")}, with ${FINISH_LOOK[f]}` : look);
 export const WEATHER = ["Golden hour", "Clear blue sky", "Sunset glow", "Overcast", "Twilight", "Fresh snow", "Misty morning", "Dramatic storm clouds"];
 export const REMOVE = ["furniture", "clutter", "people", "everything (empty room)"];
 export const ANGLES = ["front", "side", "back"];
@@ -556,7 +582,7 @@ function description(p: any) {
 }
 /** Style is optional for text-to-design; when given it must match the tool's scope. */
 const optionalStyle = (p: any, scope: Style["scope"]) => (p.styleSlug ? `Design style: ${styleFor(p.styleSlug, scope).name}.` : "");
-const finish = (p: any) => oneOf(PAINT_FINISHES, p.finish) ?? "matte";
+const finish = (p: any) => FINISH_LOOK[finishOf(p.finish) ?? "matte"];
 const room = (p: any) => (ROOM_TYPES.includes(p.roomType) ? `The room is a ${String(p.roomType).toLowerCase()}.` : "");
 
 export function buildPrompt(tool: string, p: any): string {
@@ -598,17 +624,17 @@ export function buildPrompt(tool: string, p: any): string {
       if (!SURFACES[surface].includes(p.material)) throw new Error("Invalid material · Vật liệu không hợp lệ");
       if (surface === "walls")
         return join(
-          `Change the finish of every visible wall in this room to ${WALL_LOOK[p.material] ?? p.material}.`,
+          `Change the finish of every visible wall in this room to ${withFinish(WALL_LOOK[p.material] ?? p.material, finishOf(p.finish))}.`,
           "Cover all wall surfaces fully and evenly so the new finish is clearly visible and the original wall finish is gone. Show the material's real texture at the correct scale and perspective.",
           "Keep the ceiling, floor, windows, doors, trim, furniture, artwork, plants and every object exactly as they are, sitting in front of the new walls. Match the original lighting, shadows and reflections.", custom(p), STRUCTURE_LOCK);
       return join(
-        `Replace only the ${surface === "walls" ? "wall finish" : surface} in this room with ${p.material}.`,
+        `Replace only the ${surface === "walls" ? "wall finish" : surface} in this room with ${withFinish(p.material, finishOf(p.finish))}.`,
         "Keep all furniture, objects, lighting and every other surface unchanged. Match the original lighting, reflections and perspective.", custom(p), STRUCTURE_LOCK);
     }
     case "interior-paint":
       return join(
-        `Repaint only the walls of this room in ${paintColor(p.color)}. Paint finish: ${finish(p)}.`,
-        "Keep the ceiling, trim, doors, floor, furniture, artwork and every object unchanged. Preserve the original lighting, shadows and wall texture so the new color looks naturally lit.", custom(p), STRUCTURE_LOCK);
+        `Repaint only the walls of this room in ${paintColor(p.color)}, in ${finish(p)}.`,
+        "Keep the ceiling, trim, wood panelling and wainscoting, doors, floor, furniture, artwork and every object unchanged. Preserve the original lighting, shadows and wall texture so the new color looks naturally lit.", custom(p), STRUCTURE_LOCK);
     case "interior-floor": {
       const tile = floorTile(p.material);
       if (tile) return join(
@@ -623,7 +649,7 @@ export function buildPrompt(tool: string, p: any): string {
         "Give the floor a polished mirror-like gloss that softly reflects windows, lights and furniture, matching the original lighting, and keep furniture legs resting realistically on the new floor.", custom(p), STRUCTURE_LOCK);
       if (!SURFACES.floor.includes(p.material)) throw new Error("Invalid material · Vật liệu không hợp lệ");
       return join(
-        `Replace only the flooring in this room with ${p.material}, laid naturally across the whole visible floor with correct perspective, scale and seams.`,
+        `Replace only the flooring in this room with ${withFinish(p.material, finishOf(p.finish))}, laid naturally across the whole visible floor with correct perspective, scale and seams.`,
         "Keep all furniture, rugs, walls, skirting and objects unchanged, and keep furniture legs resting realistically on the new floor. Match the original lighting and reflections.", custom(p), STRUCTURE_LOCK);
     }
     case "interior-transfer":
@@ -739,7 +765,7 @@ export function buildPrompt(tool: string, p: any): string {
         "Professional landscape photography, natural light, realistic planting and hardscape, no people, no text.");
     case "exterior-paint":
       return join(
-        `Repaint only the main painted wall cladding or siding of this house in ${paintColor(p.color)}. Paint finish: ${finish(p)}.`,
+        `Repaint only the main painted wall cladding or siding of this house in ${paintColor(p.color)}, in ${finish(p)}.`,
         "Change only the surfaces that currently share the main siding's color and material. Every surface with a different color or material keeps its exact original color, especially natural wood and timber elements (beams, posts, gable frames, panels), window and door frames, glass, trim, fascia, soffits, columns, stone, brick, chimney and roof.",
         "Keep the landscaping and sky unchanged. Preserve the original sunlight and shadows on the facade.", custom(p), EXT_LOCK);
     case "exterior-redesign": {
