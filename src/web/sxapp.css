@@ -103,7 +103,7 @@
        thin light frames, filled pale gold with dark text on hover. */
     .all-tools { display: grid; grid-template-rows: 0fr; margin: -12px 0 0; transition: grid-template-rows .32s ease, margin .32s ease; }
     .all-tools.open { grid-template-rows: 1fr; margin-bottom: 24px; }
-    .all-tools > nav { min-height: 0; overflow: hidden; columns: 4 180px; column-gap: 28px; padding: 0 26px; border: 1px solid var(--line); border-top: 2px solid var(--gold); border-radius: var(--radius); background: var(--white); box-shadow: var(--shadow); transition: padding .32s ease; }
+    .all-tools > nav { min-height: 0; overflow: hidden; columns: 3 200px; column-gap: 28px; padding: 0 26px; border: 1px solid var(--line); border-top: 2px solid var(--gold); border-radius: var(--radius); background: var(--white); box-shadow: var(--shadow); transition: padding .32s ease; }
     .all-tools.open > nav { padding: 24px 26px; }
     .all-group { display: flex; flex-direction: column; gap: 6px; min-width: 0; break-inside: avoid; margin-bottom: 22px; }
     .all-group:last-child { margin-bottom: 0; }
