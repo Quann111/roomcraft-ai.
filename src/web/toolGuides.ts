@@ -76,6 +76,11 @@ export const GUIDES: Record<string, Guide> = {
     steps: [["Upload a room photo or one of your generated designs.", "Tải ảnh phòng hoặc ảnh thiết kế bạn đã tạo lên."], ["Press Generate.", "Bấm Tạo thiết kế."], ["Each item gets a number on the photo and shopping links.", "Mỗi món có số trên ảnh và link mua sắm."]],
     tips: [["Prices are AI estimates; check the store for the real price.", "Giá là ước tính của AI; hãy xem giá thật ở cửa hàng."]], credits: ["1 credit per search", "1 credit mỗi lần tìm"],
   },
+  "Viglacera Sanitaryware": {
+    what: ["Install a Viglacera toilet in a photo of your bathroom: it replaces the old toilet in the same place and direction, or goes against the wall in an empty bathroom.", "Lắp bồn cầu Viglacera vào ảnh phòng vệ sinh: thay bồn cũ đúng vị trí và hướng, hoặc đặt sát tường nếu phòng chưa có bồn."],
+    steps: [["Upload a photo of the bathroom.", "Tải ảnh phòng vệ sinh lên."], ["Pick a toilet model (filter by one-piece, two-piece, wall-hung or smart).", "Chọn mẫu bồn cầu (lọc theo một khối, hai khối, treo tường hoặc thông minh)."], ["Press Generate.", "Bấm Tạo thiết kế."]],
+    tips: [["A photo that shows the whole toilet and the floor around it works best.", "Ảnh thấy trọn bồn cầu và phần sàn xung quanh cho kết quả tốt nhất."], ["Tick auto-check to have a wrongly turned toilet redone once.", "Tick tự kiểm tra để bồn cầu bị xoay lệch được tạo lại 1 lần."]], credits: ONE_CREDIT,
+  },
   "Room Composer": {
     what: ["Place your own furniture photos into your room, at the right scale and perspective.", "Đặt ảnh đồ nội thất của bạn vào căn phòng, đúng tỉ lệ và phối cảnh."],
     steps: [["Upload a photo of your room.", "Tải ảnh căn phòng lên."], ["Add 1–3 photos of furniture or decor you want to place.", "Thêm 1–3 ảnh đồ nội thất hoặc đồ trang trí muốn đặt vào."], ["Optionally say where each piece goes in Additional Instructions, then Generate.", "Có thể ghi vị trí từng món trong Yêu cầu thêm, rồi bấm Tạo thiết kế."]],

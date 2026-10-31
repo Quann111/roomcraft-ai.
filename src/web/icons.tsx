@@ -20,6 +20,7 @@ export const ARCH: Record<string, string> = {
   roller: '<rect x="4" y="3" width="14" height="5" rx="1"/><path d="M18 5.5h2v5h-8v3"/><rect x="10.5" y="13.5" width="3" height="7.5" rx="1"/>',
   floor: '<path d="M2 20 7 8h10l5 12z"/><path d="M9.6 8 8.2 20M14.4 8l1.4 12M4.6 14h14.8"/>',
   finder: '<path d="M4 13V8a2 2 0 0 1 2-2h5a2 2 0 0 1 2 2"/><path d="M3 13h9M4 13v5m7-5v1"/><circle cx="16.5" cy="15.5" r="3.5"/><path d="m19 18 3 3"/>',
+  toilet: '<rect x="6" y="3" width="10" height="6" rx="1"/><path d="M4 11h16c0 3.6-2.9 6-6.5 6H11v4H8v-4.4C5.7 15.8 4 13.7 4 11z"/>',
   composer: '<rect x="3" y="3" width="18" height="18" rx="1"/><rect x="6" y="6" width="7" height="4"/><rect x="15.5" y="6" width="2.5" height="2.5"/><circle cx="15.5" cy="15.5" r="2.5"/><rect x="6" y="13" width="4" height="5"/>',
   transfer: '<rect x="2" y="5" width="8" height="10" rx="1"/><rect x="14" y="9" width="8" height="10" rx="1"/><path d="M11 10h3.5m-1.6-1.6 1.6 1.6-1.6 1.6"/><path d="m4 12.5 2-2 2 2M16 16.5l2-2 2 2"/>',
   textdesign: '<path d="M3 5h8M3 9h6M3 13h8"/><path d="M13 21v-6l4-3.5 4 3.5v6z"/><path d="M16 21v-3h2v3"/>',
