@@ -4,7 +4,8 @@ import { TILE_EDIT, PLAN_EDIT, submitImageToImage, submitTextToImage, submitImag
 import { CITIES, DIRECTIONS } from "./solar";
 import { FLOOR_TILES, floorTile } from "./floorTiles";
 import { recordCost, llmUsd, modelOf, kindOf, estimateUsd, parseCsv, rhTime } from "./costs";
-import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, LOCKED_PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, COMPARE_TOOLS, MAX_COMPARE, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, FLOOR_SCOUT_PROMPT, cleanFloorScout, type FloorScout, FLOOR_QA_PROMPT, floorQaVerdict, floorRetryNote, type FloorQa, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt, PLAN_READ_PROMPT, PLAN_POLISH_PROMPT, cleanPlanFacts, type PlanFacts, cleanChanges, cleanFinishes, finishOf, PALETTE_PROMPT, cleanPalette, roomRedoLines, planQaPrompt, planQaVerdict, roomQaPrompt, roomQaVerdict, type PlanRoom } from "./prompts";
+import { SLABS } from "./slabs";
+import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, LOCKED_PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, COMPARE_TOOLS, MAX_COMPARE, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, FLOOR_SCOUT_PROMPT, cleanFloorScout, type FloorScout, FLOOR_QA_PROMPT, floorQaVerdict, floorRetryNote, type FloorQa, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt, PLAN_READ_PROMPT, PLAN_POLISH_PROMPT, cleanPlanFacts, type PlanFacts, cleanChanges, cleanFinishes, finishOf, changeSwatches, KITCHEN_SCOUT_PROMPT, cleanKitchenScout, type KitchenScout, SLAB_QA_PROMPT, slabQaVerdict, PALETTE_PROMPT, cleanPalette, roomRedoLines, planQaPrompt, planQaVerdict, roomQaPrompt, roomQaVerdict, type PlanRoom } from "./prompts";
 
 type Env = { DB: D1Database; IMAGES: R2Bucket; ASSETS: Fetcher; DAILY_CREDITS: string; OPEN_ACCESS?: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
 type User = { id: string; email: string; credits: number; credits_refilled_at: number };
@@ -23,13 +24,16 @@ const llmCost = (c: any, tool: string, generationId: string | null, userId?: str
   later(c, recordCost(c.env.DB, { id: `llm:${crypto.randomUUID()}`, kind: "llm", model: CRITIQUE_MODEL, tool, generationId, userId: userId ?? c.get("user")?.id,
     usd: llmUsd(CRITIQUE_MODEL, u.input, u.output), tokensIn: u.input, tokensOut: u.output }));
 
-/** A VICOSTONE tile swatch from the static assets, when the floor material is one of the tiles. Tile jobs run on TILE_EDIT. */
+/** A swatch image (VICOSTONE tile, VASTA slab) from the static assets. */
+async function assetSwatch(c: any, path: string) {
+  const r = await c.env.ASSETS.fetch(new URL(path, c.req.url));
+  if (!r.ok) throw new Error(`Swatch missing: ${path}`);
+  return { bytes: await r.arrayBuffer(), mime: "image/jpeg" };
+}
+/** A VICOSTONE tile swatch, when the floor material is one of the tiles. Tile jobs run on TILE_EDIT. */
 async function tileSwatch(c: any, material: unknown) {
   const tile = floorTile(material);
-  if (!tile) return null;
-  const r = await c.env.ASSETS.fetch(new URL(tile.swatch, c.req.url));
-  if (!r.ok) throw new Error(`Tile swatch missing: ${tile.code}`);
-  return { bytes: await r.arrayBuffer(), mime: "image/jpeg" };
+  return tile ? assetSwatch(c, tile.swatch) : null;
 }
 
 const NO_FLOOR = "No bare floor is visible in this photo, so there is nothing to tile. Upload a photo that shows the floor · Ảnh này không thấy rõ mặt sàn nên không lát gạch được. Hãy tải ảnh có thấy mặt sàn";
@@ -46,6 +50,16 @@ async function floorScout(c: any, key: string): Promise<FloorScout | null> {
   // Median ~12 s, but about one photo in ten takes 30-45 s; past 45 s the edit runs without the scout.
   return Promise.race([call, new Promise<null>((r) => setTimeout(() => r(null), 45_000))]);
 }
+
+/** Reads a kitchen photo before a VASTA slab edit: is there an island, what stands on the tops, what the backsplash is. */
+async function kitchenScout(c: any, key: string): Promise<KitchenScout | null> {
+  const o = await c.env.IMAGES.get(key);
+  if (!o) return null;
+  const call = chatJson(c.env.RUNNINGHUB_API_KEY, { model: CRITIQUE_MODEL, prompt: KITCHEN_SCOUT_PROMPT, image: { bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" }, onUsage: llmCost(c, "interior-material", null) })
+    .then(cleanKitchenScout, () => null);
+  return Promise.race([call, new Promise<null>((r) => setTimeout(() => r(null), 45_000))]);
+}
+const NO_ISLAND = "No kitchen island is visible in this photo. Pick the worktops instead, or upload a photo that shows the island · Ảnh này không thấy đảo bếp. Hãy chọn mặt bàn bếp, hoặc tải ảnh có đảo bếp";
 
 /**
  * Reads a floor plan before a 2D -> 3D render: footprint, every space in order (stairs, elevator, light wells included) and the
@@ -194,7 +208,7 @@ const ASPECTS = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "5:4", "4:5"
 const RES = ["1k", "2k", "4k"] as const;
 const RES_COST: Record<string, number> = { "1k": 1, "2k": 2, "4k": 3 };
 
-app.get("/api/styles", (c) => c.json({ styles: STYLES.map(({ slug, name, scope, img, photo }) => ({ slug, name, scope, thumb: img ? `https://drive.google.com/thumbnail?id=${img}&sz=w600` : photo ? `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=600&q=80` : undefined })), roomTypes: ROOM_TYPES, intervention: INTERVENTION, surfaces: SURFACES, paints: PAINT_COLORS, finishes: PAINT_FINISHES, weather: WEATHER, remove: REMOVE, angles: ANGLES, planViews: PLAN_VIEWS, lockedPlanViews: LOCKED_PLAN_VIEWS, floorTiles: FLOOR_TILES.map(({ code, name, swatch, room }) => ({ code, name, thumb: swatch.replace(".jpg", "-thumb.jpg"), room: room ? swatch.replace(".jpg", "-room.jpg") : undefined })), budgets: BUDGETS, motions: MOTIONS, lighting: LIGHTING, cities: CITIES.map((c) => c.name), directions: DIRECTIONS }));
+app.get("/api/styles", (c) => c.json({ styles: STYLES.map(({ slug, name, scope, img, photo }) => ({ slug, name, scope, thumb: img ? `https://drive.google.com/thumbnail?id=${img}&sz=w600` : photo ? `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=600&q=80` : undefined })), roomTypes: ROOM_TYPES, intervention: INTERVENTION, surfaces: SURFACES, paints: PAINT_COLORS, finishes: PAINT_FINISHES, weather: WEATHER, remove: REMOVE, angles: ANGLES, planViews: PLAN_VIEWS, lockedPlanViews: LOCKED_PLAN_VIEWS, floorTiles: FLOOR_TILES.map(({ code, name, swatch, room }) => ({ code, name, thumb: swatch.replace(".jpg", "-thumb.jpg"), room: room ? swatch.replace(".jpg", "-room.jpg") : undefined })), slabs: SLABS.map(({ code, name, title, finish, thumb }) => ({ code, name, title, finish, thumb })), budgets: BUDGETS, motions: MOTIONS, lighting: LIGHTING, cities: CITIES.map((c) => c.name), directions: DIRECTIONS }));
 
 app.post("/api/upload", requireAuth, async (c) => {
   const mime = (c.req.header("content-type") ?? "").split(";")[0];
@@ -251,21 +265,28 @@ app.post("/api/generate", requireAuth, async (c) => {
   if (needsItems && !b.itemKeys.every((k: unknown) => typeof k === "string" && k.startsWith(`in/${u.id}/`))) return c.json({ error: "Invalid item image · Ảnh đồ vật không hợp lệ" }, 400);
   const items = needsItems ? await Promise.all((b.itemKeys as string[]).map((k) => c.env.IMAGES.get(k))) : [];
   if (items.some((o) => !o)) return c.json({ error: "Item image not found · Không tìm thấy ảnh đồ vật" }, 400);
-  // Several surfaces in one Material Swap edit; a VICOSTONE floor among them is handled like Floor Editor's tiles.
-  const changes = b.tool === "interior-material" && b.changes ? cleanChanges(b.changes) : null;
+  // Material Swap edits sent as `changes`: several surfaces at once, or one VASTA slab (slabs and tiles always run on GPT).
+  const changes = b.tool === "interior-material" && b.changes ? cleanChanges(b.changes, 1) : null;
   if (changes) b.changes = changes;
   const tileMaterial = b.tool === "interior-floor" ? b.material : changes?.floor;
-  // VICOSTONE tiles: read the photo first (before charging) so the edit knows what to keep, and refuse photos without floor.
-  let scout = floorTile(tileMaterial) && (b.tool === "interior-floor" || changes) ? await floorScout(c, b.inputKey) : null;
-  // No bare floor: a lone tile edit is refused; a combined edit skips the floor and changes the other surfaces.
+  const slabEdit = !!changes && changeSwatches(changes).some((x) => x.includes("/slabs/"));
+  // Tiles and slabs: read the photo first (before charging) so the edit knows what to keep, and refuse photos without floor or island.
+  let [scout, kitchen] = await Promise.all([
+    floorTile(tileMaterial) && (b.tool === "interior-floor" || changes) ? floorScout(c, b.inputKey) : null,
+    slabEdit ? kitchenScout(c, b.inputKey) : null,
+  ]);
+  // Nothing to change: a lone edit is refused; a combined edit skips that surface and changes the others.
   const skipped: string[] = [];
   if (scout && !scout.bare_floor_visible) {
-    if (!changes) return c.json({ error: NO_FLOOR }, 422);
+    if (!changes || Object.keys(changes).length === 1) return c.json({ error: NO_FLOOR }, 422);
     delete changes.floor; skipped.push("floor"); scout = null;
-    prompt = buildPrompt(b.tool, b); // rebuilt without the floor
+  }
+  if (kitchen && changes?.island && !kitchen.island) {
+    if (Object.keys(changes).length === 1) return c.json({ error: NO_ISLAND }, 422);
+    delete changes.island; skipped.push("island");
   }
   const tileUsed = changes ? changes.floor : tileMaterial;
-  if (scout) prompt = buildPrompt(b.tool, { ...b, scout });
+  if (skipped.length || scout || kitchen) prompt = buildPrompt(b.tool, { ...b, scout, kitchen });
   const floorplan = b.tool === "interior-floorplan";
   // The browser usually asked for the reading already (/api/floorplan/read) to turn the plan; reuse it, else read now.
   const plan = floorplan ? await cachedPlanFacts(c, b.inputKey) ?? await planRead(c, b.inputKey) : null;
@@ -294,17 +315,18 @@ app.post("/api/generate", requireAuth, async (c) => {
       return c.json({ id, status: "SUCCESS" });
     }
     const images = guide ? [guide, obj!] : obj ? [obj, ...(ref ? [ref] : []), ...items.map((o) => o!)] : [];
-    const swatch = b.tool === "interior-floor" || changes ? await tileSwatch(c, tileUsed) : null;
+    const swatches = changes ? await Promise.all(changeSwatches(changes).map((p) => assetSwatch(c, p))) : b.tool === "interior-floor" ? [await tileSwatch(c, tileUsed)].filter((x) => !!x) as Img[] : [];
+    const swatch = swatches.length > 0;
     const taskId = video
       ? await submitImageToVideo(c.env.RUNNINGHUB_API_KEY, { image: { bytes: await obj!.arrayBuffer(), mime: obj!.httpMetadata?.contentType ?? "image/jpeg" }, prompt, aspectRatio: ["9:16", "2:3", "3:4", "4:5"].includes(aspectRatio ?? "") ? "9:16" : "16:9" }, c.env.RUNNINGHUB_BASE)
       : textOnly
       ? await submitTextToImage(c.env.RUNNINGHUB_API_KEY, { prompt, aspectRatio: aspectRatio ?? "16:9", resolution }, c.env.RUNNINGHUB_BASE)
       : await submitImageToImage(c.env.RUNNINGHUB_API_KEY, {
-        images: [...await Promise.all(images.map(async (o) => ({ bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" }))), ...(swatch ? [swatch] : [])],
+        images: [...await Promise.all(images.map(async (o) => ({ bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" }))), ...swatches],
         prompt, aspectRatio: guide ? "16:9" : swatch || floorplan || changes ? aspectRatio ?? "4:3" : aspectRatio, resolution, model: swatch || changes ? TILE_EDIT : floorplan ? PLAN_EDIT : undefined,
       }, c.env.RUNNINGHUB_BASE);
     await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,rh_task_id,input_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: changes ? undefined : b.surface, material: changes ? undefined : b.material, changes: changes ?? undefined, finishes: changes ? cleanFinishes(b.finishes, changes) : undefined, skipped: skipped.length ? skipped : undefined, ...(fromRun ? { ...fromRun, planRoom: true } : {}), weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, lighting: b.tool === "interior-lighting" ? b.lighting : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, scout: scout ?? undefined, plan: plan ?? undefined, guideKey: guide ? b.guideKey : undefined, polish: guide ? true : undefined, engine: floorplan || changes ? "gpt25" : undefined, autoCheck: (swatch || plan) && b.autoCheck === true ? true : undefined, color: b.color, finish: finishOf(b.finish) ?? undefined, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
+      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: changes ? undefined : b.surface, material: changes ? undefined : b.material, changes: changes ?? undefined, finishes: changes ? cleanFinishes(b.finishes, changes) : undefined, skipped: skipped.length ? skipped : undefined, ...(fromRun ? { ...fromRun, planRoom: true } : {}), weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, lighting: b.tool === "interior-lighting" ? b.lighting : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, scout: scout ?? undefined, kitchen: kitchen ?? undefined, plan: plan ?? undefined, guideKey: guide ? b.guideKey : undefined, polish: guide ? true : undefined, engine: floorplan || changes ? "gpt25" : undefined, autoCheck: (swatch || plan) && b.autoCheck === true ? true : undefined, color: b.color, finish: finishOf(b.finish) ?? undefined, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
     return c.json({ id, status: "RUNNING" });
   } catch (e: any) {
     await refund("refund_submit_failed");
@@ -576,6 +598,12 @@ async function checkFor(c: any, g: any, params: any): Promise<Check | null> {
     return Promise.race([call, new Promise<null>((r) => setTimeout(() => r(null), 45_000))]);
   };
   const tileMaterial = g.tool === "interior-floor" ? params.material : params.changes?.floor;
+  const slabPaths = g.tool === "interior-material" && params.changes ? changeSwatches(params.changes).filter((x) => x.includes("/slabs/")) : [];
+  if (slabPaths.length) {
+    const swatches = await Promise.all(changeSwatches(params.changes).map((p) => assetSwatch(c, p))).catch(() => null);
+    const where = [params.changes.countertops && "the wall-side kitchen worktops", params.changes.island && "the kitchen island top", ...Object.keys(params.changes).filter((k) => k !== "countertops" && k !== "island").map((k) => `the ${k}`)].filter(Boolean).join(", ");
+    return swatches && { model: TILE_EDIT, inputs: async () => [plan, ...swatches], judge: (out) => ask(SLAB_QA_PROMPT(`${where} change to the new materials`), [plan, out, ...swatches], slabQaVerdict) };
+  }
   if (g.tool === "interior-floor" || (g.tool === "interior-material" && floorTile(tileMaterial))) {
     const swatch = await tileSwatch(c, tileMaterial).catch(() => null);
     return swatch && { model: TILE_EDIT, inputs: async () => [plan, swatch], judge: (out) => ask(FLOOR_QA_PROMPT, [plan, out, swatch], (r) => floorQaVerdict(r, params.scout?.floor_closeup === true)) };
