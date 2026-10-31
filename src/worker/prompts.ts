@@ -237,14 +237,15 @@ function toiletPrompt(p: any) {
   const s: BathScout | undefined = p.bath;
   return [
     "This is an in-place edit of the first image, a bathroom photo.",
-    `The second image is a product photo of one ${TOILET_BRAND} toilet, model ${t.code}: ${TOILET_KIND[t.type]}; ${t.look}. Reproduce exactly this toilet: the same shape, tank, bowl, seat and lid, proportions, white glaze and details such as the flush button and the small blue ${TOILET_BRAND} label on it.`,
+    `The second image is a product photo of one ${TOILET_BRAND} toilet, model ${t.code}: ${t.kids ? `a children's ${TOILET_KIND[t.type].replace(/^a /, "")}` : TOILET_KIND[t.type]}; ${t.look}. Reproduce exactly this toilet: the same shape, tank, bowl, seat and lid, proportions, white glaze and details such as the flush button and the small blue ${TOILET_BRAND} label on it.`,
     s && !s.toilet ? `There is no toilet yet: install the new one at ${s.where || "the natural toilet place against a wall"}.`
       : `Remove the existing toilet completely, every part of it including its tank${s?.toilet_now ? ` (${s.toilet_now})` : ""}, and put the new one in its place${s?.where ? `: ${s.where}` : ""}.`,
     (s && !s.toilet
       ? `Orientation: the toilet sits square to its wall${s.wall ? ` (${s.wall})` : ""}: its back flat against that wall, its bowl pointing straight out from the wall into the room, parallel to the floor tile lines.`
       : "Orientation: the new toilet takes exactly the old toilet's place and direction: its back against the same wall, its bowl pointing exactly the way the old bowl points in this photo.")
       + " The product photo shows it at a three-quarter angle only to show its shape; do not copy that angle, turn the toilet to the orientation above and draw it in this photo's perspective.",
-    "Real size: a floor-standing toilet is about 70 cm deep and 75 cm tall, a wall-hung bowl about 55 cm deep with its rim about 40 cm above the floor. It stands firmly on the floor (or hangs on the wall) with a soft contact shadow and the photo's lighting and reflections.",
+    t.kids ? "This is a children's toilet, so draw it at child size, clearly smaller than the old adult toilet: about 50 cm deep and 55 cm tall, only about two thirds the height of an adult toilet, with the seat about 30 cm above the floor (well below the basin rim and below an adult's knee) and the top of its tank lower than the basin. It stands firmly on the floor with a soft contact shadow and the photo's lighting and reflections."
+      : "Real size: a floor-standing toilet is about 70 cm deep and 75 cm tall, a wall-hung bowl about 55 cm deep with its rim about 40 cm above the floor. It stands firmly on the floor (or hangs on the wall) with a soft contact shadow and the photo's lighting and reflections.",
     s?.keep.length ? `Keep these exactly as they are: ${s.keep.join("; ")}.` : "",
     "Keep everything else exactly as in the photo: walls, tiles, floor, basin, shower, towels, every object, and the exact camera framing and crop. Add no other text or logo.", custom(p),
   ].filter(Boolean).join(" ");

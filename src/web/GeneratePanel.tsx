@@ -19,7 +19,7 @@ export type Finder = { items: { name: string; category: string; description: str
 type Gen = { id: string; status: string; error?: string; public?: boolean; inputUrl: string | null; outputUrl: string | null; critique?: Critique; finder?: Finder; orient?: Orient; params?: any };
 /** A VASTA ESSENTIALS slab design for the worktops or island top; `name` is its material value. Its sheen uses the finish scale. */
 /** A Viglacera toilet for the sanitaryware tool; `name` is its product value. Price and link come later. */
-export type Toilet = { code: string; name: string; type: "one-piece" | "two-piece" | "wall-hung" | "smart"; thumb: string; price?: number; url?: string };
+export type Toilet = { code: string; name: string; type: "one-piece" | "two-piece" | "wall-hung" | "smart"; kids?: boolean; thumb: string; price?: number; url?: string };
 export type Slab = { code: string; name: string; title: string; thumb: string };
 export type Preset = Partial<{ styleSlug: string; roomType: string; intervention: string; surface: string; material: string; changes: Record<string, string>; finishes: Record<string, string>; product: string; weather: string; remove: string[]; angle: string; view: string; color: string; finish: string; description: string }>;
 
