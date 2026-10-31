@@ -9,7 +9,7 @@ import { TOILETS } from "./toilets";
 import { BASINS, FAUCETS } from "./basins";
 import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, LOCKED_PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, COMPARE_TOOLS, MAX_COMPARE, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, FLOOR_SCOUT_PROMPT, cleanFloorScout, type FloorScout, FLOOR_QA_PROMPT, floorQaVerdict, floorRetryNote, type FloorQa, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt, PLAN_READ_PROMPT, PLAN_POLISH_PROMPT, cleanPlanFacts, type PlanFacts, cleanChanges, cleanFinishes, finishOf, changeSwatches, KITCHEN_SCOUT_PROMPT, cleanKitchenScout, type KitchenScout, SLAB_QA_PROMPT, slabQaVerdict, BATH_SCOUT_PROMPT, cleanBathScout, type BathScout, TOILET_QA_PROMPT, toiletQaVerdict, sanitaryProducts, PALETTE_PROMPT, cleanPalette, roomRedoLines, planQaPrompt, planQaVerdict, roomQaPrompt, roomQaVerdict, type PlanRoom } from "./prompts";
 
-type Env = { DB: D1Database; IMAGES: R2Bucket; ASSETS: Fetcher; DAILY_CREDITS: string; OPEN_ACCESS?: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
+type Env = { DB: D1Database; IMAGES: R2Bucket; ASSETS: Fetcher; DAILY_CREDITS: string; OPEN_ACCESS?: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string; CF_VERSION_METADATA?: { id: string } };
 type User = { id: string; email: string; credits: number; credits_refilled_at: number };
 type Vars = { user: User };
 
@@ -36,6 +36,24 @@ async function assetSwatch(c: any, path: string) {
 async function tileSwatch(c: any, material: unknown) {
   const tile = floorTile(material);
   return tile ? assetSwatch(c, tile.swatch) : null;
+}
+
+/**
+ * What a generation was sent, kept in params.trace so a bad result can be investigated and replayed: the deployed version,
+ * the model ("flash" = RunningHub's default edit model, "text" = text to image), ratio, resolution and every image in order
+ * (R2 keys, or asset paths starting with "/"). `req` is the request, for rebuilding the prompt with newer code.
+ */
+type Trace = { v?: string; model: string; aspect?: string; res: "1k" | "2k" | "4k"; images: string[]; req?: any };
+const appVersion = (c: any): string | undefined => c.env.CF_VERSION_METADATA?.id?.slice(0, 8);
+const traceOf = (c: any, t: Omit<Trace, "v">): Trace => ({ v: appVersion(c), ...t });
+const requestOf = (b: any) => { const s = JSON.stringify(b); return s.length <= 8000 ? JSON.parse(s) : undefined; };
+async function traceImages(c: any, images: string[]): Promise<Img[]> {
+  return Promise.all(images.map(async (s) => {
+    if (s.startsWith("/")) return assetSwatch(c, s);
+    const o = await c.env.IMAGES.get(s);
+    if (!o) throw new Error(`Image missing: ${s}`);
+    return imgOf(o);
+  }));
 }
 
 const NO_FLOOR = "No bare floor is visible in this photo, so there is nothing to tile. Upload a photo that shows the floor · Ảnh này không thấy rõ mặt sàn nên không lát gạch được. Hãy tải ảnh có thấy mặt sàn";
@@ -333,16 +351,23 @@ app.post("/api/generate", requireAuth, async (c) => {
     const images = guide ? [guide, obj!] : obj ? [obj, ...(ref ? [ref] : []), ...items.map((o) => o!)] : [];
     const swatches = changes ? await Promise.all(changeSwatches(changes).map((p) => assetSwatch(c, p))) : sanitary.length ? await Promise.all(sanitary.map((x) => assetSwatch(c, x.image))) : b.tool === "interior-floor" ? [await tileSwatch(c, tileUsed)].filter((x) => !!x) as Img[] : [];
     const swatch = swatches.length > 0;
+    const model = swatch || changes ? TILE_EDIT : floorplan ? PLAN_EDIT : undefined;
+    const aspect = guide ? "16:9" : swatch || floorplan || changes ? aspectRatio ?? "4:3" : aspectRatio;
+    const swatchPaths = changes ? changeSwatches(changes) : sanitary.length ? sanitary.map((x) => x.image) : b.tool === "interior-floor" && floorTile(tileUsed) ? [floorTile(tileUsed)!.swatch] : [];
+    const trace = video ? undefined : traceOf(c, {
+      model: textOnly ? "text" : model ?? "flash", aspect: textOnly ? aspectRatio ?? "16:9" : aspect, res: resolution, req: requestOf(b),
+      images: textOnly ? [] : guide ? [b.guideKey, b.inputKey] : [b.inputKey, ...(needsRef ? [b.refKey] : []), ...(needsItems ? b.itemKeys : []), ...swatchPaths],
+    });
     const taskId = video
       ? await submitImageToVideo(c.env.RUNNINGHUB_API_KEY, { image: { bytes: await obj!.arrayBuffer(), mime: obj!.httpMetadata?.contentType ?? "image/jpeg" }, prompt, aspectRatio: ["9:16", "2:3", "3:4", "4:5"].includes(aspectRatio ?? "") ? "9:16" : "16:9" }, c.env.RUNNINGHUB_BASE)
       : textOnly
       ? await submitTextToImage(c.env.RUNNINGHUB_API_KEY, { prompt, aspectRatio: aspectRatio ?? "16:9", resolution }, c.env.RUNNINGHUB_BASE)
       : await submitImageToImage(c.env.RUNNINGHUB_API_KEY, {
         images: [...await Promise.all(images.map(async (o) => ({ bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" }))), ...swatches],
-        prompt, aspectRatio: guide ? "16:9" : swatch || floorplan || changes ? aspectRatio ?? "4:3" : aspectRatio, resolution, model: swatch || changes ? TILE_EDIT : floorplan ? PLAN_EDIT : undefined,
+        prompt, aspectRatio: aspect, resolution, model,
       }, c.env.RUNNINGHUB_BASE);
     await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,rh_task_id,input_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: changes ? undefined : b.surface, material: changes ? undefined : b.material, changes: changes ?? undefined, finishes: changes ? cleanFinishes(b.finishes, changes) : undefined, skipped: skipped.length ? skipped : undefined, ...(fromRun ? { ...fromRun, planRoom: true } : {}), weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, lighting: b.tool === "interior-lighting" ? b.lighting : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, scout: scout ?? undefined, kitchen: kitchen ?? undefined, bath: bath ?? undefined, product: sanitary.find((x) => x.kind === "toilet")?.name, basin: sanitary.find((x) => x.kind === "basin")?.name, faucet: sanitary.find((x) => x.kind === "faucet")?.name, plan: plan ?? undefined, guideKey: guide ? b.guideKey : undefined, polish: guide ? true : undefined, engine: floorplan || changes || sanitary.length ? "gpt25" : undefined, autoCheck: (swatch || plan) && b.autoCheck === true ? true : undefined, color: b.color, finish: finishOf(b.finish) ?? undefined, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
+      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: changes ? undefined : b.surface, material: changes ? undefined : b.material, changes: changes ?? undefined, finishes: changes ? cleanFinishes(b.finishes, changes) : undefined, skipped: skipped.length ? skipped : undefined, ...(fromRun ? { ...fromRun, planRoom: true } : {}), weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, lighting: b.tool === "interior-lighting" ? b.lighting : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, scout: scout ?? undefined, kitchen: kitchen ?? undefined, bath: bath ?? undefined, product: sanitary.find((x) => x.kind === "toilet")?.name, basin: sanitary.find((x) => x.kind === "basin")?.name, faucet: sanitary.find((x) => x.kind === "faucet")?.name, plan: plan ?? undefined, guideKey: guide ? b.guideKey : undefined, polish: guide ? true : undefined, engine: floorplan || changes || sanitary.length ? "gpt25" : undefined, autoCheck: (swatch || plan) && b.autoCheck === true ? true : undefined, color: b.color, finish: finishOf(b.finish) ?? undefined, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio, trace }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
     return c.json({ id, status: "RUNNING" });
   } catch (e: any) {
     await refund("refund_submit_failed");
@@ -383,7 +408,8 @@ app.post("/api/bizplan/detect", requireAuth, async (c) => {
   }
 });
 
-type Job = { prompt: string; params: Record<string, unknown>; label: string; extra?: { bytes: ArrayBuffer; mime: string }[]; model?: string };
+/** `sources` names each `extra` image (R2 key or asset path) for the trace. */
+type Job = { prompt: string; params: Record<string, unknown>; label: string; extra?: { bytes: ArrayBuffer; mime: string }[]; sources?: string[]; model?: string };
 /**
  * Several generations from one uploaded image in a single request (Business 3D Floorplan, material comparison).
  * Credits for every job are charged up front; a job whose submission fails is refunded at once. Each job becomes a
@@ -403,7 +429,8 @@ async function runBatch(c: any, o: { tool: string; inputKey: string; image: { by
     try {
       const taskId = await submitImageToImage(c.env.RUNNINGHUB_API_KEY!, { images: [o.image, ...(job.extra ?? [])], prompt: job.prompt, aspectRatio: job.model ? o.aspectRatio ?? "4:3" : o.aspectRatio, model: job.model, resolution: o.resolution }, c.env.RUNNINGHUB_BASE);
       await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,rh_task_id,input_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-        .bind(id, u.id, o.tool, JSON.stringify({ ...job.params, batchId, resolution: o.resolution, aspectRatio: o.aspectRatio }), job.prompt, "RUNNING", taskId, o.inputKey, o.each, now).run();
+        .bind(id, u.id, o.tool, JSON.stringify({ ...job.params, batchId, resolution: o.resolution, aspectRatio: o.aspectRatio,
+          trace: traceOf(c, { model: job.model ?? "flash", aspect: job.model ? o.aspectRatio ?? "4:3" : o.aspectRatio, res: o.resolution, images: [o.inputKey, ...(job.sources ?? [])] }) }), job.prompt, "RUNNING", taskId, o.inputKey, o.each, now).run();
       return { id, label: job.label };
     } catch (e: any) {
       await c.env.DB.batch([
@@ -432,7 +459,7 @@ app.post("/api/bizplan/render", requireAuth, async (c) => {
   let jobs: Job[];
   try {
     jobs = rooms.map((r, i) => ({
-      prompt: planRoomPrompt(b.styleSlug, r, home, !!crops[i]), label: r.name, model: PLAN_EDIT, extra: crops[i] ? [crops[i]!.img] : undefined,
+      prompt: planRoomPrompt(b.styleSlug, r, home, !!crops[i]), label: r.name, model: PLAN_EDIT, extra: crops[i] ? [crops[i]!.img] : undefined, sources: crops[i] ? [crops[i]!.key] : undefined,
       params: { styleSlug: b.styleSlug, roomType: r.name, engine: "gpt25", room: r, home, cropKey: crops[i]?.key, autoCheck: b.autoCheck === true ? true : undefined },
     }));
   } catch (e: any) { return c.json({ error: e.message }, 400); }
@@ -497,7 +524,7 @@ app.post("/api/bizplan/redo", requireAuth, async (c) => {
       const crop = p.cropKey ? await c.env.IMAGES.get(p.cropKey).then(async (o: any) => o && { bytes: await o.arrayBuffer(), mime: o.httpMetadata?.contentType ?? "image/jpeg" }) : null;
       const extra = [...(crop ? [crop] : []), ...(refImg ? [refImg] : [])];
       const prompt = `${planRoomPrompt(p.styleSlug, room, String(p.home ?? ""), !!crop)} ${roomRedoLines({ room: `${p.roomType ?? ""} ${room.name}`, refIndex: refImg ? extra.length + 1 : undefined, palette, note })}`.trim();
-      return { prompt, label: String(p.roomType ?? room.name), model: PLAN_EDIT, extra,
+      return { prompt, label: String(p.roomType ?? room.name), model: PLAN_EDIT, extra, sources: [...(crop ? [p.cropKey] : []), ...(refImg ? [ref.output_key] : [])],
         params: { styleSlug: p.styleSlug, roomType: p.roomType, engine: "gpt25", room, home: p.home, cropKey: p.cropKey, redoOf: id, refId: ref?.id, note: note || undefined, autoCheck: b.autoCheck === true ? true : undefined } };
     }));
   } catch (e: any) { return c.json({ error: e.message }, 400); }
@@ -528,7 +555,7 @@ app.post("/api/compare", requireAuth, async (c) => {
     for (const job of jobs) {
       const s = await tileSwatch(c, job.label);
       if (!s) continue;
-      Object.assign(job, { extra: [s], model: TILE_EDIT });
+      Object.assign(job, { extra: [s], sources: [floorTile(job.label)!.swatch], model: TILE_EDIT });
       if (b.autoCheck === true) job.params = { ...job.params, autoCheck: true };
       if (scout) Object.assign(job, { prompt: buildPrompt(b.tool, { surface, material: job.label, custom: b.custom, scout }), params: { ...job.params, scout } });
       if (b.autoCheck === true) job.params = { ...job.params, autoCheck: true };
@@ -646,7 +673,7 @@ async function checkFor(c: any, g: any, params: any): Promise<Check | null> {
  * Returns done:false while a retry runs or another poll holds the check; a judge error accepts the result as it is.
  */
 async function qaCheck(c: any, g: any, params: any, out: Img): Promise<{ done: false } | { done: true; bytes?: ArrayBuffer; params?: any }> {
-  const qa: { attempts: (FloorQa & { task: string })[] } = params.qa ?? { attempts: [] };
+  const qa: { attempts: (FloorQa & { task: string; at?: number; key?: string })[] } = params.qa ?? { attempts: [] };
   if (qa.attempts.some((a) => a.task === g.rh_task_id)) return { done: true };
   // One poll judges each attempt; concurrent polls see the claim and keep waiting.
   const claim = await c.env.DB.prepare("UPDATE generations SET params=json_set(params,'$.qaLock',?) WHERE id=? AND coalesce(json_extract(params,'$.qaLock'),'')<>?")
@@ -655,7 +682,7 @@ async function qaCheck(c: any, g: any, params: any, out: Img): Promise<{ done: f
   const check = await checkFor(c, g, params);
   const verdict = check ? await check.judge(out) : null;
   if (!verdict || !check) return { done: true, params: { ...params, qa: { ...qa, skipped: true } } };
-  qa.attempts.push({ ...verdict, task: g.rh_task_id });
+  qa.attempts.push({ ...verdict, task: g.rh_task_id, at: Date.now() });
   const next = { ...params, qa };
   if (verdict.pass || qa.attempts.length >= 2) {
     // Keep the attempt with fewer failed checks (ties go to the newer one).
@@ -663,11 +690,16 @@ async function qaCheck(c: any, g: any, params: any, out: Img): Promise<{ done: f
     const try1 = `out/${g.user_id}/${g.id}-try1`;
     const saved = second && first.failed.length < second.failed.length ? await c.env.IMAGES.get(try1) : null;
     const bytes = saved ? await saved.arrayBuffer() : undefined;
-    if (second) await c.env.IMAGES.delete(try1);
+    // Both attempts stay for investigation: the first as -try1, a second that lost to it as -try2.
+    if (bytes) {
+      second.key = `out/${g.user_id}/${g.id}-try2`;
+      await c.env.IMAGES.put(second.key, out.bytes, { httpMetadata: { contentType: out.mime } });
+    }
     return { done: true, bytes, params: { ...next, qa: { ...qa, kept: bytes ? 1 : qa.attempts.length } } };
   }
   try {
-    await c.env.IMAGES.put(`out/${g.user_id}/${g.id}-try1`, out.bytes, { httpMetadata: { contentType: out.mime } });
+    const try1 = (qa.attempts[0].key = `out/${g.user_id}/${g.id}-try1`);
+    await c.env.IMAGES.put(try1, out.bytes, { httpMetadata: { contentType: out.mime } });
     const task = await submitImageToImage(c.env.RUNNINGHUB_API_KEY, {
       images: await check.inputs(), prompt: `${g.prompt} ${floorRetryNote(verdict.problems)}`, aspectRatio: params.guideKey || params.isoKey ? "16:9" : params.aspectRatio ?? "4:3", resolution: params.resolution ?? "1k", model: check.model,
     }, c.env.RUNNINGHUB_BASE);
@@ -728,11 +760,11 @@ async function settle(c: any, g: any) {
   const p = JSON.parse(g.params), polishing = !!p.polishTask && p.polishTask === g.rh_task_id;
   // Stores the result and marks the job done; only the poll that still holds the current task does, so a late poll cannot
   // overwrite a newer redraw.
-  const finish = async (bytes: ArrayBuffer, mime: string, ext: string, params: any) => {
+  const finish = async (bytes: ArrayBuffer, mime: string, ext: string, done: any) => {
     const key = `out/${g.user_id}/${g.id}.${ext}`;
+    const params = { ...done, finishedAt: Date.now() }; // the pre-polish draft stays for investigation
     await c.env.IMAGES.put(key, bytes, { httpMetadata: { contentType: mime } });
     await c.env.DB.prepare("UPDATE generations SET status='SUCCESS', output_key=?, params=? WHERE id=? AND status IN ('QUEUED','RUNNING') AND rh_task_id=?").bind(key, JSON.stringify(params), g.id, g.rh_task_id).run();
-    if (params.draftKey) await c.env.IMAGES.delete(params.draftKey);
     g.status = "SUCCESS"; g.output_key = key; g.params = JSON.stringify(params);
   };
   // A polish that fails or runs late finishes with the GPT render it started from.
@@ -773,7 +805,8 @@ app.get("/api/generations/:id", requireAuth, async (c) => {
   if ((g.status === "RUNNING" || g.status === "QUEUED") && c.env.RUNNINGHUB_API_KEY) await settle(c, g);
   // Written critiques and advisor transcripts are stored as JSON in place of an output image.
   const json: any = g.status === "SUCCESS" && String(g.output_key).endsWith(".json") ? await c.env.IMAGES.get(g.output_key).then((o) => o?.json()).catch(() => null) : undefined;
-  return c.json({ id: g.id, tool: g.tool, params: JSON.parse(g.params), status: g.status, error: g.error, public: !!g.is_public, critique: g.tool === "interior-critique" ? json : undefined, finder: g.tool === "interior-finder" ? json : undefined, orient: g.tool === "exterior-orient" ? json : undefined, chat: g.tool === ADVISOR_TOOL ? json?.messages : undefined, inputUrl: g.input_key ? `/api/images/${g.input_key}` : null, outputUrl: g.output_key ? `/api/images/${g.output_key}` : null });
+  const fb: any = g.status === "SUCCESS" ? await c.env.DB.prepare("SELECT rating,reasons,note FROM generation_feedback WHERE generation_id=? AND user_id=?").bind(g.id, u.id).first().catch(() => null) : null;
+  return c.json({ id: g.id, tool: g.tool, params: JSON.parse(g.params), status: g.status, feedback: fb ? { rating: fb.rating, reasons: JSON.parse(fb.reasons ?? "[]"), note: fb.note ?? "" } : null, error: g.error, public: !!g.is_public, critique: g.tool === "interior-critique" ? json : undefined, finder: g.tool === "interior-finder" ? json : undefined, orient: g.tool === "exterior-orient" ? json : undefined, chat: g.tool === ADVISOR_TOOL ? json?.messages : undefined, inputUrl: g.input_key ? `/api/images/${g.input_key}` : null, outputUrl: g.output_key ? `/api/images/${g.output_key}` : null });
 });
 
 // ---------- Admin: API cost page ----------
@@ -893,8 +926,11 @@ app.delete("/api/generations/:id", requireAuth, async (c) => {
   const g: any = await c.env.DB.prepare("SELECT input_key,output_key,status FROM generations WHERE id=? AND user_id=?").bind(c.req.param("id"), u.id).first();
   if (!g) return c.json({ error: "not found" }, 404);
   if (g.status === "RUNNING" || g.status === "QUEUED") return c.json({ error: "Still processing, cannot delete yet · Đang xử lý, chưa thể xoá" }, 409);
-  await c.env.IMAGES.delete([g.input_key, g.output_key].filter(Boolean));
-  await c.env.DB.prepare("DELETE FROM generations WHERE id=? AND user_id=?").bind(c.req.param("id"), u.id).run();
+  const id = c.req.param("id");
+  const attempts = await c.env.IMAGES.list({ prefix: `out/${u.id}/${id}` }).then((l) => l.objects.map((o) => o.key), () => [] as string[]); // -try1, -draft, -replay-…
+  await c.env.IMAGES.delete([g.input_key, g.output_key, ...attempts].filter(Boolean));
+  await c.env.DB.prepare("DELETE FROM generations WHERE id=? AND user_id=?").bind(id, u.id).run();
+  await c.env.DB.batch(["generation_feedback", "generation_replays", "regression_cases"].map((t) => c.env.DB.prepare(`DELETE FROM ${t} WHERE generation_id=?`).bind(id))).catch(() => {});
   return c.json({ ok: true });
 });
 
@@ -923,6 +959,213 @@ app.get("/api/public/:id/:kind", async (c) => {
   return new Response(obj.body, { headers: { "Content-Type": obj.httpMetadata?.contentType ?? "image/png", "Cache-Control": "public, max-age=3600" } });
 });
 
+// ---------- Feedback on results, and the admin page that investigates bad ones ----------
+const FEEDBACK_REASONS = ["structure", "objects", "product", "angle", "color", "other"];
+/** 👍/👎 on a finished generation (👎 with reasons and a note); rating 0 clears it. One rating per user and generation. */
+app.post("/api/generations/:id/feedback", requireAuth, async (c) => {
+  const u = c.get("user"), id = c.req.param("id");
+  const b = await c.req.json<any>().catch(() => ({}));
+  const g = await c.env.DB.prepare("SELECT id FROM generations WHERE id=? AND user_id=? AND status='SUCCESS'").bind(id, u.id).first();
+  if (!g) return c.json({ error: "not found" }, 404);
+  if (b.rating !== 1 && b.rating !== -1) {
+    await c.env.DB.prepare("DELETE FROM generation_feedback WHERE generation_id=? AND user_id=?").bind(id, u.id).run();
+    return c.json({ ok: true, feedback: null });
+  }
+  const reasons = b.rating < 0 && Array.isArray(b.reasons) ? [...new Set<string>(b.reasons.map(String))].filter((r) => FEEDBACK_REASONS.includes(r)) : [];
+  const note = b.rating < 0 ? String(b.note ?? "").trim().slice(0, 500) : "";
+  await c.env.DB.prepare("INSERT INTO generation_feedback (generation_id,user_id,rating,reasons,note,created_at) VALUES (?,?,?,?,?,?) ON CONFLICT(generation_id,user_id) DO UPDATE SET rating=excluded.rating, reasons=excluded.reasons, note=excluded.note, created_at=excluded.created_at")
+    .bind(id, u.id, b.rating, JSON.stringify(reasons), note, Date.now()).run();
+  return c.json({ ok: true, feedback: { rating: b.rating, reasons, note } });
+});
+
+const adminImg = (key: string | null | undefined) => (!key ? null : key.startsWith("/") ? key : `/api/admin/img/${key}`);
+const promptHash = async (s: string) =>
+  [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))].slice(0, 5).map((x) => x.toString(16).padStart(2, "0")).join("");
+const passOf = (r: any): boolean | null => (r.mark != null ? r.mark === 1 : r.verdict ? !!JSON.parse(r.verdict).pass : null);
+
+app.get("/api/admin/img/:kind/:uid/:file", async (c) => {
+  if (!(await realAdmin(c))) return c.json({ error: "forbidden" }, 403);
+  const { kind, uid, file } = c.req.param();
+  if (kind !== "in" && kind !== "out") return c.json({ error: "forbidden" }, 403);
+  const obj = await c.env.IMAGES.get(`${kind}/${uid}/${file}`);
+  if (!obj) return c.json({ error: "not found" }, 404);
+  return new Response(obj.body, { headers: { "Content-Type": obj.httpMetadata?.contentType ?? "image/png", "Cache-Control": "private, max-age=3600" } });
+});
+
+/** Cases to look at: 👎 from customers, results the auto-check failed on the first try, the regression set, or every traced result. */
+app.get("/api/admin/cases", async (c) => {
+  if (!(await realAdmin(c))) return c.json({ error: "Log in with an admin account · Đăng nhập bằng tài khoản admin" }, 403);
+  const filter = c.req.query("filter") ?? "down";
+  const where = ({
+    down: "EXISTS (SELECT 1 FROM generation_feedback f WHERE f.generation_id=g.id AND f.rating<0)",
+    qa: "json_extract(g.params,'$.qa.attempts[0].pass')=0",
+    regression: "EXISTS (SELECT 1 FROM regression_cases r WHERE r.generation_id=g.id)",
+    traced: "json_extract(g.params,'$.trace') IS NOT NULL AND g.status='SUCCESS'",
+  } as Record<string, string>)[filter];
+  if (!where) return c.json({ error: "Unknown filter" }, 400);
+  const before = Number(c.req.query("before")) || Date.now() + 1;
+  try {
+    const { results } = await c.env.DB.prepare(
+      `SELECT g.id,g.tool,g.status,g.input_key,g.output_key,g.created_at,json_extract(g.params,'$.trace.v') v,json_extract(g.params,'$.qa.attempts') attempts,
+        f.rating,f.reasons,f.note,(SELECT COUNT(*) FROM regression_cases r WHERE r.generation_id=g.id) reg
+       FROM generations g LEFT JOIN generation_feedback f ON f.generation_id=g.id
+       WHERE ${where} AND g.created_at<? ORDER BY g.created_at DESC LIMIT 40`,
+    ).bind(before).all<any>();
+    const ids = [...new Set(results.map((g) => g.id))];
+    const reps = ids.length ? (await c.env.DB.prepare(`SELECT generation_id,status,verdict,mark FROM generation_replays WHERE generation_id IN (${ids.map(() => "?").join(",")})`).bind(...ids).all<any>()).results : [];
+    const seen = new Set<string>();
+    return c.json({
+      items: results.filter((g) => !seen.has(g.id) && seen.add(g.id)).map((g) => {
+        const judged = reps.filter((r) => r.generation_id === g.id && r.status === "SUCCESS").map(passOf).filter((x) => x != null);
+        return { id: g.id, tool: g.tool, status: g.status, createdAt: g.created_at, version: g.v, inputUrl: adminImg(g.input_key), outputUrl: adminImg(g.output_key),
+          rating: g.rating ?? null, reasons: JSON.parse(g.reasons ?? "[]"), note: g.note ?? "", regression: !!g.reg,
+          qa: g.attempts ? JSON.parse(g.attempts).map((a: any) => a.pass) : null, replays: { judged: judged.length, passed: judged.filter(Boolean).length } };
+      }),
+      next: results.length === 40 ? results[results.length - 1].created_at : null,
+    });
+  } catch (e: any) {
+    return c.json({ error: `Run migration 0005 first: ${e.message} · Cần chạy migration 0005: ${e.message}` }, 500);
+  }
+});
+
+/**
+ * One case in full: what was sent (images, model, ratio, version, the scout readings in params), every attempt with the auto-check
+ * verdicts, the customer's feedback and the admin replays. The prompt itself is not shown, only a hash to tell versions apart.
+ */
+app.get("/api/admin/cases/:id", async (c) => {
+  if (!(await realAdmin(c))) return c.json({ error: "Log in with an admin account · Đăng nhập bằng tài khoản admin" }, 403);
+  const g: any = await c.env.DB.prepare("SELECT * FROM generations WHERE id=?").bind(c.req.param("id")).first();
+  if (!g) return c.json({ error: "not found" }, 404);
+  await settleReplays(c, g.id).catch(() => {});
+  const p = JSON.parse(g.params);
+  const { trace, qa, qaLock, polishLock, ...params } = p;
+  const [feedback, replays, reg] = await Promise.all([
+    c.env.DB.prepare("SELECT rating,reasons,note,created_at FROM generation_feedback WHERE generation_id=? ORDER BY created_at DESC").bind(g.id).all<any>().then((r) => r.results, () => []),
+    c.env.DB.prepare("SELECT * FROM generation_replays WHERE generation_id=? ORDER BY created_at").bind(g.id).all<any>().then((r) => r.results, () => []),
+    c.env.DB.prepare("SELECT note,added_at FROM regression_cases WHERE generation_id=?").bind(g.id).first<any>().catch(() => null),
+  ]);
+  return c.json({
+    id: g.id, tool: g.tool, status: g.status, error: g.error, createdAt: g.created_at, finishedAt: p.finishedAt ?? null, userId: g.user_id,
+    inputUrl: adminImg(g.input_key), outputUrl: adminImg(g.output_key), draftUrl: adminImg(p.draftKey), promptHash: await promptHash(g.prompt), promptLength: g.prompt.length,
+    trace: trace ? { version: trace.v, model: trace.model, aspect: trace.aspect, res: trace.res, images: trace.images.map(adminImg), rebuild: !!trace.req } : null,
+    params: { ...params, plan: params.plan ? "(plan facts)" : undefined },
+    attempts: (qa?.attempts ?? []).map((a: any) => ({ pass: a.pass, failed: a.failed, problems: a.problems, at: a.at ?? null, url: adminImg(a.key) ?? adminImg(g.output_key) })),
+    qaKept: qa?.kept ?? null, qaSkipped: !!qa?.skipped, plan: params.plan ?? null,
+    feedback: feedback.map((f: any) => ({ rating: f.rating, reasons: JSON.parse(f.reasons ?? "[]"), note: f.note ?? "", at: f.created_at })),
+    replays: replays.map((r: any) => ({ id: r.id, mode: r.mode, status: r.status, error: r.error, version: r.version, promptHash: r.prompt_hash, createdAt: r.created_at,
+      url: adminImg(r.output_key), verdict: r.verdict ? JSON.parse(r.verdict) : null, mark: r.mark == null ? null : r.mark === 1, pass: passOf(r) })),
+    regression: reg ? { note: reg.note ?? "", at: reg.added_at } : null,
+    canJudge: !!(await checkFor(c, g, p).catch(() => null)),
+  });
+});
+
+const MAX_REPLAYS = 5;
+/**
+ * Runs a generation again n times for the admin page, never in the customer's history and without credits. "same" sends exactly
+ * what was sent (to see how often the same input succeeds); "current" rebuilds the prompt with the deployed code from the stored
+ * request and scout readings (to see whether a fix helps). Each replay is judged by the tool's auto-check when it has one.
+ */
+async function startReplays(c: any, g: any, n: number, mode: "same" | "current") {
+  const p = JSON.parse(g.params), tr: Trace | undefined = p.trace;
+  if (!tr) throw new Error("This result was made before tracing and cannot be replayed · Kết quả này tạo trước khi có ghi vết nên không chạy lại được");
+  let prompt = g.prompt;
+  if (mode === "current") {
+    if (!tr.req) throw new Error("Only the stored prompt can be replayed for this tool · Công cụ này chỉ chạy lại được với prompt đã lưu");
+    prompt = buildPrompt(g.tool, { ...tr.req, scout: p.scout, kitchen: p.kitchen, bath: p.bath, plan: p.plan, guide: !!p.guideKey });
+  }
+  const images = tr.model === "text" ? [] : await traceImages(c, tr.images);
+  const hash = await promptHash(prompt);
+  return Promise.all(Array.from({ length: n }, async () => {
+    const id = crypto.randomUUID();
+    let task: string | null = null, error: string | null = null;
+    try {
+      task = tr.model === "text"
+        ? await submitTextToImage(c.env.RUNNINGHUB_API_KEY, { prompt, aspectRatio: tr.aspect, resolution: tr.res }, c.env.RUNNINGHUB_BASE)
+        : await submitImageToImage(c.env.RUNNINGHUB_API_KEY, { images, prompt, aspectRatio: tr.aspect, resolution: tr.res, model: tr.model === "flash" ? undefined : tr.model }, c.env.RUNNINGHUB_BASE);
+    } catch (e: any) { error = e.message; }
+    await c.env.DB.prepare("INSERT INTO generation_replays (id,generation_id,mode,rh_task_id,status,version,prompt_hash,error,created_at) VALUES (?,?,?,?,?,?,?,?,?)")
+      .bind(id, g.id, mode, task, task ? "RUNNING" : "FAILED", appVersion(c) ?? null, hash, error, Date.now()).run();
+    return id;
+  }));
+}
+
+app.post("/api/admin/cases/:id/replay", async (c) => {
+  if (!(await realAdmin(c))) return c.json({ error: "forbidden" }, 403);
+  if (!c.env.RUNNINGHUB_API_KEY) return c.json({ error: "Server is missing RUNNINGHUB_API_KEY" }, 500);
+  const b = await c.req.json<any>().catch(() => ({}));
+  const g: any = await c.env.DB.prepare("SELECT * FROM generations WHERE id=?").bind(c.req.param("id")).first();
+  if (!g) return c.json({ error: "not found" }, 404);
+  const n = Math.min(MAX_REPLAYS, Math.max(1, Math.floor(Number(b.n) || 3)));
+  try { return c.json({ ids: await startReplays(c, g, n, b.mode === "current" ? "current" : "same") }); } catch (e: any) { return c.json({ error: e.message }, 409); }
+});
+
+/** The regression set: every case, n replays each with the deployed prompts (at most 30 replays per run). */
+app.post("/api/admin/regression/replay", async (c) => {
+  if (!(await realAdmin(c))) return c.json({ error: "forbidden" }, 403);
+  if (!c.env.RUNNINGHUB_API_KEY) return c.json({ error: "Server is missing RUNNINGHUB_API_KEY" }, 500);
+  const b = await c.req.json<any>().catch(() => ({}));
+  const n = Math.min(MAX_REPLAYS, Math.max(1, Math.floor(Number(b.n) || 2)));
+  const { results } = await c.env.DB.prepare("SELECT g.* FROM regression_cases r JOIN generations g ON g.id=r.generation_id ORDER BY r.added_at").all<any>();
+  if (results.length * n > 30) return c.json({ error: `${results.length} cases × ${n} = ${results.length * n} replays; the limit is 30 · Tối đa 30 lượt chạy lại mỗi lần` }, 400);
+  const out = await Promise.all(results.map((g) => startReplays(c, g, n, "current").then((ids) => ({ id: g.id, ids }), (e) => ({ id: g.id, error: e.message as string }))));
+  return c.json({ items: out });
+});
+
+/** The admin's own pass/fail on a replay, over the auto-check (null clears it). */
+app.post("/api/admin/replays/:rid/mark", async (c) => {
+  if (!(await realAdmin(c))) return c.json({ error: "forbidden" }, 403);
+  const b = await c.req.json<any>().catch(() => ({}));
+  await c.env.DB.prepare("UPDATE generation_replays SET mark=? WHERE id=?").bind(b.pass === true ? 1 : b.pass === false ? 0 : null, c.req.param("rid")).run();
+  return c.json({ ok: true });
+});
+
+app.post("/api/admin/cases/:id/regression", async (c) => {
+  if (!(await realAdmin(c))) return c.json({ error: "forbidden" }, 403);
+  const b = await c.req.json<any>().catch(() => ({}));
+  const id = c.req.param("id");
+  if (b.on) await c.env.DB.prepare("INSERT INTO regression_cases (generation_id,note,added_at) VALUES (?,?,?) ON CONFLICT(generation_id) DO UPDATE SET note=excluded.note")
+    .bind(id, String(b.note ?? "").trim().slice(0, 300), Date.now()).run();
+  else await c.env.DB.prepare("DELETE FROM regression_cases WHERE generation_id=?").bind(id).run();
+  return c.json({ ok: true });
+});
+
+/**
+ * Brings open replays up to date (one generation's, or a few of any for the cron): a finished image is stored next to the
+ * generation's own files and judged by the tool's auto-check; errors and replays over 15 minutes old are marked failed.
+ */
+async function settleReplays(c: any, generationId?: string) {
+  if (!c.env.RUNNINGHUB_API_KEY) return;
+  const { results } = await c.env.DB.prepare(`SELECT r.*, g.user_id, g.tool, g.params, g.input_key, g.prompt, g.rh_task_id g_task FROM generation_replays r JOIN generations g ON g.id=r.generation_id
+    WHERE r.status='RUNNING' ${generationId ? "AND r.generation_id=?" : "AND r.created_at>?"} ORDER BY r.created_at LIMIT 6`).bind(generationId ?? Date.now() - SETTLE_WINDOW).all();
+  await Promise.allSettled(results.map(async (rp: any) => {
+    const g = { id: rp.generation_id, user_id: rp.user_id, tool: rp.tool, params: rp.params, input_key: rp.input_key, prompt: rp.prompt, rh_task_id: rp.g_task };
+    const r = await queryTask(c.env.RUNNINGHUB_API_KEY, rp.rh_task_id, c.env.RUNNINGHUB_BASE).catch(() => null);
+    const set = (sql: string, ...v: unknown[]) => c.env.DB.prepare(`UPDATE generation_replays SET ${sql} WHERE id=? AND status='RUNNING'`).bind(...v, rp.id).run();
+    if (r && r.status !== "QUEUED" && r.status !== "RUNNING") {
+      const params = JSON.parse(g.params), billed = r.usage?.thirdPartyConsumeMoney, model = modelOf(g.tool, params);
+      later(c, recordCost(c.env.DB, { id: `task:${rp.rh_task_id}`, kind: kindOf(model) === "video" ? "video" : "image", model, tool: g.tool, generationId: g.id, userId: g.user_id,
+        usd: billed != null && Number.isFinite(Number(billed)) ? Number(billed) : estimateUsd(g.tool, params, r.status), estimated: billed == null || !Number.isFinite(Number(billed)) }));
+    }
+    if (r?.status === "SUCCESS" && r.results?.[0]) {
+      const claim = await set("status='JUDGING'");
+      if (!claim.meta.changes) return; // another poll has it
+      const img = await fetch(r.results[0].url).catch(() => null);
+      const done = (sql: string, ...v: unknown[]) => c.env.DB.prepare(`UPDATE generation_replays SET ${sql} WHERE id=?`).bind(...v, rp.id).run();
+      if (!img?.ok) return done("status='FAILED', error=?", "Could not download the result image");
+      const ext = r.results[0].outputType || "png", mime = `image/${ext === "jpg" ? "jpeg" : ext}`, bytes = await img.arrayBuffer();
+      const key = `out/${g.user_id}/${g.id}-replay-${rp.id.slice(0, 8)}.${ext}`;
+      await c.env.IMAGES.put(key, bytes, { httpMetadata: { contentType: mime } });
+      const check = await checkFor(c, g, JSON.parse(g.params)).catch(() => null);
+      const verdict = check ? await check.judge({ bytes, mime }).catch(() => null) : null;
+      await done("status='SUCCESS', output_key=?, verdict=?", key, verdict ? JSON.stringify(verdict) : null);
+    } else if (r && r.status !== "QUEUED" && r.status !== "RUNNING") {
+      await set("status='FAILED', error=?", r.errorMessage || "RunningHub reported an error");
+    } else if (Date.now() - rp.created_at > 15 * 60_000) {
+      await set("status='FAILED', error=?", "Timed out (15 minutes)");
+    }
+  }));
+}
+
 /** Jobs started in the last 20 minutes and still open: anything older was already past the 15-minute limit. */
 const SETTLE_WINDOW = 20 * 60_000, SETTLE_BATCH = 8;
 /**
@@ -936,6 +1179,7 @@ async function settleOpenJobs(env: Env, ctx: ExecutionContext) {
   // tileSwatch resolves swatch paths against c.req.url; the ASSETS binding ignores the host.
   const c = { env, executionCtx: ctx, get: () => undefined, req: { url: "https://assets.local/" } };
   await Promise.allSettled(results.map((g) => settle(c, g)));
+  await settleReplays(c).catch(() => {});
 }
 
 export default {

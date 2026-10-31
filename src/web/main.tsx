@@ -12,6 +12,7 @@ import { Home } from "./Home";
 import { App as SolycApp } from "./App";
 import { PricingPage } from "./Pricing";
 import { AdminCostsPage } from "./AdminCosts";
+import { AdminInvestigatePage } from "./AdminInvestigate";
 import { FEATURES, PERSONAS, USE_CASES } from "./data";
 import {
   AuthPage, DOC_SLUGS, DocPage, FeaturePage, FeaturesHub, NotFound, PersonaPage, ProjectsPage, RedesignPage, StylePage, StylesHub, UseCaseHandler,
@@ -44,6 +45,7 @@ function Routes() {
     if (USE_CASES.some((u) => u.slug === slug)) return <UseCaseHandler slug={slug} />;
     if (PERSONAS.some((p) => p.slug === slug)) return <PersonaPage slug={slug} />;
   }
+  if (path === "/admin/investigate") return <AdminInvestigatePage />;
   if (seg[0] === "design-styles" && seg.length === 3) return <StylePage scope={seg[1]} slug={seg[2]} />;
   return <NotFound />;
 }

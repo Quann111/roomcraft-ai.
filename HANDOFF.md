@@ -34,6 +34,8 @@ Web app thiết kế nội thất bằng AI: tải ảnh phòng hoặc bản v�
 - **Credit:** `DAILY_CREDITS=3`, nạp lại mỗi 24 giờ; admin không giới hạn. Mỗi ảnh 1K tốn 1 credit (2K: 2, 4K: 3). Lỗi thì hoàn credit.
 - **Trang test nội bộ** (không có link từ menu): `/test-results`, đọc từ `public/test-results/manifest.json`.
 - **Trang chi phí:** `/admin` (bảng `api_costs`, import được CSV billing của RunningHub).
+- **Trang điều tra kết quả:** `/admin/investigate` (mục 4.6). Hai trang admin chỉ mở khi đăng nhập thật bằng email admin (`realAdmin`).
+- **Thiết bị vệ sinh Viglacera** (nhóm Doanh nghiệp, PR #72–74): bồn cầu, chậu rửa, vòi chậu; chọn 1–3 món, lắp cùng lúc trong một ảnh.
 
 ## 2. Kiến trúc và luồng dữ liệu
 
@@ -72,7 +74,7 @@ Lệnh UPDATE cuối có điều kiện `rh_task_id=?`, để một lần poll �
 
 Secret là `RUNNINGHUB_API_KEY`. Ở local nó nằm trong `.dev.vars`, đã gitignore. **Không bao giờ in key ra.**
 
-Migrations: `migrations/0001`–`0004`, đều đã áp lên production.
+Migrations: `migrations/0001`–`0005`. `0001`–`0004` đã áp lên production; `0005` (điều tra kết quả) phải áp trước lần deploy kèm nó.
 
 ## 3. Công cụ AI và model
 
@@ -179,6 +181,24 @@ Bài học quan trọng nhất: **model chỉnh ảnh giữ nguyên bố cục c
 - **Loader:** `AiThinking.tsx`, gồm "SOLYC Analyzing/Thinking" và vòng xoay quanh logo.
 - **Hướng dẫn trong từng công cụ:** `toolGuides.ts`.
 
+### 4.6 Ghi vết và điều tra kết quả xấu (migration 0005)
+
+Mục đích: khi khách thấy ảnh không như ý, biết được đã gửi gì cho model. Mỗi lần tạo có thể ra kết quả khác nhau, nên không kết luận từ một ảnh: chạy lại N lần và xem tỉ lệ đạt.
+
+- **Ghi vết:** `params.trace` của mỗi ảnh mới ghi phiên bản deploy (`CF_VERSION_METADATA`), model, tỉ lệ, độ phân giải, danh sách ảnh đã gửi theo đúng thứ tự (key R2 hoặc đường dẫn asset) và request gốc. Ảnh tạo trước khi có ghi vết thì không chạy lại được.
+- **Giữ mọi lần thử:** lần 1 của tự kiểm tra (`-try1`), lần 2 thua lần 1 (`-try2`), bản GPT trước khi Gemini đánh bóng (`-draft`). Xoá ảnh trong lịch sử thì xoá luôn các file này và dữ liệu điều tra.
+- **Khách chấm:** dưới mỗi kết quả có 👍/👎 (kết quả chính, xem trước trong lịch sử, lớp nổi phòng Doanh nghiệp). 👎 cho chọn lý do và ghi chú. Dữ liệu ở bảng `generation_feedback`.
+- **Trang `/admin/investigate`:**
+  - Danh sách: 👎 từ khách, tự kiểm tra lỗi lần đầu, bộ kiểm thử, tất cả có ghi vết.
+  - Từng ca: ảnh đã gửi, kết quả, các lần thử kèm lỗi máy chấm thấy, đánh giá của khách, tham số và kết quả đọc ảnh (scout).
+  - Prompt không hiện, chỉ có mã hash để phân biệt phiên bản.
+- **Chạy lại N lần (1–5):** bảng `generation_replays`.
+  - Không hiện trong lịch sử khách, không trừ credit, nhưng tốn tiền API thật.
+  - "Giữ nguyên prompt" đo độ ngẫu nhiên. "Prompt hiện tại" dựng lại prompt bằng code đang deploy, để thử bản sửa (chỉ cho `/api/generate`, không cho các batch).
+  - Công cụ có tự kiểm tra thì máy tự chấm; admin chấm đè được bằng ✓/✗. Tỉ lệ đạt tính theo từng mã hash prompt.
+- **Bộ kiểm thử:** `regression_cases`. Thêm ca từ trang chi tiết; "Chạy lại cả bộ" chạy mọi ca với prompt hiện tại (tối đa 30 lượt mỗi lần).
+- **Cần hỏi bên web/bảo mật:** thời gian giữ ảnh khách và các lần thử, và điều khoản về việc lưu ảnh.
+
 ## 5. Lệnh hằng ngày
 
 ```bash
@@ -281,3 +301,6 @@ CLOUDFLARE_ACCOUNT_ID=6a959e87aaf889d75de1f587de9f89cb npx wrangler deploy
 | #62–64 | 30/10 | 3 nhóm; 5 mức độ bóng; lớp nổi đổi vật liệu |
 | #67–68 | 31/10 | Nội dung phần 3 lựa chọn; lịch sử trang chủ 1 hàng cuộn ngang |
 | #69 | 31/10 | Đá tấm VASTA cho mặt bàn và mặt đảo bếp |
+| #70–71 | 31/10 | VASTA dùng thang độ bóng chung; nhãn VASTA ESSENTIALS |
+| #72–74 | 31/10 | Thiết bị vệ sinh Viglacera: bồn cầu (BTE là bồn trẻ em), chậu rửa, vòi chậu |
+| #75 | 31/10 | Ghi vết mỗi lần tạo, 👍/👎 của khách, trang điều tra và chạy lại N lần |

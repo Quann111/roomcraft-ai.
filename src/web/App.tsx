@@ -17,6 +17,7 @@ import { BizPlan } from "./BizPlan";
 import { ToolGuide } from "./ToolGuide";
 import { CompareResults, MAX_COMPARE, useCompare } from "./MaterialCompare";
 import { OrientView, DIRS, DIR_NAMES } from "./OrientView";
+import { ResultFeedback } from "./ResultFeedback";
 import { BeforeAfter, CritiqueView, FinderView, isChat, isTextResult, isVideo, resultFile, MAX_ITEMS, PrepInfo, useGenerator, type Preset, type ToolId } from "./GeneratePanel";
 
 /* ---------- icons ---------- */
@@ -343,6 +344,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                   {!g.gen.outputUrl.endsWith(".mp4") && <button className="outline-btn" onClick={g.togglePublic}><Icon n="globe" /> {g.gen.public ? t("Unpublish", "Gỡ khỏi thư viện") : t("Publish", "Đăng lên thư viện")}</button>}
                   <button className="outline-btn" onClick={g.remove_}><Icon n="trash" /> {t("Delete", "Xoá")}</button>
                 </div>
+                <ResultFeedback id={g.gen.id} initial={(g.gen as any).feedback ?? null} />
               </>
             ) : (
               g.busy ? <AiThinking kind={cfg.video ? "video" : cfg.llm ? "analysis" : "image"} />
@@ -683,7 +685,7 @@ function LatestDesigns({ tool, refresh, styles: given, onDeleted }: { tool: stri
               : open.chat ? <><h3 style={{ marginTop: 0 }}>{t("Design Advisor", "Tư vấn thiết kế")}</h3>{open.inputUrl && <img src={open.inputUrl} alt="" style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 10, marginBottom: 12 }} />}<Transcript turns={open.chat} /></>
               : open.orient ? <OrientView photo={open.inputUrl} o={open.orient} id={open.id} params={open.params ?? {}} Compare={BeforeAfter} />
               : open.finder ? <FinderView photo={open.inputUrl} f={open.finder} />
-              : open.critique ? <CritiqueView photo={open.inputUrl} c={open.critique} /> : <><BeforeAfter before={open.inputUrl} after={open.outputUrl} zoomable />{open.outputUrl && <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}><DownloadLink className="outline-btn" url={open.outputUrl} name={resultFile(open.id, open.outputUrl)} phone={<><Icon n="download" /> {t("Save to Photos", "Lưu vào Ảnh")}</>}><Icon n="download" /> {t("Download", "Tải xuống")}</DownloadLink></div>}</>}
+              : open.critique ? <CritiqueView photo={open.inputUrl} c={open.critique} /> : <><BeforeAfter before={open.inputUrl} after={open.outputUrl} zoomable />{open.outputUrl && <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}><DownloadLink className="outline-btn" url={open.outputUrl} name={resultFile(open.id, open.outputUrl)} phone={<><Icon n="download" /> {t("Save to Photos", "Lưu vào Ảnh")}</>}><Icon n="download" /> {t("Download", "Tải xuống")}</DownloadLink></div>}{open.outputUrl && <ResultFeedback id={open.id} />}</>}
           </div>
         </div>
       )}

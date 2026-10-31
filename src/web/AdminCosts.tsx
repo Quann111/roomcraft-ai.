@@ -20,7 +20,7 @@ const TOOL_NAMES: Record<string, [string, string]> = {
   "exterior-orient-render": ["Sun & Wind render", "Phân tích nắng & gió (ảnh)"], "exterior-redesign": ["Exterior Redesign", "Thiết kế lại ngoại thất"], "exterior-sky": ["Sky Colors", "Đổi màu bầu trời"],
   "garden-redesign": ["Garden Redesign", "Thiết kế sân vườn"],
 };
-const toolName = (k: string) => (k === "—" || !k ? t("Outside the app (tests, scripts)", "Ngoài app (test, script)") : TOOL_NAMES[k] ? t(...TOOL_NAMES[k]) : k);
+export const toolName = (k: string) => (k === "—" || !k ? t("Outside the app (tests, scripts)", "Ngoài app (test, script)") : TOOL_NAMES[k] ? t(...TOOL_NAMES[k]) : k);
 const usd = (v: number) => (v === 0 ? "$0" : `$${v >= 1 ? v.toFixed(2) : v.toFixed(3)}`);
 const vnTime = (ms: number) => new Date(ms + 7 * 3_600_000).toISOString().slice(5, 16).replace("T", " ");
 
@@ -57,6 +57,7 @@ export function AdminCostsPage() {
       <header className="grid gap-2">
         <p className="eyebrow">Admin</p>
         <h1 style={{ margin: 0, fontSize: 30 }}>{t("API costs", "Chi phí API")}</h1>
+        <a className="small" href="/admin/investigate">{t("Investigate results →", "Điều tra kết quả →")}</a>
         <p className="muted">{t("What the app spends on RunningHub: image and video tasks at the amount RunningHub billed, AI image reading by token count. Days are Vietnam time.", "Số tiền app chi cho RunningHub: ảnh và video theo đúng số RunningHub tính, AI đọc ảnh tính theo số token. Ngày theo giờ Việt Nam.")}</p>
       </header>
       {denied ? <AdminLogin onDone={load} /> : !data ? <p className="muted">{err || t("Loading…", "Đang tải…")}</p> : (
@@ -158,7 +159,7 @@ function DayChart({ days }: { days: Day[] }) {
 }
 
 /** The site logs everyone in as the shared account while OPEN_ACCESS is on, so admins sign in here. */
-function AdminLogin({ onDone }: { onDone: () => void }) {
+export function AdminLogin({ onDone }: { onDone: () => void }) {
   const [email, setEmail] = useState(""), [pw, setPw] = useState(""), [err, setErr] = useState(""), [busy, setBusy] = useState(false);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setBusy(true); setErr("");
@@ -171,7 +172,7 @@ function AdminLogin({ onDone }: { onDone: () => void }) {
   return (
     <form className="card login" onSubmit={submit}>
       <h2>{t("Admin sign-in", "Đăng nhập admin")}</h2>
-      <p className="muted small">{t("API costs are only shown to admin accounts signed in with their own password.", "Chi phí API chỉ hiện cho tài khoản admin đăng nhập bằng mật khẩu riêng.")}</p>
+      <p className="muted small">{t("Admin pages are only shown to admin accounts signed in with their own password.", "Trang admin chỉ hiện cho tài khoản admin đăng nhập bằng mật khẩu riêng.")}</p>
       <input type="email" autoComplete="username" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
       <input type="password" autoComplete="current-password" placeholder={t("Password", "Mật khẩu")} value={pw} onChange={(e) => setPw(e.target.value)} required />
       {err && <p className="err">{err}</p>}
@@ -181,7 +182,7 @@ function AdminLogin({ onDone }: { onDone: () => void }) {
 }
 
 // Chart colors: reference palette slots 1-2 (validated as an adjacent pair). The site has no dark theme, so light only.
-const CSS = `
+export const CSS = `
 .costs { --series-1: #2a78d6; --series-2: #eb6834; --line: #e3ddd0; --muted: #5d6779; }
 .costs .eyebrow { margin: 0; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
 .costs .muted { color: var(--muted); } .costs .small { font-size: 12px; } .costs .num { font-variant-numeric: tabular-nums; }
