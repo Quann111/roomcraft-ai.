@@ -58,10 +58,10 @@ export function RoomMaterials({ batchId, name, versions, onClose, onStarted }: {
   const entries = Object.entries(picks);
   const isTile = (m?: string) => !!m && !!meta?.floorTiles?.some((x) => x.name === m);
   const slabOf = (m?: string) => (m ? meta?.slabs?.find((x) => x.name === m) : undefined);
-  const fixed = (m?: string) => isTile(m) || !!slabOf(m);
+  const fixed = (m?: string) => isTile(m);
   const tile = isTile(picks.floor);
   const slab = Object.values(picks).some((m) => !!slabOf(m));
-  // Sheen only for picked surfaces that are not VICOSTONE tiles or VASTA slabs (those have their own finish).
+  // Sheen only for picked surfaces that are not VICOSTONE tiles (those come polished).
   const fin = Object.fromEntries(Object.entries(finishes).filter(([s]) => picks[s] && !fixed(picks[s])));
   const run = async () => {
     if (!base) return;

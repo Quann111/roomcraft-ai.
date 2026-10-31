@@ -1,7 +1,7 @@
 # RoomCraft AI (SOLYC Gen Labs) — Tài liệu chuyển giao
 
 Cập nhật: **2026-10-30**. Code: `main` @ `9936e27` (PR #64), repo [Quann111/roomcraft-ai.](https://github.com/Quann111/roomcraft-ai.) (private).
-Production: https://roomcraft-ai.quann111.workers.dev, đang chạy `main` @ `656da3b` (PR #65), version `a0fac34b`, deploy 2026-10-30.
+Production: https://roomcraft-ai.quann111.workers.dev, đang chạy `main` @ `b67578d` (PR #69), version `eec4bd04`, deploy 2026-10-31. Bản chọn độ bóng cho đá VASTA (mục 4.4) đã merge nhưng chưa deploy.
 
 Tài liệu dành cho người hoặc coding agent mới nhận phần **tính năng AI và giao diện của chúng**. Phần web chung, đăng nhập và bảo mật toàn site do người khác phụ trách.
 
@@ -150,7 +150,30 @@ Bài học quan trọng nhất: **model chỉnh ảnh giữ nguyên bố cục c
   - Giao diện: `src/web/FinishPicker.tsx`.
   - Thực tế Mờ và Nhám chỉ khác ở độ sần, phải nhìn gần mới thấy.
 
-### 4.4 Khác
+### 4.4 Đá tấm VASTA ESSENTIALS cho mặt bàn và mặt đảo bếp (PR #69 và PR sau đó)
+
+- **Danh mục:** `src/worker/slabs.ts`, ảnh trong `public/materials/slabs/`. Có 18 mẫu, tấm 2800 × 1200 × 9 mm.
+  - Ảnh mẫu là cả tấm đặt nằm ngang, rộng 1600 px, gửi kèm ảnh gốc. Ảnh nhỏ cho ô chọn là 320 px.
+  - Mô tả vân đá chỉ ở server. `/api/styles` chỉ trả mã, tên và ảnh nhỏ.
+  - Ảnh gốc của nhà cung cấp nằm ngoài repo, ở `D:\Desktop\VASTA ESSENTIALS - 1200x2800x9 mm`.
+- **Độ bóng:** chọn trên thang 5 mức chung (`FinishPicker`).
+  - Không chọn ("Tự nhiên") thì dùng độ bóng mẫu đó đang bán: có bản DP thì bóng, không thì mờ.
+  - Tên cũ có hậu tố `-DM`/`-DP` trong lịch sử vẫn đọc được, mang theo độ bóng của nó.
+  - Calacata Grey không có mã sản phẩm, coi như bán bản bóng.
+- **Bề mặt:** "Mặt bàn bếp" là mặt bàn sát tường; "Mặt đảo bếp" (`island`) là bề mặt riêng. Mỗi bề mặt chọn vật liệu thường hoặc một mẫu VASTA.
+- **Cách chạy:**
+  - Chọn đá, kể cả chỉ 1 bề mặt, luôn chạy dạng `changes` trên GPT Image 2.5.
+  - Ảnh mẫu xếp sau ảnh gốc theo `changeSwatches()`: gạch VICOSTONE trước, rồi đến đá.
+  - Trước đó Gemini đọc bếp (`KITCHEN_SCOUT_PROMPT`): đảo ở đâu, đồ trên mặt, tường sau bếp.
+  - Prompt ghi tên đồ cần giữ và bề mặt cần giữ, kèm luật tấm 2,8 m (không đường nối, không chia ô), cạnh dày 3 cm, không ốp xuống mặt bên.
+  - Chỉ chọn mặt đảo mà ảnh không có đảo thì trả 422. Nếu chọn cùng bề mặt khác thì bỏ qua phần đảo.
+- **Tự kiểm tra** (`SLAB_QA_PROMPT`): siết riêng lỗi đường nối, vì lỗi này từng lọt qua máy chấm.
+- **Test:** 6 bếp × đảo / mặt bàn / cả hai, tổng 48 ảnh.
+  - Sau 1 lần vẽ lại: 47/48 đúng khi xem bằng mắt.
+  - Lỗi còn lại: đá Armani Charcoal bóng trên đảo cong vẫn có vạch chia ô.
+  - Gemini flash và Pro giữ đồ và các bề mặt khác kém hơn nhiều, nên không dùng.
+
+### 4.5 Khác
 
 - **Lưu vào Ảnh trên điện thoại:** `SaveToPhotos.tsx`. Trên điện thoại mở share sheet; nếu không được thì nhấn giữ ảnh.
 - **Loader:** `AiThinking.tsx`, gồm "SOLYC Analyzing/Thinking" và vòng xoay quanh logo.
@@ -256,3 +279,5 @@ CLOUDFLARE_ACCOUNT_ID=6a959e87aaf889d75de1f587de9f89cb npx wrangler deploy
 | #58 | 27/10 | Mặt bằng 3D: phối cảnh thật + Gemini đánh bóng |
 | #61 | 28/10 | Bỏ Thư viện prompt; prompt không còn trong file JS |
 | #62–64 | 30/10 | 3 nhóm; 5 mức độ bóng; lớp nổi đổi vật liệu |
+| #67–68 | 31/10 | Nội dung phần 3 lựa chọn; lịch sử trang chủ 1 hàng cuộn ngang |
+| #69 | 31/10 | Đá tấm VASTA cho mặt bàn và mặt đảo bếp |
