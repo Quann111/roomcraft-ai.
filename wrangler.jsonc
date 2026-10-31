@@ -5,6 +5,8 @@
   "assets": { "binding": "ASSETS", "directory": "./dist", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] },
   "d1_databases": [{ "binding": "DB", "database_name": "roomcraft", "database_id": "8745ee4e-3ca6-400b-862e-83f57e7646b5" }],
   "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "roomcraft-images" }],
+  // The deployed version id, recorded with each generation (params.trace.v) to compare results across releases.
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "vars": { "DAILY_CREDITS": "3", "OPEN_ACCESS": "1" },
   // Every minute: finish generations whose page was closed (see settleOpenJobs).
   "triggers": { "crons": ["* * * * *"] }

@@ -5,6 +5,7 @@ import { DownloadLink } from "./SaveToPhotos";
 import { FinishPicker } from "./FinishPicker";
 import { SlabGrid, SLAB_SURFACES, swatchDir, slabLabel } from "./SlabGrid";
 import type { Slab } from "./GeneratePanel";
+import { ResultFeedback } from "./ResultFeedback";
 import { bi, t } from "./i18n";
 
 type Meta = { surfaces: Record<string, string[]>; floorTiles?: { name: string; code: string; thumb: string }[]; slabs?: Slab[] };
@@ -109,6 +110,7 @@ export function RoomMaterials({ batchId, name, versions, onClose, onStarted }: {
             </>}
             <span style={{ flex: 1, minWidth: 120, opacity: 0.7 }}>{running(shown) ? t("Changing materials…", "Đang đổi vật liệu…") : materials(shown)}</span>
             {done(shown) && <DownloadLink url={shown.outputUrl!} name={`${name}.png`} style={{ ...nav, textDecoration: "none", color: ink }} phone={t("Save to Photos", "Lưu vào Ảnh")}>{t("Download", "Tải xuống")}</DownloadLink>}
+            {done(shown) && <div style={{ flexBasis: "100%", marginTop: -8 }}><ResultFeedback id={shown.id} /></div>}
           </div>
         </div>
 
