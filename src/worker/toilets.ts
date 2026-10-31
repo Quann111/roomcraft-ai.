@@ -6,9 +6,10 @@
  */
 export const TOILET_BRAND = "Viglacera";
 export type ToiletType = "one-piece" | "two-piece" | "wall-hung" | "smart";
-const LIST: { code: string; type: ToiletType; look: string; price?: number; url?: string }[] = [
+// kids: a children's toilet, drawn at child size.
+const LIST: { code: string; type: ToiletType; look: string; kids?: boolean; price?: number; url?: string }[] = [
   { code: "BL5", type: "one-piece", look: "An integrated upright tank with a top dual-flush button, an elongated bowl, and a skirted base with distinctive recessed side paneling" },
-  { code: "BTE", type: "one-piece", look: "Tall gently tapering seamless tank with a round top flush button, paired with a rounded bowl and a sculpted semi-contoured base" },
+  { code: "BTE", type: "one-piece", kids: true, look: "Tall gently tapering seamless tank with a round top flush button, paired with a rounded bowl and a sculpted semi-contoured base" },
   { code: "BTEV", type: "one-piece", look: "A seamless one-piece toilet featuring a tall rounded-rectangular tank with a top-mounted dual flush button, fully skirted flat sides, and a sleek, contoured ultra-thin seat cover" },
   { code: "HL2", type: "one-piece", look: "One-piece toilet with a gently tapered rectangular tank, top-mounted dual flush button, and a fully skirted base with sweeping contoured side profile" },
   { code: "MK2", type: "one-piece", look: "Seamless one-piece construction with a tall rectangular tank featuring a top dual-flush button, a prominent rounded bowl, and a smooth semi-skirted base with flat sides" },

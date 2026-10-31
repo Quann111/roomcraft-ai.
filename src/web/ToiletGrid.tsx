@@ -2,18 +2,20 @@ import React, { useState } from "react";
 import { t } from "./i18n";
 import type { Toilet } from "./GeneratePanel";
 
-const TYPES: [Toilet["type"] | "all", string, string][] = [["all", "All", "Tất cả"], ["one-piece", "One-piece", "Một khối"], ["two-piece", "Two-piece", "Hai khối"], ["wall-hung", "Wall-hung", "Treo tường"], ["smart", "Smart", "Thông minh"]];
-export const toiletType = (k: Toilet["type"]) => { const x = TYPES.find(([v]) => v === k)!; return t(x[1], x[2]); };
+type Filter = Toilet["type"] | "all" | "kids";
+const TYPES: [Filter, string, string][] = [["all", "All", "Tất cả"], ["one-piece", "One-piece", "Một khối"], ["two-piece", "Two-piece", "Hai khối"], ["wall-hung", "Wall-hung", "Treo tường"], ["smart", "Smart", "Thông minh"], ["kids", "Kids", "Trẻ em"]];
+const fits = (x: Toilet, f: Filter) => f === "all" || (f === "kids" ? !!x.kids : x.type === f);
+export const toiletType = (k: Filter) => { const x = TYPES.find(([v]) => v === k)!; return t(x[1], x[2]); };
 
 /** Viglacera toilets to install, filtered by type; the card shows the model code (price and link once the supplier sends them). */
 export function ToiletGrid({ toilets, value, pick }: { toilets: Toilet[]; value: string; pick: (name: string) => void }) {
-  const [type, setType] = useState<Toilet["type"] | "all">("all");
-  const list = toilets.filter((x) => type === "all" || x.type === type);
+  const [type, setType] = useState<Filter>("all");
+  const list = toilets.filter((x) => fits(x, type));
   return (
     <>
       <div className="segmented" style={{ flexWrap: "wrap", marginBottom: 10 }}>
-        {TYPES.filter(([k]) => k === "all" || toilets.some((x) => x.type === k)).map(([k, en, vi]) => (
-          <button key={k} type="button" className={type === k ? "active" : ""} onClick={() => setType(k)}>{t(en, vi)} · {k === "all" ? toilets.length : toilets.filter((x) => x.type === k).length}</button>
+        {TYPES.filter(([k]) => toilets.some((x) => fits(x, k))).map(([k, en, vi]) => (
+          <button key={k} type="button" className={type === k ? "active" : ""} onClick={() => setType(k)}>{t(en, vi)} · {toilets.filter((x) => fits(x, k)).length}</button>
         ))}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(92px, 1fr))", gap: 8, maxHeight: 420, overflowY: "auto", padding: 2 }}>
@@ -28,7 +30,7 @@ export function ToiletGrid({ toilets, value, pick }: { toilets: Toilet[]; value:
               </span>
               <span style={{ display: "block", padding: "4px 4px 0", fontSize: 11, fontWeight: 600, lineHeight: 1.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.code}</span>
               <span style={{ display: "block", padding: "0 4px 4px", fontSize: 9, color: "#8b8f93", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {toiletType(x.type)}{x.price ? ` · ${x.price.toLocaleString("vi-VN")}₫` : ""}
+                {toiletType(x.type)}{x.kids ? ` · ${toiletType("kids")}` : ""}{x.price ? ` · ${x.price.toLocaleString("vi-VN")}₫` : ""}
               </span>
             </button>
           );
