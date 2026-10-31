@@ -3,9 +3,11 @@ import { createPortal } from "react-dom";
 import { AiThinking } from "./AiThinking";
 import { DownloadLink } from "./SaveToPhotos";
 import { FinishPicker } from "./FinishPicker";
+import { SlabGrid, SLAB_SURFACES, swatchDir, slabLabel } from "./SlabGrid";
+import type { Slab } from "./GeneratePanel";
 import { bi, t } from "./i18n";
 
-type Meta = { surfaces: Record<string, string[]>; floorTiles?: { name: string; code: string; thumb: string }[] };
+type Meta = { surfaces: Record<string, string[]>; floorTiles?: { name: string; code: string; thumb: string }[]; slabs?: Slab[] };
 export type RunRow = { id: string; params: any; status: string; error?: string | null; createdAt: number; outputUrl: string | null };
 const ink = "#1c1b19", line = "rgba(0,0,0,0.12)";
 const slug = (m: string) => m.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -55,17 +57,20 @@ export function RoomMaterials({ batchId, name, versions, onClose, onStarted }: {
   const toggle = (s: string, m: string) => setPicks((p) => { const n = { ...p }; if (n[s] === m) delete n[s]; else n[s] = m; return n; });
   const entries = Object.entries(picks);
   const isTile = (m?: string) => !!m && !!meta?.floorTiles?.some((x) => x.name === m);
+  const slabOf = (m?: string) => (m ? meta?.slabs?.find((x) => x.name === m) : undefined);
+  const fixed = (m?: string) => isTile(m) || !!slabOf(m);
   const tile = isTile(picks.floor);
-  // Sheen only for picked surfaces that are not VICOSTONE tiles (those come polished).
-  const fin = Object.fromEntries(Object.entries(finishes).filter(([s]) => picks[s] && !isTile(picks[s])));
+  const slab = Object.values(picks).some((m) => !!slabOf(m));
+  // Sheen only for picked surfaces that are not VICOSTONE tiles or VASTA slabs (those have their own finish).
+  const fin = Object.fromEntries(Object.entries(finishes).filter(([s]) => picks[s] && !fixed(picks[s])));
   const run = async () => {
     if (!base) return;
     setBusy(true); setErr("");
     try {
       const [s, m] = entries[0];
-      const body = entries.length > 1 ? { tool: "interior-material", changes: picks, finishes: fin } : s === "floor" ? { tool: "interior-floor", surface: "floor", material: m, finish: fin.floor } : { tool: "interior-material", surface: s, material: m, finish: fin[s] };
+      const body = entries.length > 1 || slab ? { tool: "interior-material", changes: picks, finishes: fin } : s === "floor" ? { tool: "interior-floor", surface: "floor", material: m, finish: fin.floor } : { tool: "interior-material", surface: s, material: m, finish: fin[s] };
       const r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...body, planRun: { batchId, id: base.id }, resolution: "1k", aspectRatio: "4:3", ...(tile && autoCheck ? { autoCheck: true } : {}) }) });
+        body: JSON.stringify({ ...body, planRun: { batchId, id: base.id }, resolution: "1k", aspectRatio: "4:3", ...((tile || slab) && autoCheck ? { autoCheck: true } : {}) }) });
       const d: any = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error ?? "Error · Lỗi");
       setPicks({}); setFinishes({}); onStarted();
@@ -124,21 +129,22 @@ export function RoomMaterials({ batchId, name, versions, onClose, onStarted }: {
                 <span style={{ opacity: 0.7 }}>{t("Will change:", "Sẽ đổi:")}</span>
                 {entries.map(([s, m]) => (
                   <span key={s} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 4px 3px 8px", border: `1px solid ${line}`, borderRadius: 99 }}>
-                    <b>{bi(s)}</b> · {bi(m)}{fin[s] ? ` · ${bi(fin[s])}` : ""}<button type="button" aria-label={t("Remove", "Bỏ")} onClick={() => toggle(s, m)} style={{ border: 0, background: "none", cursor: "pointer", padding: "0 4px", opacity: 0.6 }}>×</button>
+                    <b>{bi(s)}</b> · {slabOf(m) ? slabLabel(slabOf(m)!) : bi(m)}{fin[s] ? ` · ${bi(fin[s])}` : ""}<button type="button" aria-label={t("Remove", "Bỏ")} onClick={() => toggle(s, m)} style={{ border: 0, background: "none", cursor: "pointer", padding: "0 4px", opacity: 0.6 }}>×</button>
                   </span>
                 ))}
               </div>
             )}
-            <div style={grid}>{meta.surfaces[surface].map((m) => cell(m, bi(m), `/materials/${surface}/${slug(m)}.jpg`, picks[surface] === m, () => toggle(surface, m)))}</div>
+            <div style={grid}>{meta.surfaces[surface].map((m) => cell(m, bi(m), `/materials/${swatchDir(surface)}/${slug(m)}.jpg`, picks[surface] === m, () => toggle(surface, m)))}</div>
             {surface === "floor" && !!meta.floorTiles?.length && <>
               <b style={{ fontSize: 13 }}>{t("VICOSTONE tiles · 120 × 120 cm, polished", "Gạch VICOSTONE · 120 × 120 cm, bóng kiếng")}</b>
               <div style={grid}>{meta.floorTiles.map((x) => cell(x.name, x.code, x.thumb, picks.floor === x.name, () => toggle("floor", x.name)))}</div>
             </>}
-            {picks[surface] && !isTile(picks[surface]) && <>
+            {SLAB_SURFACES.includes(surface) && !!meta.slabs?.length && <SlabGrid slabs={meta.slabs} active={(n) => picks[surface] === n} pick={(n) => toggle(surface, n)} />}
+            {picks[surface] && !fixed(picks[surface]) && <>
               <b style={{ fontSize: 13 }}>{t("Finish", "Độ bóng")} · {bi(surface)}</b>
               <FinishPicker optional value={finishes[surface]} onChange={(f) => setFinishes((p) => { const n = { ...p }; if (f) n[surface] = f; else delete n[surface]; return n; })} />
             </>}
-            {tile && (
+            {(tile || slab) && (
               <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13 }}>
                 <input type="checkbox" checked={autoCheck} onChange={(e) => setAutoCheck(e.target.checked)} style={{ marginTop: 2 }} />
                 <span>{t("Auto-check the result: if a rug, person or object was lost, redo it once (no extra credit)", "Tự kiểm tra kết quả: nếu mất thảm, người hoặc đồ vật thì tự tạo lại 1 lần (không tốn thêm credit)")}</span>

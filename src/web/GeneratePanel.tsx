@@ -9,7 +9,7 @@ import { OrientView, DIRS, DIR_NAMES, type Orient } from "./OrientView";
 type Meta = {
   styles: { slug: string; name: string; scope: string; thumb?: string }[];
   roomTypes: string[]; intervention: string[];
-  surfaces: Record<string, string[]>; paints: { name: string; hex: string }[]; finishes: string[]; weather: string[]; remove: string[]; angles: string[]; planViews: string[]; lockedPlanViews?: string[]; floorTiles?: { code: string; name: string; thumb: string; room?: string }[]; motions: string[]; lighting: string[]; cities: string[];
+  surfaces: Record<string, string[]>; paints: { name: string; hex: string }[]; finishes: string[]; weather: string[]; remove: string[]; angles: string[]; planViews: string[]; lockedPlanViews?: string[]; floorTiles?: { code: string; name: string; thumb: string; room?: string }[]; slabs?: Slab[]; motions: string[]; lighting: string[]; cities: string[];
 };
 export type Critique = {
   room: string; style: string; score: number; summary: string; strengths: string[];
@@ -17,6 +17,8 @@ export type Critique = {
 };
 export type Finder = { items: { name: string; category: string; description: string; query: string; localQuery: string; priceRange: string; box?: [number, number, number, number] }[] };
 type Gen = { id: string; status: string; error?: string; public?: boolean; inputUrl: string | null; outputUrl: string | null; critique?: Critique; finder?: Finder; orient?: Orient; params?: any };
+/** A VASTA ESSENTIALS slab for the worktops or island top; `name` is its material value, `finish` comes from the product code. */
+export type Slab = { code: string; name: string; title: string; finish: "matte" | "polished"; thumb: string };
 export type Preset = Partial<{ styleSlug: string; roomType: string; intervention: string; surface: string; material: string; changes: Record<string, string>; finishes: Record<string, string>; weather: string; remove: string[]; angle: string; view: string; color: string; finish: string; description: string }>;
 
 export type ToolId =

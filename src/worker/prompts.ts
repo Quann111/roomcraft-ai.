@@ -1,6 +1,7 @@
 import excelStyles from "../../seed/styles.json" with { type: "json" };
 import { CITIES, DIRECTIONS, WINDS, exposureText, type Direction } from "./solar.ts";
 import { floorTile, TILE_BRAND, TILE_SIZE } from "./floorTiles.ts";
+import { slabOf, SLAB_BRAND, SLAB_SURFACES } from "./slabs.ts";
 
 export type Style = { slug: string; name: string; scope: "interior" | "exterior" | "garden"; prompt: string; img?: string; photo?: string };
 
@@ -85,6 +86,7 @@ export const SURFACES: Record<string, string[]> = {
   floor: ["Oak hardwood", "Walnut hardwood", "Herringbone parquet", "Polished concrete", "Porcelain tile", "Marble", "Terrazzo", "Natural stone", "Luxury vinyl plank"],
   walls: ["Warm white paint", "Sage green paint", "Navy paint", "Limewash plaster", "Exposed brick", "Wood paneling", "Wallpaper", "Zellige tile", "Microcement"],
   countertops: ["White quartz", "Carrara marble", "Black granite", "Butcher block", "Concrete", "Soapstone", "Terrazzo"],
+  island: ["White quartz", "Carrara marble", "Black granite", "Butcher block", "Concrete", "Soapstone", "Terrazzo"],
   cabinets: ["White shaker", "Walnut slab", "Matte black", "Sage green", "Navy blue", "Natural oak", "Two-tone"],
   ceiling: ["White painted", "Wood plank", "Exposed beams", "Coffered", "Shiplap", "Tin tile"],
 };
@@ -114,6 +116,7 @@ const SURFACE_LOOK: Record<string, Record<string, string>> = {
     "Butcher block": "warm oiled oak butcher block with visible strips", Concrete: "smooth grey concrete with a matte sealed finish", Soapstone: "dark charcoal soapstone with faint pale veins",
     Terrazzo: "speckled cream terrazzo with small multicoloured chips",
   },
+  get island() { return this.countertops; },
   cabinets: {
     "White shaker": "white shaker-style doors with a recessed panel", "Walnut slab": "flat walnut-veneer slab doors with rich grain", "Matte black": "flat matte black doors with slim handles",
     "Sage green": "sage green painted shaker doors", "Navy blue": "deep navy blue painted doors with brass handles", "Natural oak": "flat natural oak doors with visible grain",
@@ -124,31 +127,53 @@ const SURFACE_LOOK: Record<string, Record<string, string>> = {
     Coffered: "warm wood coffered ceiling with a grid of recessed square panels", Shiplap: "white painted shiplap boards", "Tin tile": "pressed silver tin tiles with an embossed pattern",
   },
 };
-const SURFACE_NAME: Record<string, string> = { floor: "floor", walls: "walls", countertops: "countertops and kitchen worktops", cabinets: "cabinet doors and drawer fronts", ceiling: "ceiling" };
-/** 2-5 surfaces changed in one edit, e.g. {floor: "Oak hardwood", walls: "Limewash plaster"}; the floor may be a VICOSTONE tile. */
+const SURFACE_NAME: Record<string, string> = { floor: "floor", walls: "walls", countertops: "wall-side kitchen worktops (not the kitchen island)", island: "top of the kitchen island", cabinets: "cabinet doors and drawer fronts", ceiling: "ceiling" };
+/**
+ * 1-5 surfaces changed in one edit, e.g. {floor: "Oak hardwood", walls: "Limewash plaster"}; the floor may be a VICOSTONE tile,
+ * the worktops and the island top a VASTA slab.
+ */
 export function cleanChanges(v: unknown, min = 2): Record<string, string> | null {
   if (!v || typeof v !== "object") return null;
   const out: Record<string, string> = {};
   for (const [k, m] of Object.entries(v as Record<string, unknown>)) {
     if (!(k in SURFACES) || typeof m !== "string") return null;
-    if (!(SURFACES[k].includes(m) || (k === "floor" && floorTile(m)))) return null;
+    if (!(SURFACES[k].includes(m) || (k === "floor" && floorTile(m)) || ((SLAB_SURFACES as readonly string[]).includes(k) && slabOf(m)))) return null;
     out[k] = m;
   }
   const n = Object.keys(out).length;
   return n >= min && n <= 5 ? out : null;
 }
+/**
+ * Swatch images sent after the photo for a combined edit, in order: the VICOSTONE floor tile, then each distinct VASTA slab
+ * (worktops first, then island). The prompt refers to them as images 2, 3, ...; the worker fetches the same list.
+ */
+export function changeSwatches(c: Record<string, string>): string[] {
+  const out: string[] = [];
+  const tile = floorTile(c.floor);
+  if (tile) out.push(tile.swatch);
+  for (const k of SLAB_SURFACES) { const s = slabOf(c[k]); if (s && !out.includes(s.swatch)) out.push(s.swatch); }
+  return out;
+}
+const ORDINAL = ["first", "second", "third", "fourth"];
 function multiSurfacePrompt(p: any) {
   const c: Record<string, string> = p.changes;
   const tile = floorTile(c.floor);
+  const swatches = changeSwatches(c);
+  const imageOf = (path: string) => `${ORDINAL[swatches.indexOf(path) + 1]} image`;
   const fin = cleanFinishes(p.finishes, c) ?? {};
   const look = (k: string, m: string) => withFinish((k === "walls" ? WALL_LOOK[m] : SURFACE_LOOK[k]?.[m]) ?? m, fin[k]);
-  const lines = Object.entries(c).map(([k, m]) => k === "floor" && tile
-    ? `the floor: ${TILE_BRAND} ${tile.code} porcelain tiles exactly like the swatch in the second image (${tile.look}), large-format ${TILE_SIZE} polished slabs in a straight grid with thin grout joints, each tile about 1.2 m wide`
-    : `the ${SURFACE_NAME[k]}: ${look(k, m)}`);
+  const lines = Object.entries(c).map(([k, m]) => {
+    const slab = slabOf(m);
+    if (k === "floor" && tile) return `the floor: ${TILE_BRAND} ${tile.code} porcelain tiles exactly like the swatch in the ${imageOf(tile.swatch)} (${tile.look}), large-format ${TILE_SIZE} polished slabs in a straight grid with thin grout joints, each tile about 1.2 m wide`;
+    if (slab) return `the ${SURFACE_NAME[k]}: ${SLAB_BRAND} ${slab.title} stone exactly like the full 2800 x 1200 mm slab shown lying flat in the ${imageOf(slab.swatch)} (${slab.look}), with ${slab.finish === "matte" ? "a honed matte finish: soft and flat, no reflections" : "a polished high-gloss finish: crisp reflections of lights and windows on the top"}`;
+    return `the ${SURFACE_NAME[k]}: ${look(k, m)}`;
+  });
+  const slabs = (SLAB_SURFACES as readonly string[]).filter((k) => slabOf(c[k]));
   return [
     "This is an in-place edit of the first image: change only these surfaces, all in one picture, and nothing else:", lines.map((l, i) => `${i + 1}) ${l}.`).join(" "),
     "Cover each listed surface fully and evenly so the new finish is clearly visible, with its real texture at the correct scale and perspective. Every surface that is not listed stays exactly as it is.",
     tile && floorScoutLines(p.scout),
+    slabs.length && slabLines(slabs, c, p.kitchen),
     "Keep every person, animal, piece of furniture, rug, appliance, window, door, light and object exactly in place, and keep the exact camera framing and crop. Rugs and mats lying on the floor are not floor: keep them as they are.",
     "Match the original lighting, shadows and reflections so the new materials look naturally lit.", custom(p), STRUCTURE_LOCK,
   ].filter(Boolean).join(" ");
@@ -173,6 +198,61 @@ const FINISH_LOOK: Record<Finish, string> = {
   gloss: "a high-gloss finish like polished stone or lacquer: very shiny, with crisp bright highlights and clear reflections of windows and lights",
 };
 const OLD_FINISH: Record<string, Finish> = { eggshell: "satin" };
+
+/** Asked of the vision model before a VASTA slab edit; the answer names the island, the worktops and what stands on them. */
+export const KITCHEN_SCOUT_PROMPT = `You prepare a kitchen countertop edit of this photo. Look carefully and answer JSON only:
+{"island": bool,                  // a free-standing kitchen island (or peninsula counter) with a top surface is visible
+ "island_where": string,          // where its top is in the picture, e.g. "foreground right, running toward the window", or ""
+ "island_top_now": string,        // its current top material, or ""
+ "objects_on_island": [string],   // every object standing on the island top, each with its place
+ "worktops": bool,                // wall-side kitchen worktops are visible
+ "worktops_now": string,          // where they are and their current material, or ""
+ "objects_on_worktops": [string], // every object standing on the wall-side worktops, each with its place
+ "backsplash": string}            // the wall behind the worktops and its material, or ""`;
+export type KitchenScout = { island: boolean; island_where: string; island_top_now: string; objects_on_island: string[]; worktops: boolean; worktops_now: string; objects_on_worktops: string[]; backsplash: string };
+export function cleanKitchenScout(r: any): KitchenScout | null {
+  if (!r || typeof r.island !== "boolean") return null;
+  const str = (v: unknown) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, 160) : "");
+  const list = (v: unknown) => (Array.isArray(v) ? v : []).map(str).filter(Boolean).slice(0, 12);
+  return { island: r.island, island_where: str(r.island_where), island_top_now: str(r.island_top_now), objects_on_island: list(r.objects_on_island),
+    worktops: r.worktops !== false, worktops_now: str(r.worktops_now), objects_on_worktops: list(r.objects_on_worktops), backsplash: str(r.backsplash) };
+}
+/**
+ * Slab rules for the worktops and/or island top: one 2.8 m slab per run with no grid lines, a thick mitred edge but no waterfall
+ * sides, everything standing on the tops named and kept, and the surfaces not chosen (often the backsplash, which tends to take
+ * the stone too) kept as they are. Tested on 6 kitchens: the backsplash and lost objects were the main mistakes before this.
+ */
+function slabLines(slabs: string[], c: Record<string, string>, k?: KitchenScout) {
+  const island = slabs.includes("island"), worktops = slabs.includes("countertops");
+  const keep: string[] = [];
+  if (k?.backsplash) keep.push(`the backsplash (${k.backsplash})`); else keep.push("the backsplash");
+  if (!worktops && !c.countertops) keep.push(`the wall-side worktops${k?.worktops_now ? ` (${k.worktops_now})` : ""}`);
+  if (!island && !c.island) keep.push(`the kitchen island top${k?.island_top_now ? ` (${k.island_top_now})` : ""}`);
+  const objects = [...(island ? k?.objects_on_island ?? [] : []), ...(worktops ? k?.objects_on_worktops ?? [] : [])];
+  return [
+    island && k?.island_where ? `The kitchen island top is ${k.island_where}${k.island_top_now ? `, now ${k.island_top_now}` : ""}.` : "",
+    "The stone tops are cut from these 2.8 m slabs: an island top is one continuous piece with veins running along its length; a worktop up to 2.8 m long is one piece and a longer run has at most one clean joint. No grid lines, seams or tile edges across the stone.",
+    "Front edges are a thick mitred edge about 3 cm high in the same stone; side panels and cabinet fronts below keep their current material (no waterfall sides).",
+    objects.length ? `Keep every object standing on these tops exactly as it is, in the same place: ${objects.join("; ")}.` : "Keep every object standing on these tops exactly as it is, in the same place.",
+    `${keep.join(", ").replace(/^t/, "T")} keep their current material and colour; do not apply the stone to them.`,
+  ].filter(Boolean).join(" ");
+}
+/** Post-check of a VASTA slab edit; images are original, result, then the slab swatches. Strict on joints, which slipped through. */
+export const SLAB_QA_PROMPT = (where: string) => `You are a strict QA reviewer for an AI kitchen countertop tool. Image 1 is the ORIGINAL photo, image 2 is the RESULT, the next image(s) show the stone slab(s) the edit should use (each a full 2800 x 1200 mm slab).
+The only allowed change: ${where}. Look closely and answer JSON only:
+{"stone_applied": bool,        // the requested tops now show the slab stone, colour and veins clearly matching
+ "one_piece": bool,            // false if ANY grid lines, tile edges, square joints or a checkerboard pattern show on a stone top (one clean joint on a very long worktop is fine)
+ "objects_kept": bool,         // every object on the tops is still there, same place
+ "others_kept": bool,          // the backsplash, every top not requested, cabinets, island sides, floor, walls, stools and people are unchanged
+ "framing_same": bool,
+ "problems": [string]}         // short concrete list of anything wrong, empty if none`;
+export function slabQaVerdict(r: any): FloorQa | null {
+  if (!r || typeof r !== "object") return null;
+  const failed = ["stone_applied", "one_piece", "objects_kept", "others_kept", "framing_same"].filter((k) => r[k] === false);
+  const problems = (Array.isArray(r.problems) ? r.problems : []).filter((x: unknown): x is string => typeof x === "string")
+    .map((x: string) => x.replace(/\s+/g, " ").trim().slice(0, 160)).filter(Boolean).slice(0, 4);
+  return { pass: !failed.length, failed, problems: failed.length ? (problems.length ? problems : failed) : [] };
+}
 export const finishOf = (v: unknown): Finish | null => oneOf(FINISHES, v) ?? OLD_FINISH[String(v)] ?? null;
 /** Optional sheen per changed surface, e.g. {floor: "satin"}; VICOSTONE tiles keep their own polished finish. */
 export function cleanFinishes(v: unknown, changes: Record<string, string>): Partial<Record<string, Finish>> | undefined {
@@ -180,7 +260,7 @@ export function cleanFinishes(v: unknown, changes: Record<string, string>): Part
   const out: Partial<Record<string, Finish>> = {};
   for (const [k, f] of Object.entries(v as Record<string, unknown>)) {
     const ok = finishOf(f);
-    if (ok && k in changes && !(k === "floor" && floorTile(changes[k]))) out[k] = ok;
+    if (ok && k in changes && !(k === "floor" && floorTile(changes[k])) && !slabOf(changes[k])) out[k] = ok;
   }
   return Object.keys(out).length ? out : undefined;
 }
@@ -628,7 +708,7 @@ export function buildPrompt(tool: string, p: any): string {
           "Cover all wall surfaces fully and evenly so the new finish is clearly visible and the original wall finish is gone. Show the material's real texture at the correct scale and perspective.",
           "Keep the ceiling, floor, windows, doors, trim, furniture, artwork, plants and every object exactly as they are, sitting in front of the new walls. Match the original lighting, shadows and reflections.", custom(p), STRUCTURE_LOCK);
       return join(
-        `Replace only the ${surface === "walls" ? "wall finish" : surface} in this room with ${withFinish(p.material, finishOf(p.finish))}.`,
+        `Replace only the ${SURFACE_NAME[surface] ?? surface} in this room with ${withFinish(SURFACE_LOOK[surface]?.[p.material] ?? p.material, finishOf(p.finish))}.`,
         "Keep all furniture, objects, lighting and every other surface unchanged. Match the original lighting, reflections and perspective.", custom(p), STRUCTURE_LOCK);
     }
     case "interior-paint":

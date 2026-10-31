@@ -12,7 +12,7 @@ const VI: Record<string, string> = {
   Basement: "Tầng hầm", Nursery: "Phòng em bé", "Walk-in closet": "Phòng thay đồ", "Home gym": "Phòng tập gym",
   "Home theater": "Phòng chiếu phim", Workshop: "Xưởng", "Yoga studio": "Phòng yoga", "Wine cellar": "Hầm rượu",
   // surfaces & materials
-  floor: "Sàn", walls: "Tường", countertops: "Mặt bàn bếp", cabinets: "Tủ", ceiling: "Trần",
+  floor: "Sàn", walls: "Tường", countertops: "Mặt bàn bếp", island: "Mặt đảo bếp", cabinets: "Tủ", ceiling: "Trần",
   "Oak hardwood": "Gỗ sồi", "Walnut hardwood": "Gỗ óc chó", "Herringbone parquet": "Sàn gỗ xương cá", "Polished concrete": "Bê tông mài",
   "Porcelain tile": "Gạch sứ", Marble: "Đá cẩm thạch", Terrazzo: "Đá mài terrazzo", "Natural stone": "Đá tự nhiên", "Luxury vinyl plank": "Sàn vinyl cao cấp",
   "Warm white paint": "Sơn trắng ấm", "Sage green paint": "Sơn xanh xô thơm", "Navy paint": "Sơn xanh navy", "Limewash plaster": "Vữa vôi", "Exposed brick": "Gạch trần",
