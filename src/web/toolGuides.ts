@@ -77,8 +77,8 @@ export const GUIDES: Record<string, Guide> = {
     tips: [["Prices are AI estimates; check the store for the real price.", "Giá là ước tính của AI; hãy xem giá thật ở cửa hàng."]], credits: ["1 credit per search", "1 credit mỗi lần tìm"],
   },
   "Viglacera Sanitaryware": {
-    what: ["Install a Viglacera toilet in a photo of your bathroom: it replaces the old toilet in the same place and direction, or goes against the wall in an empty bathroom.", "Lắp bồn cầu Viglacera vào ảnh phòng vệ sinh: thay bồn cũ đúng vị trí và hướng, hoặc đặt sát tường nếu phòng chưa có bồn."],
-    steps: [["Upload a photo of the bathroom.", "Tải ảnh phòng vệ sinh lên."], ["Pick a toilet model (filter by one-piece, two-piece, wall-hung or smart).", "Chọn mẫu bồn cầu (lọc theo một khối, hai khối, treo tường hoặc thông minh)."], ["Press Generate.", "Bấm Tạo thiết kế."]],
+    what: ["Install Viglacera toilets, basins and basin taps in a photo of your bathroom, one, two or all three in one image: each replaces the old one in the same place (the toilet in the same direction), with the basin mounted the way its type needs.", "Lắp bồn cầu, chậu rửa và vòi chậu Viglacera vào ảnh phòng vệ sinh, 1, 2 hoặc cả 3 món trong một ảnh: mỗi món thay món cũ đúng chỗ (bồn cầu giữ đúng hướng), chậu lắp đúng kiểu của nó."],
+    steps: [["Upload a photo of the bathroom.", "Tải ảnh phòng vệ sinh lên."], ["Pick the products in the Toilet, Basin and Basin tap tabs (each optional).", "Chọn sản phẩm trong các tab Bồn cầu, Chậu rửa, Vòi chậu (món nào cũng có thể bỏ trống)."], ["Press Generate.", "Bấm Tạo thiết kế."]],
     tips: [["A photo that shows the whole toilet and the floor around it works best.", "Ảnh thấy trọn bồn cầu và phần sàn xung quanh cho kết quả tốt nhất."], ["Tick auto-check to have a wrongly turned toilet redone once.", "Tick tự kiểm tra để bồn cầu bị xoay lệch được tạo lại 1 lần."]], credits: ONE_CREDIT,
   },
   "Room Composer": {

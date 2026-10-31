@@ -3,6 +3,7 @@ import { CITIES, DIRECTIONS, WINDS, exposureText, type Direction } from "./solar
 import { floorTile, TILE_BRAND, TILE_SIZE } from "./floorTiles.ts";
 import { slabOf, SLAB_BRAND, SLAB_SURFACES } from "./slabs.ts";
 import { toiletOf, TOILET_BRAND, type ToiletType } from "./toilets.ts";
+import { basinOf, faucetOf, type BasinType, type FaucetType } from "./basins.ts";
 
 export type Style = { slug: string; name: string; scope: "interior" | "exterior" | "garden"; prompt: string; img?: string; photo?: string };
 
@@ -205,20 +206,23 @@ const FINISH_LOOK: Record<Finish, string> = {
 };
 const OLD_FINISH: Record<string, Finish> = { eggshell: "satin" };
 
-/** Asked of the vision model before a toilet install: is there one now, where, which way it points, what must stay around it. */
-export const BATH_SCOUT_PROMPT = `You prepare a bathroom edit that installs a new toilet. JSON only:
+/** Asked of the vision model before a sanitaryware install: what toilet, basin and tap are there now, where, and what must stay. */
+export const BATH_SCOUT_PROMPT = `You prepare a bathroom edit that installs a new toilet, basin and/or basin tap. JSON only:
 {"bathroom": bool,             // the photo shows a bathroom or toilet room
  "toilet": bool,               // a toilet is visible now
  "toilet_now": string,         // its type and parts, e.g. "white two-piece toilet with a separate tank", or ""
  "where": string,              // where it stands (or where a toilet belongs: water outlet, free space by a wall)
  "wall": string,               // which wall its back is against and which way its bowl points in the picture
- "keep": [string]}             // every object on, around or next to the toilet that must stay (brush, bidet spray, paper holder, items on the tank), with place`;
-export type BathScout = { bathroom: boolean; toilet: boolean; toilet_now: string; where: string; wall: string; keep: string[] };
+ "basin": bool,                // a washbasin is visible now
+ "basin_now": string,          // its type and mounting, e.g. "white basin set into a wood vanity with a stone counter", "wall-hung basin on a half pedestal", or ""
+ "faucet_now": string,         // the basin tap: type and where it is mounted (on the basin, on the counter, on the wall), or ""
+ "keep": [string]}             // every object on or around the toilet and the basin that must stay (brush, bidet spray, paper holder, soap, toothbrush cup, items on the tank or counter), with place`;
+export type BathScout = { bathroom: boolean; toilet: boolean; toilet_now: string; where: string; wall: string; basin: boolean; basin_now: string; faucet_now: string; keep: string[] };
 export function cleanBathScout(r: any): BathScout | null {
   if (!r || typeof r.toilet !== "boolean") return null;
   const str = (v: unknown) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, 160) : "");
   return { bathroom: r.bathroom !== false, toilet: r.toilet, toilet_now: str(r.toilet_now), where: str(r.where), wall: str(r.wall),
-    keep: (Array.isArray(r.keep) ? r.keep : []).map(str).filter(Boolean).slice(0, 10) };
+    basin: r.basin === true, basin_now: str(r.basin_now), faucet_now: str(r.faucet_now), keep: (Array.isArray(r.keep) ? r.keep : []).map(str).filter(Boolean).slice(0, 12) };
 }
 const TOILET_KIND: Record<ToiletType, string> = {
   "one-piece": "a one-piece floor-standing toilet (tank and bowl in one piece)",
@@ -226,39 +230,63 @@ const TOILET_KIND: Record<ToiletType, string> = {
   "wall-hung": "a wall-hung toilet bowl mounted on the wall with a concealed in-wall cistern and a flush plate on the wall above it",
   smart: "a smart toilet with an integrated electronic bidet seat and controls",
 };
+// How each basin type is installed; tested: a wall-hung basin landed on top of the old vanity until told to remove it.
+const BASIN_MOUNT: Record<BasinType, string> = {
+  vessel: "a countertop vessel basin: it sits on top of the vanity counter at the old basin's place (where the old basin was set into the counter, the counter top is closed and continuous); if there is no counter, add a simple wall-mounted counter matching the room under it",
+  inset: "a basin set into the counter: it replaces the old basin in the existing vanity counter top, its rim resting on the counter",
+  "wall-hung": "a wall-hung basin with its pedestal: it is fixed to the wall at the old basin's place with its rim about 85 cm above the floor and the pedestal covering the pipes; remove the old vanity cabinet and counter completely and continue the wall and floor tiles where they stood",
+  top: "a vanity top with the basin built in: it replaces the old counter top and basin, resting on the existing vanity cabinet (or fixed to the wall as a floating top if there is no cabinet), the same length as the old counter",
+};
+const FAUCET_KIND: Record<FaucetType, string> = { short: "a single-lever basin mixer of normal height", tall: "a tall single-lever basin mixer for countertop vessel basins", sensor: "a touch-free sensor basin tap" };
+const ORDINAL_IMG = ["second", "third", "fourth"];
+/** Product images sent after the bathroom photo, in this order: toilet, basin, tap (only the picked ones). */
+export function sanitaryProducts(p: { product?: unknown; basin?: unknown; faucet?: unknown }) {
+  return [toiletOf(p.product), basinOf(p.basin), faucetOf(p.faucet)].filter((x): x is NonNullable<typeof x> => !!x);
+}
 /**
- * Installs one Viglacera toilet (image 2) in a bathroom photo. Tested on 5 bathrooms with 3 models: GPT 2.5 matched the
- * product best. It copied the product photo's three-quarter angle until told to keep the old toilet's direction (or sit
- * square to the wall when there was none), and left the old tank in a cluttered photo until the scout named it.
+ * Installs up to three Viglacera products (toilet, basin, basin tap) in one edit, each as its own image after the photo.
+ * Toilet: GPT 2.5 copied the product photo's three-quarter angle until told to keep the old toilet's direction (or sit
+ * square to the wall when there was none), and left the old tank in a cluttered photo until the scout named it. All three
+ * at once placed every item in 9 of 9 test renders.
  */
 function toiletPrompt(p: any) {
-  const t = toiletOf(p.product);
-  if (!t) throw new Error("Pick a toilet model · Chọn mẫu bồn cầu");
+  const t = toiletOf(p.product), b = basinOf(p.basin), f = faucetOf(p.faucet);
+  if (!t && !b && !f) throw new Error("Pick at least one product · Chọn ít nhất một sản phẩm");
   const s: BathScout | undefined = p.bath;
+  const imgs: object[] = sanitaryProducts(p);
+  const imageOf = (x: object) => `${ORDINAL_IMG[imgs.indexOf(x)]} image`;
+  const items: string[] = [];
+  if (t) items.push([
+    `the toilet in the ${imageOf(t)}, model ${t.code}: ${t.kids ? `a children's ${TOILET_KIND[t.type].replace(/^a /, "")}` : TOILET_KIND[t.type]}; ${t.look}.`,
+    s && !s.toilet ? `There is no toilet yet: install it at ${s.where || "the natural toilet place against a wall"}, square to its wall${s.wall ? ` (${s.wall})` : ""}: its back flat against that wall, its bowl pointing straight out into the room, parallel to the floor tile lines.`
+      : `It replaces the existing toilet completely, every part of it including its tank${s?.toilet_now ? ` (${s.toilet_now})` : ""}, in exactly the old toilet's place and direction${s?.where ? ` (${s.where})` : ""}: its back against the same wall, its bowl pointing exactly the way the old bowl points.`,
+    t.kids ? "It is a children's toilet, drawn at child size, clearly smaller than an adult toilet: about 50 cm deep and 55 cm tall, about two thirds the height of an adult toilet, with the seat about 30 cm above the floor (well below the basin rim) and the top of its tank lower than the basin."
+      : "Real size: a floor-standing toilet is about 70 cm deep and 75 cm tall, a wall-hung bowl about 55 cm deep with its rim about 40 cm above the floor.",
+  ].join(" "));
+  if (b) items.push(`the basin in the ${imageOf(b)}, model ${b.code}: ${BASIN_MOUNT[b.type]}; ${b.look}. ${s?.basin ? `It replaces the existing basin (${s.basin_now || "the old basin"}).` : "There is no basin yet: put it on the wall where a basin naturally belongs."}`);
+  if (f) items.push(`the basin tap in the ${imageOf(f)}, model ${f.code}: ${FAUCET_KIND[f.type]}; ${f.look}. It replaces the old tap${s?.faucet_now ? ` (${s.faucet_now})` : ""}, mounted ${b && !b.deck ? "on the counter (or the wall) behind the new basin, its spout reaching over the bowl" : "on the basin's tap deck or the counter right behind it"}, with the same chrome finish, body, spout and lever shape as the photo.`);
+  else if (b) items.push("keep the existing basin tap design and move it onto the new basin's tap deck or the counter behind it.");
   return [
-    "This is an in-place edit of the first image, a bathroom photo.",
-    `The second image is a product photo of one ${TOILET_BRAND} toilet, model ${t.code}: ${t.kids ? `a children's ${TOILET_KIND[t.type].replace(/^a /, "")}` : TOILET_KIND[t.type]}; ${t.look}. Reproduce exactly this toilet: the same shape, tank, bowl, seat and lid, proportions, white glaze and details such as the flush button and the small blue ${TOILET_BRAND} label on it.`,
-    s && !s.toilet ? `There is no toilet yet: install the new one at ${s.where || "the natural toilet place against a wall"}.`
-      : `Remove the existing toilet completely, every part of it including its tank${s?.toilet_now ? ` (${s.toilet_now})` : ""}, and put the new one in its place${s?.where ? `: ${s.where}` : ""}.`,
-    (s && !s.toilet
-      ? `Orientation: the toilet sits square to its wall${s.wall ? ` (${s.wall})` : ""}: its back flat against that wall, its bowl pointing straight out from the wall into the room, parallel to the floor tile lines.`
-      : "Orientation: the new toilet takes exactly the old toilet's place and direction: its back against the same wall, its bowl pointing exactly the way the old bowl points in this photo.")
-      + " The product photo shows it at a three-quarter angle only to show its shape; do not copy that angle, turn the toilet to the orientation above and draw it in this photo's perspective.",
-    t.kids ? "This is a children's toilet, so draw it at child size, clearly smaller than the old adult toilet: about 50 cm deep and 55 cm tall, only about two thirds the height of an adult toilet, with the seat about 30 cm above the floor (well below the basin rim and below an adult's knee) and the top of its tank lower than the basin. It stands firmly on the floor with a soft contact shadow and the photo's lighting and reflections."
-      : "Real size: a floor-standing toilet is about 70 cm deep and 75 cm tall, a wall-hung bowl about 55 cm deep with its rim about 40 cm above the floor. It stands firmly on the floor (or hangs on the wall) with a soft contact shadow and the photo's lighting and reflections.",
+    `This is an in-place edit of the first image, a bathroom photo. Install ${imgs.length === 1 ? "this Viglacera product exactly like its product photo" : `these ${imgs.length} Viglacera products, each exactly like its product photo`}: the same shape, proportions, details and the small blue ${TOILET_BRAND} label where the product has one.`,
+    items.map((x, i) => `${i + 1}) ${x}`).join(" "),
+    "The product photos show each item at a three-quarter angle only to show its shape; do not copy those angles: draw every item in this photo's perspective and orientation, at real size, standing on the floor or fixed to the wall or counter with soft contact shadows and the photo's lighting and reflections.",
     s?.keep.length ? `Keep these exactly as they are: ${s.keep.join("; ")}.` : "",
-    "Keep everything else exactly as in the photo: walls, tiles, floor, basin, shower, towels, every object, and the exact camera framing and crop. Add no other text or logo.", custom(p),
+    `Keep everything else exactly as in the photo: walls, tiles, floor, mirror, shower, towels, every object${t ? "" : ", the toilet"}${b ? "" : ", the basin and vanity"}, and the exact camera framing and crop. Add no other text or logo.`, custom(p),
   ].filter(Boolean).join(" ");
 }
-/** Post-check of a toilet install; images are original, result, product. */
-export const TOILET_QA_PROMPT = `You are a strict QA reviewer for an AI bathroom tool. Image 1 is the ORIGINAL photo, image 2 is the RESULT, image 3 is the product photo of the toilet that should now be installed.
+/** Post-check of a sanitaryware install; images are original, result, then the product photos in the same order as the edit. */
+export const TOILET_QA_PROMPT = (p: { product?: unknown; basin?: unknown; faucet?: unknown }) => {
+  const label = (x: { kind: string }) => (x.kind === "faucet" ? "basin tap" : x.kind);
+  const names = sanitaryProducts(p).map((x, i) => `image ${i + 3}: the ${label(x)} ${x.code}`).join("; ");
+  return `You are a strict QA reviewer for an AI bathroom tool. Image 1 is the ORIGINAL photo, image 2 is the RESULT; the products that should now be installed are ${names}.
 Look closely and answer JSON only:
-{"installed": bool,            // the result shows the product toilet, and nothing of an old toilet (tank, bowl) is left
- "product_match": bool,        // its shape, tank (or no tank), bowl and seat clearly match image 3
- "aligned": bool,              // it sits square to its wall in the room's perspective (same direction as the old toilet if there was one), not turned to the product photo's angle
- "others_kept": bool,          // walls, tiles, basin, shower and every object around the toilet unchanged
+{"installed": bool,            // every listed product is in the result, and nothing of the old item it replaces is left (old tank, old basin)
+ "product_match": bool,        // each one's shape clearly matches its product photo (toilet tank or no tank, basin shape and mounting, tap body and spout)
+ "aligned": bool,              // each sits square in the room's perspective (the toilet in the old toilet's direction), mounted plausibly (no wall-hung basin standing on a cabinet), not turned to the product photo's angle
+ "others_kept": bool,          // walls, tiles, shower, mirror and every object around them unchanged
  "framing_same": bool,
  "problems": [string]}         // short concrete list of anything wrong, empty if none`;
+};
 export function toiletQaVerdict(r: any): FloorQa | null {
   if (!r || typeof r !== "object") return null;
   const failed = ["installed", "product_match", "aligned", "others_kept", "framing_same"].filter((k) => r[k] === false);

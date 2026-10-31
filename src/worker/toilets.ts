@@ -69,6 +69,6 @@ const LIST: { code: string; type: ToiletType; look: string; kids?: boolean; pric
 ];
 export const TOILETS = LIST.map((t) => {
   const file = t.code.replace(/[^A-Za-z0-9]+/g, "-");
-  return { ...t, name: `${TOILET_BRAND} ${t.code}`, image: `/products/viglacera/${file}.jpg`, thumb: `/products/viglacera/${file}-thumb.jpg` };
+  return { ...t, kind: "toilet" as const, name: `${TOILET_BRAND} ${t.code}`, image: `/products/viglacera/${file}.jpg`, thumb: `/products/viglacera/${file}-thumb.jpg` };
 });
 export const toiletOf = (product: unknown) => TOILETS.find((t) => t.name === product);

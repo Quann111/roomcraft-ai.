@@ -13,7 +13,7 @@ const VI: Record<string, string> = {
   "Home theater": "Phòng chiếu phim", Workshop: "Xưởng", "Yoga studio": "Phòng yoga", "Wine cellar": "Hầm rượu",
   // surfaces & materials
   floor: "Sàn", walls: "Tường", countertops: "Mặt bàn bếp", island: "Mặt đảo bếp",
-  "Viglacera Sanitaryware": "Thiết bị vệ sinh Viglacera", "Install a Viglacera toilet in a photo of your bathroom, at the right place, size and angle.": "Lắp bồn cầu Viglacera vào ảnh phòng vệ sinh của bạn, đúng chỗ, đúng kích thước và góc nhìn.", cabinets: "Tủ", ceiling: "Trần",
+  "Viglacera Sanitaryware": "Thiết bị vệ sinh Viglacera", "Install Viglacera toilets, basins and basin taps in a photo of your bathroom, together in one image, at the right place, size and angle.": "Lắp bồn cầu, chậu rửa và vòi chậu Viglacera vào ảnh phòng vệ sinh, cùng lúc trong một ảnh, đúng chỗ, đúng kích thước và góc nhìn.", cabinets: "Tủ", ceiling: "Trần",
   "Oak hardwood": "Gỗ sồi", "Walnut hardwood": "Gỗ óc chó", "Herringbone parquet": "Sàn gỗ xương cá", "Polished concrete": "Bê tông mài",
   "Porcelain tile": "Gạch sứ", Marble: "Đá cẩm thạch", Terrazzo: "Đá mài terrazzo", "Natural stone": "Đá tự nhiên", "Luxury vinyl plank": "Sàn vinyl cao cấp",
   "Warm white paint": "Sơn trắng ấm", "Sage green paint": "Sơn xanh xô thơm", "Navy paint": "Sơn xanh navy", "Limewash plaster": "Vữa vôi", "Exposed brick": "Gạch trần",
