@@ -5,8 +5,9 @@ import { CITIES, DIRECTIONS } from "./solar";
 import { FLOOR_TILES, floorTile } from "./floorTiles";
 import { recordCost, llmUsd, modelOf, kindOf, estimateUsd, parseCsv, rhTime } from "./costs";
 import { SLABS } from "./slabs";
-import { TOILETS, toiletOf } from "./toilets";
-import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, LOCKED_PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, COMPARE_TOOLS, MAX_COMPARE, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, FLOOR_SCOUT_PROMPT, cleanFloorScout, type FloorScout, FLOOR_QA_PROMPT, floorQaVerdict, floorRetryNote, type FloorQa, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt, PLAN_READ_PROMPT, PLAN_POLISH_PROMPT, cleanPlanFacts, type PlanFacts, cleanChanges, cleanFinishes, finishOf, changeSwatches, KITCHEN_SCOUT_PROMPT, cleanKitchenScout, type KitchenScout, SLAB_QA_PROMPT, slabQaVerdict, BATH_SCOUT_PROMPT, cleanBathScout, type BathScout, TOILET_QA_PROMPT, toiletQaVerdict, PALETTE_PROMPT, cleanPalette, roomRedoLines, planQaPrompt, planQaVerdict, roomQaPrompt, roomQaVerdict, type PlanRoom } from "./prompts";
+import { TOILETS } from "./toilets";
+import { BASINS, FAUCETS } from "./basins";
+import { STYLES, ROOM_TYPES, INTERVENTION, SURFACES, PAINT_COLORS, PAINT_FINISHES, WEATHER, REMOVE, ANGLES, PLAN_VIEWS, LOCKED_PLAN_VIEWS, TOOL_IDS, REFERENCE_TOOLS, ITEM_TOOLS, CRITIQUE_TOOLS, CRITIQUE_MODEL, cleanLlmResult, ADVISOR_TOOL, ADVISOR_MODEL, MAX_ADVISOR_TURNS, BUDGETS, advisorSystem, BIZPLAN_TOOL, MAX_PLAN_ROOMS, COMPARE_TOOLS, MAX_COMPARE, VIDEO_TOOLS, VIDEO_COST, MOTIONS, LIGHTING, PLAN_DETECT_PROMPT, FLOOR_SCOUT_PROMPT, cleanFloorScout, type FloorScout, FLOOR_QA_PROMPT, floorQaVerdict, floorRetryNote, type FloorQa, cleanRooms, planRoomPrompt, TEXT_TOOLS, buildPrompt, PLAN_READ_PROMPT, PLAN_POLISH_PROMPT, cleanPlanFacts, type PlanFacts, cleanChanges, cleanFinishes, finishOf, changeSwatches, KITCHEN_SCOUT_PROMPT, cleanKitchenScout, type KitchenScout, SLAB_QA_PROMPT, slabQaVerdict, BATH_SCOUT_PROMPT, cleanBathScout, type BathScout, TOILET_QA_PROMPT, toiletQaVerdict, sanitaryProducts, PALETTE_PROMPT, cleanPalette, roomRedoLines, planQaPrompt, planQaVerdict, roomQaPrompt, roomQaVerdict, type PlanRoom } from "./prompts";
 
 type Env = { DB: D1Database; IMAGES: R2Bucket; ASSETS: Fetcher; DAILY_CREDITS: string; OPEN_ACCESS?: string; RUNNINGHUB_API_KEY?: string; RUNNINGHUB_BASE?: string };
 type User = { id: string; email: string; credits: number; credits_refilled_at: number };
@@ -218,7 +219,7 @@ const ASPECTS = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "5:4", "4:5"
 const RES = ["1k", "2k", "4k"] as const;
 const RES_COST: Record<string, number> = { "1k": 1, "2k": 2, "4k": 3 };
 
-app.get("/api/styles", (c) => c.json({ styles: STYLES.map(({ slug, name, scope, img, photo }) => ({ slug, name, scope, thumb: img ? `https://drive.google.com/thumbnail?id=${img}&sz=w600` : photo ? `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=600&q=80` : undefined })), roomTypes: ROOM_TYPES, intervention: INTERVENTION, surfaces: SURFACES, paints: PAINT_COLORS, finishes: PAINT_FINISHES, weather: WEATHER, remove: REMOVE, angles: ANGLES, planViews: PLAN_VIEWS, lockedPlanViews: LOCKED_PLAN_VIEWS, floorTiles: FLOOR_TILES.map(({ code, name, swatch, room }) => ({ code, name, thumb: swatch.replace(".jpg", "-thumb.jpg"), room: room ? swatch.replace(".jpg", "-room.jpg") : undefined })), slabs: SLABS.map(({ code, name, title, thumb }) => ({ code, name, title, thumb })), toilets: TOILETS.map(({ code, name, type, kids, thumb, price, url }) => ({ code, name, type, kids, thumb, price, url })), budgets: BUDGETS, motions: MOTIONS, lighting: LIGHTING, cities: CITIES.map((c) => c.name), directions: DIRECTIONS }));
+app.get("/api/styles", (c) => c.json({ styles: STYLES.map(({ slug, name, scope, img, photo }) => ({ slug, name, scope, thumb: img ? `https://drive.google.com/thumbnail?id=${img}&sz=w600` : photo ? `https://images.unsplash.com/${photo}?auto=format&fit=crop&w=600&q=80` : undefined })), roomTypes: ROOM_TYPES, intervention: INTERVENTION, surfaces: SURFACES, paints: PAINT_COLORS, finishes: PAINT_FINISHES, weather: WEATHER, remove: REMOVE, angles: ANGLES, planViews: PLAN_VIEWS, lockedPlanViews: LOCKED_PLAN_VIEWS, floorTiles: FLOOR_TILES.map(({ code, name, swatch, room }) => ({ code, name, thumb: swatch.replace(".jpg", "-thumb.jpg"), room: room ? swatch.replace(".jpg", "-room.jpg") : undefined })), slabs: SLABS.map(({ code, name, title, thumb }) => ({ code, name, title, thumb })), toilets: TOILETS.map(({ code, name, type, kids, thumb, price, url }) => ({ code, name, type, kids, thumb, price, url })), basins: BASINS.map(({ code, name, type, deck, thumb, price, url }) => ({ code, name, type, deck, thumb, price, url })), faucets: FAUCETS.map(({ code, name, type, thumb, price, url }) => ({ code, name, type, thumb, price, url })), budgets: BUDGETS, motions: MOTIONS, lighting: LIGHTING, cities: CITIES.map((c) => c.name), directions: DIRECTIONS }));
 
 app.post("/api/upload", requireAuth, async (c) => {
   const mime = (c.req.header("content-type") ?? "").split(";")[0];
@@ -297,9 +298,9 @@ app.post("/api/generate", requireAuth, async (c) => {
   }
   const tileUsed = changes ? changes.floor : tileMaterial;
   if (skipped.length || scout || kitchen) prompt = buildPrompt(b.tool, { ...b, scout, kitchen });
-  // Viglacera toilets: read the bathroom first (where the old toilet is and which way it points), refuse non-bathrooms.
-  const toilet = b.tool === "interior-toilet" ? toiletOf(b.product) : null;
-  const bath = toilet ? await bathScout(c, b.inputKey) : null;
+  // Viglacera sanitaryware: read the bathroom first (old toilet, its direction, the basin and tap), refuse non-bathrooms.
+  const sanitary = b.tool === "interior-toilet" ? sanitaryProducts(b) : [];
+  const bath = sanitary.length ? await bathScout(c, b.inputKey) : null;
   if (bath && !bath.bathroom) return c.json({ error: NO_BATHROOM }, 422);
   if (bath) prompt = buildPrompt(b.tool, { ...b, bath });
   const floorplan = b.tool === "interior-floorplan";
@@ -330,7 +331,7 @@ app.post("/api/generate", requireAuth, async (c) => {
       return c.json({ id, status: "SUCCESS" });
     }
     const images = guide ? [guide, obj!] : obj ? [obj, ...(ref ? [ref] : []), ...items.map((o) => o!)] : [];
-    const swatches = changes ? await Promise.all(changeSwatches(changes).map((p) => assetSwatch(c, p))) : toilet ? [await assetSwatch(c, toilet.image)] : b.tool === "interior-floor" ? [await tileSwatch(c, tileUsed)].filter((x) => !!x) as Img[] : [];
+    const swatches = changes ? await Promise.all(changeSwatches(changes).map((p) => assetSwatch(c, p))) : sanitary.length ? await Promise.all(sanitary.map((x) => assetSwatch(c, x.image))) : b.tool === "interior-floor" ? [await tileSwatch(c, tileUsed)].filter((x) => !!x) as Img[] : [];
     const swatch = swatches.length > 0;
     const taskId = video
       ? await submitImageToVideo(c.env.RUNNINGHUB_API_KEY, { image: { bytes: await obj!.arrayBuffer(), mime: obj!.httpMetadata?.contentType ?? "image/jpeg" }, prompt, aspectRatio: ["9:16", "2:3", "3:4", "4:5"].includes(aspectRatio ?? "") ? "9:16" : "16:9" }, c.env.RUNNINGHUB_BASE)
@@ -341,7 +342,7 @@ app.post("/api/generate", requireAuth, async (c) => {
         prompt, aspectRatio: guide ? "16:9" : swatch || floorplan || changes ? aspectRatio ?? "4:3" : aspectRatio, resolution, model: swatch || changes ? TILE_EDIT : floorplan ? PLAN_EDIT : undefined,
       }, c.env.RUNNINGHUB_BASE);
     await c.env.DB.prepare("INSERT INTO generations (id,user_id,tool,params,prompt,status,rh_task_id,input_key,cost,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: changes ? undefined : b.surface, material: changes ? undefined : b.material, changes: changes ?? undefined, finishes: changes ? cleanFinishes(b.finishes, changes) : undefined, skipped: skipped.length ? skipped : undefined, ...(fromRun ? { ...fromRun, planRoom: true } : {}), weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, lighting: b.tool === "interior-lighting" ? b.lighting : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, scout: scout ?? undefined, kitchen: kitchen ?? undefined, bath: bath ?? undefined, product: toilet ? toilet.name : undefined, plan: plan ?? undefined, guideKey: guide ? b.guideKey : undefined, polish: guide ? true : undefined, engine: floorplan || changes || toilet ? "gpt25" : undefined, autoCheck: (swatch || plan) && b.autoCheck === true ? true : undefined, color: b.color, finish: finishOf(b.finish) ?? undefined, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
+      .bind(id, u.id, b.tool, JSON.stringify({ styleSlug: b.styleSlug, roomType: b.roomType, intervention: b.intervention, surface: changes ? undefined : b.surface, material: changes ? undefined : b.material, changes: changes ?? undefined, finishes: changes ? cleanFinishes(b.finishes, changes) : undefined, skipped: skipped.length ? skipped : undefined, ...(fromRun ? { ...fromRun, planRoom: true } : {}), weather: b.weather, remove: b.remove, angle: b.angle, view: b.view, motion: video ? b.motion : undefined, lighting: b.tool === "interior-lighting" ? b.lighting : undefined, sourceId: b.tool === "exterior-orient-render" ? b.sourceId : undefined, scout: scout ?? undefined, kitchen: kitchen ?? undefined, bath: bath ?? undefined, product: sanitary.find((x) => x.kind === "toilet")?.name, basin: sanitary.find((x) => x.kind === "basin")?.name, faucet: sanitary.find((x) => x.kind === "faucet")?.name, plan: plan ?? undefined, guideKey: guide ? b.guideKey : undefined, polish: guide ? true : undefined, engine: floorplan || changes || sanitary.length ? "gpt25" : undefined, autoCheck: (swatch || plan) && b.autoCheck === true ? true : undefined, color: b.color, finish: finishOf(b.finish) ?? undefined, refKey: needsRef ? b.refKey : undefined, itemKeys: needsItems ? b.itemKeys : undefined, description: textOnly ? String(b.description ?? "").trim().slice(0, 1000) : undefined, resolution, aspectRatio }), prompt, "RUNNING", taskId, textOnly ? null : b.inputKey, cost, now).run();
     return c.json({ id, status: "RUNNING" });
   } catch (e: any) {
     await refund("refund_submit_failed");
@@ -613,9 +614,9 @@ async function checkFor(c: any, g: any, params: any): Promise<Check | null> {
     return Promise.race([call, new Promise<null>((r) => setTimeout(() => r(null), 45_000))]);
   };
   const tileMaterial = g.tool === "interior-floor" ? params.material : params.changes?.floor;
-  if (g.tool === "interior-toilet" && toiletOf(params.product)) {
-    const product = await assetSwatch(c, toiletOf(params.product)!.image).catch(() => null);
-    return product && { model: TILE_EDIT, inputs: async () => [plan, product], judge: (out) => ask(TOILET_QA_PROMPT, [plan, out, product], toiletQaVerdict) };
+  if (g.tool === "interior-toilet" && sanitaryProducts(params).length) {
+    const products = await Promise.all(sanitaryProducts(params).map((x) => assetSwatch(c, x.image))).catch(() => null);
+    return products && { model: TILE_EDIT, inputs: async () => [plan, ...products], judge: (out) => ask(TOILET_QA_PROMPT(params), [plan, out, ...products], toiletQaVerdict) };
   }
   const slabPaths = g.tool === "interior-material" && params.changes ? changeSwatches(params.changes).filter((x) => x.includes("/slabs/")) : [];
   if (slabPaths.length) {
