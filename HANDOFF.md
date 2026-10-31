@@ -1,7 +1,7 @@
 # RoomCraft AI (SOLYC Gen Labs) — Tài liệu chuyển giao
 
 Cập nhật: **2026-10-30**. Code: `main` @ `9936e27` (PR #64), repo [Quann111/roomcraft-ai.](https://github.com/Quann111/roomcraft-ai.) (private).
-Production: https://roomcraft-ai.quann111.workers.dev, đang chạy `main` @ `b67578d` (PR #69), version `eec4bd04`, deploy 2026-10-31. Bản chọn độ bóng cho đá VASTA (mục 4.4) đã merge nhưng chưa deploy.
+Production: https://roomcraft-ai.quann111.workers.dev, đang chạy `main` @ `440f7c3` (PR #70), version `b53bc28f`, deploy 2026-10-31.
 
 Tài liệu dành cho người hoặc coding agent mới nhận phần **tính năng AI và giao diện của chúng**. Phần web chung, đăng nhập và bảo mật toàn site do người khác phụ trách.
 
