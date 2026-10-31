@@ -165,7 +165,12 @@ function multiSurfacePrompt(p: any) {
   const lines = Object.entries(c).map(([k, m]) => {
     const slab = slabOf(m);
     if (k === "floor" && tile) return `the floor: ${TILE_BRAND} ${tile.code} porcelain tiles exactly like the swatch in the ${imageOf(tile.swatch)} (${tile.look}), large-format ${TILE_SIZE} polished slabs in a straight grid with thin grout joints, each tile about 1.2 m wide`;
-    if (slab) return `the ${SURFACE_NAME[k]}: ${SLAB_BRAND} ${slab.title} stone exactly like the full 2800 x 1200 mm slab shown lying flat in the ${imageOf(slab.swatch)} (${slab.look}), with ${slab.finish === "matte" ? "a honed matte finish: soft and flat, no reflections" : "a polished high-gloss finish: crisp reflections of lights and windows on the top"}`;
+    if (slab) {
+      // A picked sheen, else the finish an old "-DM/-DP" name carried, else the finish the design is sold in.
+      const sheen = fin[k] ?? slab.legacyFinish;
+      const finish = sheen ? FINISH_LOOK[sheen] : slab.soldFinish === "matte" ? "a honed matte finish: soft and flat, no reflections" : "a polished high-gloss finish: crisp reflections of lights and windows on the top";
+      return `the ${SURFACE_NAME[k]}: ${SLAB_BRAND} ${slab.title} stone exactly like the full 2800 x 1200 mm slab shown lying flat in the ${imageOf(slab.swatch)} (${slab.look}), with ${finish}`;
+    }
     return `the ${SURFACE_NAME[k]}: ${look(k, m)}`;
   });
   const slabs = (SLAB_SURFACES as readonly string[]).filter((k) => slabOf(c[k]));
@@ -254,13 +259,13 @@ export function slabQaVerdict(r: any): FloorQa | null {
   return { pass: !failed.length, failed, problems: failed.length ? (problems.length ? problems : failed) : [] };
 }
 export const finishOf = (v: unknown): Finish | null => oneOf(FINISHES, v) ?? OLD_FINISH[String(v)] ?? null;
-/** Optional sheen per changed surface, e.g. {floor: "satin"}; VICOSTONE tiles keep their own polished finish. */
+/** Optional sheen per changed surface, e.g. {floor: "satin"}, VASTA slabs included; VICOSTONE tiles keep their own polished finish. */
 export function cleanFinishes(v: unknown, changes: Record<string, string>): Partial<Record<string, Finish>> | undefined {
   if (!v || typeof v !== "object") return undefined;
   const out: Partial<Record<string, Finish>> = {};
   for (const [k, f] of Object.entries(v as Record<string, unknown>)) {
     const ok = finishOf(f);
-    if (ok && k in changes && !(k === "floor" && floorTile(changes[k])) && !slabOf(changes[k])) out[k] = ok;
+    if (ok && k in changes && !(k === "floor" && floorTile(changes[k]))) out[k] = ok;
   }
   return Object.keys(out).length ? out : undefined;
 }

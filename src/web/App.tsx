@@ -190,8 +190,8 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
   if (!meta) return <p className="helper" style={{ padding: 40 }}>{bi("Loading… · Đang tải…")}</p>;
   const isTile = (m: string) => !!meta.floorTiles?.some((x) => x.name === m);
   const slabOf = (m: string) => meta.slabs?.find((x) => x.name === m);
-  // Tiles and slabs come with their own finish, so no sheen row; their names are long, so chips show a short label.
-  const fixedFinish = (m: string) => isTile(m) || !!slabOf(m);
+  // Tiles come polished, so no sheen row; slab names are long, so chips show a short label.
+  const fixedFinish = (m: string) => isTile(m);
   const pickLabel = (m: string) => { const s = slabOf(m); return s ? slabLabel(s) : bi(m); };
   // Merged Material Swap card: one row of surfaces; "floor" switches to the floor engine, the rest to interior-material.
   const merged = spaces.includes("interior-floor") && spaces.includes("interior-material");
@@ -241,7 +241,7 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
         </label>
       )}</>
   );
-  // Sheen for the surface being edited, once a material (not a VICOSTONE tile or VASTA slab, which have their own) is picked for it.
+  // Sheen for the surface being edited, once a material (not a VICOSTONE tile, which comes polished) is picked for it.
   const finishRow = (s: string) => picks[s] && !fixedFinish(picks[s]) ? (
     <><h4>{t("Finish", "Độ bóng")} · {bi(s)}</h4><FinishPicker optional value={finishes[s]} onChange={(f) => setFinishFor(s, f)} /></>
   ) : null;
