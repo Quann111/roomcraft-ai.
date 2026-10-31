@@ -14,7 +14,7 @@ const TOOL_NAMES: Record<string, [string, string]> = {
   "interior-redesign": ["Redesign", "Thiết kế lại"], "interior-staging": ["Virtual Staging", "Bài trí ảo"], "interior-declutter": ["Furniture Removal", "Xoá đồ nội thất"],
   "interior-sketch": ["Sketch to Render", "Phác thảo → ảnh thật"], "interior-material": ["Material Swap", "Đổi vật liệu"], "interior-paint": ["Paint Visualizer", "Thử màu sơn"],
   "interior-floor": ["Floor Editor", "Chỉnh sửa sàn"], "interior-transfer": ["Design Transfer", "Chuyển phong cách"], "interior-text": ["Text to Design", "Văn bản → thiết kế"],
-  "interior-compose": ["Room Composer", "Sắp xếp phòng"], "interior-lighting": ["Day & Night Lighting", "Ánh sáng ngày & đêm"], "interior-floorplan": ["3D Floorplan", "Mặt bằng 3D"],
+  "interior-compose": ["Room Composer", "Sắp xếp phòng"], "interior-toilet": ["Viglacera Sanitaryware", "Thiết bị vệ sinh Viglacera"], "interior-lighting": ["Day & Night Lighting", "Ánh sáng ngày & đêm"], "interior-floorplan": ["3D Floorplan", "Mặt bằng 3D"],
   "interior-bizplan": ["Business 3D Floorplan", "Mặt bằng 3D doanh nghiệp"], "interior-video": ["Video Generation", "Tạo video"], "interior-critique": ["Design Critique", "Nhận xét thiết kế"],
   "interior-advisor": ["Design Advisor", "Tư vấn thiết kế"], "interior-finder": ["Furniture Finder", "Tìm nội thất"], "exterior-orient": ["Sun & Wind Analysis", "Phân tích nắng & gió"],
   "exterior-orient-render": ["Sun & Wind render", "Phân tích nắng & gió (ảnh)"], "exterior-redesign": ["Exterior Redesign", "Thiết kế lại ngoại thất"], "exterior-sky": ["Sky Colors", "Đổi màu bầu trời"],

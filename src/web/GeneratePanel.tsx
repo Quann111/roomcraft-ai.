@@ -9,7 +9,7 @@ import { OrientView, DIRS, DIR_NAMES, type Orient } from "./OrientView";
 type Meta = {
   styles: { slug: string; name: string; scope: string; thumb?: string }[];
   roomTypes: string[]; intervention: string[];
-  surfaces: Record<string, string[]>; paints: { name: string; hex: string }[]; finishes: string[]; weather: string[]; remove: string[]; angles: string[]; planViews: string[]; lockedPlanViews?: string[]; floorTiles?: { code: string; name: string; thumb: string; room?: string }[]; slabs?: Slab[]; motions: string[]; lighting: string[]; cities: string[];
+  surfaces: Record<string, string[]>; paints: { name: string; hex: string }[]; finishes: string[]; weather: string[]; remove: string[]; angles: string[]; planViews: string[]; lockedPlanViews?: string[]; floorTiles?: { code: string; name: string; thumb: string; room?: string }[]; slabs?: Slab[]; toilets?: Toilet[]; motions: string[]; lighting: string[]; cities: string[];
 };
 export type Critique = {
   room: string; style: string; score: number; summary: string; strengths: string[];
@@ -18,15 +18,17 @@ export type Critique = {
 export type Finder = { items: { name: string; category: string; description: string; query: string; localQuery: string; priceRange: string; box?: [number, number, number, number] }[] };
 type Gen = { id: string; status: string; error?: string; public?: boolean; inputUrl: string | null; outputUrl: string | null; critique?: Critique; finder?: Finder; orient?: Orient; params?: any };
 /** A VASTA ESSENTIALS slab design for the worktops or island top; `name` is its material value. Its sheen uses the finish scale. */
+/** A Viglacera toilet for the sanitaryware tool; `name` is its product value. Price and link come later. */
+export type Toilet = { code: string; name: string; type: "one-piece" | "two-piece" | "wall-hung" | "smart"; thumb: string; price?: number; url?: string };
 export type Slab = { code: string; name: string; title: string; thumb: string };
-export type Preset = Partial<{ styleSlug: string; roomType: string; intervention: string; surface: string; material: string; changes: Record<string, string>; finishes: Record<string, string>; weather: string; remove: string[]; angle: string; view: string; color: string; finish: string; description: string }>;
+export type Preset = Partial<{ styleSlug: string; roomType: string; intervention: string; surface: string; material: string; changes: Record<string, string>; finishes: Record<string, string>; product: string; weather: string; remove: string[]; angle: string; view: string; color: string; finish: string; description: string }>;
 
 export type ToolId =
   | "interior-redesign" | "interior-staging" | "interior-declutter" | "interior-sketch" | "interior-material"
-  | "interior-paint" | "interior-floor" | "interior-transfer" | "interior-text" | "interior-floorplan" | "interior-compose" | "interior-critique" | "interior-advisor" | "interior-bizplan" | "interior-finder" | "interior-video" | "exterior-orient" | "exterior-orient-render" | "interior-lighting"
+  | "interior-paint" | "interior-floor" | "interior-transfer" | "interior-text" | "interior-floorplan" | "interior-compose" | "interior-critique" | "interior-advisor" | "interior-bizplan" | "interior-finder" | "interior-video" | "exterior-orient" | "exterior-orient-render" | "interior-lighting" | "interior-toilet"
   | "exterior-redesign" | "exterior-sky" | "exterior-sketch" | "exterior-paint" | "exterior-text" | "garden-redesign" | "garden-text";
 
-type Cfg = { scope?: "interior" | "exterior" | "garden"; room?: boolean; autoRoom?: boolean; intervention?: boolean; remove?: boolean; surface?: boolean; weather?: boolean; angle?: boolean; planView?: boolean; video?: boolean; orient?: boolean; lighting?: boolean; paint?: boolean; floor?: boolean; reference?: boolean; items?: boolean; llm?: boolean; chat?: boolean; bizplan?: boolean; text?: boolean; hint: string };
+type Cfg = { scope?: "interior" | "exterior" | "garden"; room?: boolean; autoRoom?: boolean; intervention?: boolean; remove?: boolean; surface?: boolean; weather?: boolean; angle?: boolean; planView?: boolean; video?: boolean; orient?: boolean; lighting?: boolean; paint?: boolean; floor?: boolean; reference?: boolean; items?: boolean; llm?: boolean; chat?: boolean; bizplan?: boolean; text?: boolean; toilet?: boolean; hint: string };
 const CFG: Record<ToolId, Cfg> = {
   "interior-redesign": { scope: "interior", room: true, autoRoom: true, intervention: true, hint: "Room photo to redesign · Ảnh phòng cần thiết kế lại" },
   "interior-staging": { scope: "interior", room: true, hint: "Empty room photo to stage · Ảnh phòng trống cần bài trí" },
@@ -46,6 +48,7 @@ const CFG: Record<ToolId, Cfg> = {
   "interior-finder": { llm: true, hint: "Room photo or a generated design · Ảnh phòng hoặc thiết kế đã tạo" },
   "interior-critique": { llm: true, room: true, hint: "Photo of the room to review · Ảnh căn phòng cần nhận xét" },
   "interior-compose": { items: true, room: true, hint: "Photo of your room · Ảnh căn phòng của bạn" },
+  "interior-toilet": { toilet: true, hint: "Photo of the bathroom · Ảnh phòng vệ sinh" },
   "interior-floorplan": { scope: "interior", planView: true, hint: "2D floor plan image or drawing · Ảnh hoặc bản vẽ mặt bằng 2D" },
   "exterior-redesign": { scope: "exterior", angle: true, hint: "House exterior photo · Ảnh mặt ngoài ngôi nhà" },
   "exterior-sky": { weather: true, hint: "House exterior photo · Ảnh mặt ngoài ngôi nhà" },
@@ -285,6 +288,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
   const [custom, setCustom] = useState("");
   const [res, setRes] = useState("1k");
   const [remove, setRemove] = useState<string[]>(["furniture"]);
+  const [product, setProduct] = useState<string>(preset?.product ?? ""); // Viglacera toilet to install
   const [surface, setSurface] = useState("floor");
   const [material, setMaterial] = useState("");
   const [autoCheck, setAutoCheck] = useState(false); // VICOSTONE tiles and 2D -> 3D plans: optional post-check with one retry, off by default
@@ -370,7 +374,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     prepare(f, (p) => setItems((a) => (a.length >= MAX_ITEMS ? a : [...a, { file: p.file, prep: p, preview: URL.createObjectURL(p.file) }])));
   };
   const removeItem = (i: number) => setItems((a) => a.filter((_, k) => k !== i));
-  const ready = !preparing && (cfg.text ? description.trim().length >= 10 : !!file && (!cfg.reference || !!refFile) && (!cfg.items || items.length > 0) && (!cfg.orient || (!!facing && !!city)));
+  const ready = !preparing && (cfg.text ? description.trim().length >= 10 : !!file && (!cfg.reference || !!refFile) && (!cfg.items || items.length > 0) && (!cfg.toilet || !!product) && (!cfg.orient || (!!facing && !!city)));
 
   const poll = (id: string) => {
     timer.current = window.setTimeout(async () => {
@@ -413,6 +417,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
           ...(cfg.paint ? { color, finish: paintFinish } : {}),
           ...(refKey ? { refKey } : {}),
           ...(itemKeys ? { itemKeys } : {}),
+          ...(cfg.toilet ? { product, ...(autoCheck ? { autoCheck: true } : {}) } : {}),
           ...(cfg.llm ? { lang: getLang() } : {}),
           ...(cfg.weather ? { weather } : {}),
           ...(cfg.angle ? { angle } : {}),
@@ -428,7 +433,7 @@ export function useGenerator(tool: ToolId, preset: Preset | undefined, onCredits
     } catch (e: any) { setErr(e.message); setBusy(false); onCreditsChange(); }
   };
 
-  return { autoCheck, setAutoCheck, cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, view, setView, motion, setMotion, lighting, setLighting, kind, setKind, facing, setFacing, city, setCity, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, items, pickItem, removeItem, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory };
+  return { product, setProduct, autoCheck, setAutoCheck, cfg, meta, file, preview, style, setStyle, room, setRoom, lvl, setLvl, custom, setCustom, res, setRes, remove, setRemove, surface, setSurface, material, setMaterial, weather, setWeather, angle, setAngle, view, setView, motion, setMotion, lighting, setLighting, kind, setKind, facing, setFacing, city, setCity, color, setColor, paintFinish, setPaintFinish, refPreview, pickRef, items, pickItem, removeItem, prep, refPrep, preparing, ready, description, setDescription, aspect, setAspect, busy, err, gen, setGen, history, styles, pick, run, togglePublic, remove_, loadHistory };
 }
 
 export function GeneratePanel({ tool, preset, onCreditsChange }: { tool: ToolId; preset?: Preset; onCreditsChange: () => void }) {

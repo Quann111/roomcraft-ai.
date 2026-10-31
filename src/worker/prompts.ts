@@ -2,6 +2,7 @@ import excelStyles from "../../seed/styles.json" with { type: "json" };
 import { CITIES, DIRECTIONS, WINDS, exposureText, type Direction } from "./solar.ts";
 import { floorTile, TILE_BRAND, TILE_SIZE } from "./floorTiles.ts";
 import { slabOf, SLAB_BRAND, SLAB_SURFACES } from "./slabs.ts";
+import { toiletOf, TOILET_BRAND, type ToiletType } from "./toilets.ts";
 
 export type Style = { slug: string; name: string; scope: "interior" | "exterior" | "garden"; prompt: string; img?: string; photo?: string };
 
@@ -204,6 +205,67 @@ const FINISH_LOOK: Record<Finish, string> = {
 };
 const OLD_FINISH: Record<string, Finish> = { eggshell: "satin" };
 
+/** Asked of the vision model before a toilet install: is there one now, where, which way it points, what must stay around it. */
+export const BATH_SCOUT_PROMPT = `You prepare a bathroom edit that installs a new toilet. JSON only:
+{"bathroom": bool,             // the photo shows a bathroom or toilet room
+ "toilet": bool,               // a toilet is visible now
+ "toilet_now": string,         // its type and parts, e.g. "white two-piece toilet with a separate tank", or ""
+ "where": string,              // where it stands (or where a toilet belongs: water outlet, free space by a wall)
+ "wall": string,               // which wall its back is against and which way its bowl points in the picture
+ "keep": [string]}             // every object on, around or next to the toilet that must stay (brush, bidet spray, paper holder, items on the tank), with place`;
+export type BathScout = { bathroom: boolean; toilet: boolean; toilet_now: string; where: string; wall: string; keep: string[] };
+export function cleanBathScout(r: any): BathScout | null {
+  if (!r || typeof r.toilet !== "boolean") return null;
+  const str = (v: unknown) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, 160) : "");
+  return { bathroom: r.bathroom !== false, toilet: r.toilet, toilet_now: str(r.toilet_now), where: str(r.where), wall: str(r.wall),
+    keep: (Array.isArray(r.keep) ? r.keep : []).map(str).filter(Boolean).slice(0, 10) };
+}
+const TOILET_KIND: Record<ToiletType, string> = {
+  "one-piece": "a one-piece floor-standing toilet (tank and bowl in one piece)",
+  "two-piece": "a two-piece floor-standing toilet with a separate cistern tank on top of the bowl",
+  "wall-hung": "a wall-hung toilet bowl mounted on the wall with a concealed in-wall cistern and a flush plate on the wall above it",
+  smart: "a smart toilet with an integrated electronic bidet seat and controls",
+};
+/**
+ * Installs one Viglacera toilet (image 2) in a bathroom photo. Tested on 5 bathrooms with 3 models: GPT 2.5 matched the
+ * product best. It copied the product photo's three-quarter angle until told to keep the old toilet's direction (or sit
+ * square to the wall when there was none), and left the old tank in a cluttered photo until the scout named it.
+ */
+function toiletPrompt(p: any) {
+  const t = toiletOf(p.product);
+  if (!t) throw new Error("Pick a toilet model · Chọn mẫu bồn cầu");
+  const s: BathScout | undefined = p.bath;
+  return [
+    "This is an in-place edit of the first image, a bathroom photo.",
+    `The second image is a product photo of one ${TOILET_BRAND} toilet, model ${t.code}: ${TOILET_KIND[t.type]}; ${t.look}. Reproduce exactly this toilet: the same shape, tank, bowl, seat and lid, proportions, white glaze and details such as the flush button and the small blue ${TOILET_BRAND} label on it.`,
+    s && !s.toilet ? `There is no toilet yet: install the new one at ${s.where || "the natural toilet place against a wall"}.`
+      : `Remove the existing toilet completely, every part of it including its tank${s?.toilet_now ? ` (${s.toilet_now})` : ""}, and put the new one in its place${s?.where ? `: ${s.where}` : ""}.`,
+    (s && !s.toilet
+      ? `Orientation: the toilet sits square to its wall${s.wall ? ` (${s.wall})` : ""}: its back flat against that wall, its bowl pointing straight out from the wall into the room, parallel to the floor tile lines.`
+      : "Orientation: the new toilet takes exactly the old toilet's place and direction: its back against the same wall, its bowl pointing exactly the way the old bowl points in this photo.")
+      + " The product photo shows it at a three-quarter angle only to show its shape; do not copy that angle, turn the toilet to the orientation above and draw it in this photo's perspective.",
+    "Real size: a floor-standing toilet is about 70 cm deep and 75 cm tall, a wall-hung bowl about 55 cm deep with its rim about 40 cm above the floor. It stands firmly on the floor (or hangs on the wall) with a soft contact shadow and the photo's lighting and reflections.",
+    s?.keep.length ? `Keep these exactly as they are: ${s.keep.join("; ")}.` : "",
+    "Keep everything else exactly as in the photo: walls, tiles, floor, basin, shower, towels, every object, and the exact camera framing and crop. Add no other text or logo.", custom(p),
+  ].filter(Boolean).join(" ");
+}
+/** Post-check of a toilet install; images are original, result, product. */
+export const TOILET_QA_PROMPT = `You are a strict QA reviewer for an AI bathroom tool. Image 1 is the ORIGINAL photo, image 2 is the RESULT, image 3 is the product photo of the toilet that should now be installed.
+Look closely and answer JSON only:
+{"installed": bool,            // the result shows the product toilet, and nothing of an old toilet (tank, bowl) is left
+ "product_match": bool,        // its shape, tank (or no tank), bowl and seat clearly match image 3
+ "aligned": bool,              // it sits square to its wall in the room's perspective (same direction as the old toilet if there was one), not turned to the product photo's angle
+ "others_kept": bool,          // walls, tiles, basin, shower and every object around the toilet unchanged
+ "framing_same": bool,
+ "problems": [string]}         // short concrete list of anything wrong, empty if none`;
+export function toiletQaVerdict(r: any): FloorQa | null {
+  if (!r || typeof r !== "object") return null;
+  const failed = ["installed", "product_match", "aligned", "others_kept", "framing_same"].filter((k) => r[k] === false);
+  const problems = (Array.isArray(r.problems) ? r.problems : []).filter((x: unknown): x is string => typeof x === "string")
+    .map((x: string) => x.replace(/\s+/g, " ").trim().slice(0, 160)).filter(Boolean).slice(0, 4);
+  return { pass: !failed.length, failed, problems: failed.length ? (problems.length ? problems : failed) : [] };
+}
+
 /** Asked of the vision model before a VASTA slab edit; the answer names the island, the worktops and what stands on them. */
 export const KITCHEN_SCOUT_PROMPT = `You prepare a kitchen countertop edit of this photo. Look carefully and answer JSON only:
 {"island": bool,                  // a free-standing kitchen island (or peninsula counter) with a top surface is visible
@@ -307,7 +369,7 @@ export const PLAN_POLISH_PROMPT = [
 
 export const TOOL_IDS = [
   "interior-redesign", "interior-staging", "interior-declutter", "interior-sketch", "interior-material",
-  "interior-paint", "interior-floor", "interior-transfer", "interior-text", "interior-floorplan", "interior-compose", "interior-critique", "interior-finder", "interior-video", "exterior-orient", "exterior-orient-render", "interior-lighting",
+  "interior-paint", "interior-floor", "interior-transfer", "interior-text", "interior-floorplan", "interior-compose", "interior-critique", "interior-finder", "interior-video", "exterior-orient", "exterior-orient-render", "interior-lighting", "interior-toilet",
   "exterior-redesign", "exterior-sky", "exterior-sketch", "exterior-paint", "exterior-text", "garden-redesign", "garden-text",
 ] as const;
 export type ToolId = (typeof TOOL_IDS)[number];
@@ -716,6 +778,8 @@ export function buildPrompt(tool: string, p: any): string {
         `Replace only the ${SURFACE_NAME[surface] ?? surface} in this room with ${withFinish(SURFACE_LOOK[surface]?.[p.material] ?? p.material, finishOf(p.finish))}.`,
         "Keep all furniture, objects, lighting and every other surface unchanged. Match the original lighting, reflections and perspective.", custom(p), STRUCTURE_LOCK);
     }
+    case "interior-toilet":
+      return toiletPrompt(p);
     case "interior-paint":
       return join(
         `Repaint only the walls of this room in ${paintColor(p.color)}, in ${finish(p)}.`,

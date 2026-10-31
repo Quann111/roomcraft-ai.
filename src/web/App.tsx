@@ -6,6 +6,7 @@ import { ARCH } from "./icons";
 import { scenefor } from "./iso";
 import { FinishPicker } from "./FinishPicker";
 import { SlabGrid, SLAB_SURFACES, swatchDir, slabLabel } from "./SlabGrid";
+import { ToiletGrid, toiletType } from "./ToiletGrid";
 import React, { useEffect, useMemo, useState } from "react";
 import "./sxapp.css";
 import { navigate, useLocation, Link } from "./router";
@@ -48,7 +49,8 @@ const Icon = ({ n, className = "icon-svg" }: { n: string; className?: string }) 
 );
 
 /* ---------- catalog ---------- */
-const U = (id: string, w = 900) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${w}&q=80`;
+// Card photos: an Unsplash id, or a path to our own image.
+const U = (id: string, w = 900) => (id.startsWith("/") ? id : `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${w}&q=80`);
 const IMGS = ["photo-1600607688969-a5bfcd646154", "photo-1600210492486-724fe5c67fb0", "photo-1618221195710-dd6b41faaea6", "photo-1616486338812-3dadae4b4ace", "photo-1600607687939-ce8a6c25118c", "photo-1586023492125-27b2c045efd7", "photo-1600566753086-00f18fb6b3ea", "photo-1600585154340-be6161a56a0c"];
 const img = (i: number) => U(IMGS[i % IMGS.length]);
 /** Per-option thumbnails for room types and sky presets (keys match ROOM_TYPES / WEATHER in the worker). */
@@ -91,6 +93,7 @@ const TOOLS: ToolDef[] = [
   { name: "Material Swap", desc: "Replace the floor, walls, countertops, cabinets or ceiling, including VICOSTONE floor tiles, to explore different textures and finishes.", cat: "personal", photo: "photo-1749212387838-c4c4e6e58348", icon: "material", spaces: ["interior-floor", "interior-material"] },
   { name: "Paint Visualizer", desc: "Change wall colors using presets or custom colors for interiors and exteriors.", cat: "personal", photo: "photo-1562259949-e8e7689d7828", icon: "roller", spaces: ["interior-paint", "exterior-paint"] },
   { name: "Furniture Finder", desc: "Identify and get purchase links for furniture in images and generated designs.", cat: "personal", photo: "photo-1580480055273-228ff5388ef8", icon: "finder", spaces: ["interior-finder"] },
+  { name: "Viglacera Sanitaryware", desc: "Install a Viglacera toilet in a photo of your bathroom, at the right place, size and angle.", cat: "business", photo: "/examples/toilet-card.jpg", icon: "toilet", spaces: ["interior-toilet"] },
   { name: "Room Composer", desc: "Upload your room and elements, and our AI will compose it into a stylish, cohesive space.", cat: "personal", photo: "photo-1674058924341-a79eed7e9a89", icon: "composer", spaces: ["interior-compose"] },
   { name: "Design Transfer", desc: "Recreate the style of inspiration images by applying their design style to a new space.", cat: "advisor", photo: "photo-1615529182904-14819c35db37", icon: "transfer", spaces: ["interior-transfer"] },
   { name: "Text to Design", desc: "Generate complete designs from text descriptions, turning words into beautifully crafted spaces.", cat: "advisor", photo: "photo-1757344454333-cc666252e596", icon: "textdesign", spaces: ["interior-text", "exterior-text", "garden-text"] },
@@ -377,6 +380,17 @@ function Workspace({ tool: def, initialTool, preset, onCredits }: { tool: ToolDe
                   <input type="file" accept="image/*" hidden onChange={(e) => g.pickRef(e.target.files?.[0])} />
                 </label>
                 <PrepInfo p={g.refPrep} />
+              </>
+            )}
+            {cfg.toilet && !!meta.toilets?.length && (
+              <>
+                <h4>{t("Toilet model", "Mẫu bồn cầu")}{g.product ? ` · ${g.product}` : ""}</h4>
+                <ToiletGrid toilets={meta.toilets} value={g.product} pick={(n) => g.setProduct(g.product === n ? "" : n)} />
+                {(() => { const x = meta.toilets.find((y) => y.name === g.product); return x?.url ? <p className="helper"><a href={x.url} target="_blank" rel="noreferrer">{t("Product page", "Trang sản phẩm")}</a></p> : null; })()}
+                <label className="switch" style={{ display: "flex", marginTop: 10, alignItems: "flex-start", gap: 8 }}>
+                  <input type="checkbox" checked={g.autoCheck} onChange={(e) => g.setAutoCheck(e.target.checked)} />
+                  <span>{t("Auto-check the result: if the toilet is turned wrong, does not match the model or parts of the old one remain, redo it once (no extra credit)", "Tự kiểm tra kết quả: nếu bồn cầu bị xoay lệch, không giống mẫu hoặc còn sót bồn cũ thì tự tạo lại 1 lần (không tốn thêm credit)")}</span>
+                </label>
               </>
             )}
             {cfg.items && (
